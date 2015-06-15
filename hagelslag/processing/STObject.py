@@ -1,0 +1,475 @@
+import numpy as np
+from skimage.measure import regionprops
+from skimage.segmentation import find_boundaries
+from skimage.morphology import convex_hull_image
+import json
+
+
+class STObject(object):
+    """
+    The STObject stores data and location information for objects extracted from the ensemble grids.
+    
+    :param grid: All of the data values. Supports a 2D array of values, a list of 2D arrays, or a 3D array.
+    :type grid: Numpy array or list of Numpy arrays.
+    :param mask: Grid of 1's and 0's in which 1's indicate the location of the object.
+    :type mask: Same as grid.
+    :param x: Array of x-coordinate values in meters. Longitudes can also be placed here.
+    :type x: Numpy float array.
+    :param y: Array of y-coordinate values in meters. Latitudes can also be placed here.
+    :type y: Numpy float array.
+    :param i: Array of row indices from the full model domain.
+    :type i: Numpy int array
+    :param j: Array of row indices from the full model domain.
+    :type j: Numpy int array
+    :param start_time: The first time of the object existence.
+    :type start_time: int
+    :param end_time: The last time of the object existence.
+    :type end_time: int
+    :param step: number of hours between timesteeps
+    :param dx: grid spacing
+    :param u: storm motion in x-direction
+    :param v: storm motion in y-direction
+    """
+
+    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
+        if hasattr(grid, "shape") and len(grid.shape) == 2:
+            self.timesteps = [grid]
+            self.masks = [mask]
+            self.x = [x]
+            self.y = [y]
+            self.i = [i]
+            self.j = [j]
+        elif hasattr(grid, "shape") and len(grid.shape) > 2:
+            self.timesteps = []
+            self.masks = []
+            self.x = []
+            self.y = []
+            self.i = []
+            self.j = []
+            for l in range(grid.shape[0]):
+                self.timesteps.append(grid[l])
+                self.masks.append(mask[l])
+                self.x.append(x[l])
+                self.y.append(y[l])
+                self.i.append(i[l])
+                self.j.append(j[l])
+        else:
+            self.timesteps = grid
+            self.masks = mask
+            self.x = x
+            self.y = y
+            self.i = i
+            self.j = j
+        if u is not None and v is not None:
+            self.u = u
+            self.v = v
+        else:
+            self.u = np.zeros(len(self.timesteps))
+            self.v = np.zeros(len(self.timesteps))
+        self.dx = dx
+        self.start_time = start_time
+        self.end_time = end_time
+        self.step = step
+        self.times = np.arange(start_time, end_time + step, step)
+        self.attributes = {}
+        self.observations = None
+
+    def __str__(self):
+        com_x, com_y = self.center_of_mass(self.start_time)
+        data = dict(maxsize=self.max_size(), comx=com_x, comy=com_y, start=self.start_time, end=self.end_time)
+        return "ST Object [maxSize=%(maxsize)d,initialCenter=%(comx)0.2f,%(comy)0.2f,duration=%(start)02d-%(end)02d]" %\
+               data
+
+    def center_of_mass(self, time):
+        """
+        Calculate the center of mass at a given timestep.
+
+        :param time: Time at which the center of mass calculation is performed
+        :return: The x- and y-coordinates of the center of mass.
+        """
+        if self.start_time <= time <= self.end_time:
+            diff = time - self.start_time
+            valid = np.flatnonzero(self.masks[diff] != 0)
+            if valid.size > 0:
+                com_x = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
+                                                                                 self.x[diff].ravel()[valid])
+                com_y = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
+                                                                                 self.y[diff].ravel()[valid])
+            else:
+                com_x = np.mean(self.x[diff])
+                com_y = np.mean(self.y[diff])
+        else:
+            com_x = None
+            com_y = None
+        return com_x, com_y
+
+    def closest_distance(self, time, other_object, other_time):
+        ti = np.where(self.times == time)[0]
+        oti = np.where(other_object.times == other_time)[0]
+        xs = self.x[ti][self.masks[ti] == 1]
+        xs = xs.reshape(xs.size, 1)
+        ys = self.y[ti][self.masks[ti] == 1]
+        ys = ys.reshape(ys.size, 1)
+        o_xs = other_object.x[oti][other_object.masks[oti] == 1]
+        o_xs = o_xs.reshape(1, o_xs.size)
+        o_ys = other_object.y[oti][other_object.masks[oti] == 1]
+        o_ys = o_ys.reshape(1, o_ys.size)
+        distances = (xs - o_xs) ** 2 + (ys - o_ys) ** 2
+        return np.sqrt(distances.min())
+
+    def percentile_distance(self, time, other_object, other_time, percentile):
+        ti = np.where(self.times == time)[0]
+        oti = np.where(other_object.times == other_time)[0]
+        xs = self.x[ti][self.masks[ti] == 1]
+        xs = xs.reshape(xs.size, 1)
+        ys = self.y[ti][self.masks[ti] == 1]
+        ys = ys.reshape(ys.size, 1)
+        o_xs = other_object.x[oti][other_object.masks[oti] == 1]
+        o_xs = o_xs.reshape(1, o_xs.size)
+        o_ys = other_object.y[oti][other_object.masks[oti] == 1]
+        o_ys = o_ys.reshape(1, o_ys.size)
+        distances = (xs - o_xs) ** 2 + (ys - o_ys) ** 2
+        return np.sqrt(np.percentile(distances, percentile))
+
+    def trajectory(self):
+        traj = np.zeros((2, self.times.size))
+        for t, time in enumerate(self.times):
+            traj[:, t] = self.center_of_mass(time)
+        return traj
+
+    def get_corner(self, time):
+        """
+        Gets the corner array indices of the STObject at a given time that corresponds 
+        to the upper left corner of the bounding box for the STObject.
+
+        :param time: time at which the corner is being extracted.
+        :return:  
+        """
+        if self.start_time <= time <= self.end_time:
+            diff = time - self.start_time
+            return self.i[diff][0, 0], self.j[diff][0, 0]
+        else:
+            return -1, -1
+
+    def size(self, time):
+        """
+        Gets the size of the object at a given time.
+        
+        :param time: Time value being queried.
+        :return: size of the object in pixels
+        """
+        if self.start_time <= time <= self.end_time:
+            return self.masks[time - self.start_time].sum()
+        else:
+            return 0
+
+    def max_size(self):
+        """
+        Gets the largest size of the object over all timesteps.
+        
+        :return: Maximum size of the object in pixels
+        """
+        sizes = np.array([m.sum() for m in self.masks])
+        return sizes.max()
+
+    def max_intensity(self, time):
+        """
+        Calculate the maximum intensity found at a timestep.
+
+        """
+        ti = np.where(time == self.times)[0]
+        return self.timesteps[ti].max()
+
+    def extend(self, step):
+        """
+        Adds the data from another STObject to this object.
+        
+        :param step: another STObject being added after the current one in time.
+        """
+        self.timesteps.extend(step.timesteps)
+        self.masks.extend(step.masks)
+        self.x.extend(step.x)
+        self.y.extend(step.y)
+        self.i.extend(step.i)
+        self.j.extend(step.j)
+        self.end_time = step.end_time
+        self.times = np.arange(self.start_time, self.end_time + self.step, self.step)
+        self.u = np.concatenate((self.u, step.u))
+        self.v = np.concatenate((self.v, step.v))
+        for attr in self.attributes.keys():
+            if attr in step.attributes.keys():
+                self.attributes[attr].extend(step.attributes[attr])
+
+    def boundary_polygon(self, time):
+        """
+        Get coordinates of object boundary in counter-clockwise order
+        """
+        ti = np.where(time == self.times)[0]
+        com_x, com_y = self.center_of_mass(time)
+        boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
+        boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
+        boundary_y = self.y[ti].ravel()[boundary_image.ravel()]
+        r = np.sqrt((boundary_x - com_x) ** 2 + (boundary_y - com_y) ** 2)
+        theta = np.arctan2((boundary_y - com_y), (boundary_x - com_x)) * 180.0 / np.pi + 360
+        polar_coords = np.array([(r[x], theta[x]) for x in range(r.size)], dtype=[('r', 'f4'), ('theta', 'f4')])
+        coord_order = np.argsort(polar_coords, order=['theta', 'r'])
+        ordered_coords = np.vstack([boundary_x[coord_order], boundary_y[coord_order]])
+        return ordered_coords
+
+    def estimate_motion(self, time, intensity_grid, max_u, max_v):
+        ti = np.where(time == self.times)[0]
+        i_vals = self.i[ti][self.masks[ti] == 1]
+        j_vals = self.j[ti][self.masks[ti] == 1]
+        obj_vals = self.timesteps[ti][self.masks[ti] == 1]
+        u_shifts = np.arange(-max_u, max_u + 1)
+        v_shifts = np.arange(-max_v, max_v + 1)
+        min_error = 99999999999.0
+        best_u = 0
+        best_v = 0
+        for u in u_shifts:
+            j_shift = j_vals - u
+            for v in v_shifts:
+                i_shift = i_vals - v
+                shift_vals = intensity_grid[i_shift, j_shift]
+                error = np.abs(shift_vals - obj_vals).mean()
+                if error < min_error:
+                    min_error = error
+                    best_u = u * self.dx
+                    best_v = v * self.dx
+        if min_error > 60:
+            best_u = 0
+            best_v = 0
+        self.u[ti] = best_u
+        self.v[ti] = best_v
+        return best_u, best_v, min_error
+
+    def count_overlap(self, time, other_object, other_time):
+        """
+        Counts the number of points that overlap between this STObject and another STObject. Used for tracking.
+        """
+        ti = np.where(time == self.times)[0]
+        oti = np.where(other_time == other_object.times)[0]
+        obj_coords = np.zeros(self.masks[ti].sum(), dtype=[('x', int), ('y', int)])
+        other_obj_coords = np.zeros(other_object.masks[oti].sum(), dtype=[('x', int), ('y', int)])
+        obj_coords['x'] = self.i[ti][self.masks[ti] == 1]
+        obj_coords['y'] = self.j[ti][self.masks[ti] == 1]
+        other_obj_coords['x'] = other_object.i[oti][other_object.masks[oti] == 1]
+        other_obj_coords['y'] = other_object.j[oti][other_object.masks[oti] == 1]
+        return float(np.intersect1d(obj_coords,
+                                    other_obj_coords).size) / np.maximum(self.masks[ti].sum(),
+                                                                         other_object.masks[oti].sum())
+
+    def extract_attribute_grid(self, model_grid, potential=False):
+        """
+        Extracts the data from an SSEFModelGrid or SSEFModelSubset within the bounding box region of the STObject.
+        
+        :param model_grid: A ModelGrid Object
+        """
+        self.attributes[model_grid.varName] = []
+        if potential:
+            timesteps = np.arange(self.start_time - 1, self.end_time)
+        else:
+            timesteps = np.arange(self.start_time, self.end_time + 1)
+        for ti, t in enumerate(timesteps):
+            self.attributes[model_grid.varName].append(
+                model_grid.data[t - model_grid.startHour, self.i[ti], self.j[ti]])
+
+    def calc_attribute_statistics(self, statistic_name):
+        """
+        Calculates summary statistics over the domains of each attribute.
+        
+        :param statistic_name: (string) numpy statistic
+        :return: dict of statistics from each attribute grid.
+        """
+        stats = {}
+        for var, grids in self.attributes.iteritems():
+            if len(grids) > 1:
+                stats[var] = getattr(np.array([getattr(np.ma.array(x, mask=self.masks[t] == 0), statistic_name)()
+                                               for t, x in enumerate(grids)]), statistic_name)()
+            else:
+                stats[var] = getattr(np.ma.array(grids[0], mask=self.masks[0] == 0), statistic_name)()
+        return stats
+
+    def calc_attribute_statistic(self, attribute, statistic, time):
+        ti = np.where(self.times == time)[0]
+        if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
+            stat_val = getattr(self.attributes[attribute][ti][self.masks[ti] == 1], statistic)()
+        elif statistic == 'median':
+            stat_val = np.median(self.attributes[attribute][ti][self.masks[ti] == 1])
+        elif 'percentile' in statistic:
+            per = int(statistic.split("_")[1])
+            stat_val = np.percentile(self.attributes[attribute][ti][self.masks[ti] == 1], per)
+        elif 'dt' in statistic:
+            stat_name = statistic[:-3]
+            if ti == 0:
+                stat_val = 0
+            else:
+                stat_val = self.calc_attribute_statistic(attribute, stat_name, time) \
+                    - self.calc_attribute_statistic(attribute, stat_name, time - 1)
+        else:
+            stat_val = np.nan
+        return stat_val
+
+    def calc_timestep_statistic(self, statistic, time):
+        ti = np.where(self.times == time)[0]
+        if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
+            stat_val = getattr(self.timesteps[ti][self.masks[ti] == 1], statistic)()
+        elif statistic == 'median':
+            stat_val = np.median(self.timesteps[ti][self.masks[ti] == 1])
+        elif 'percentile' in statistic:
+            per = int(statistic.split("_")[1])
+            stat_val = np.percentile(self.timesteps[ti][self.masks[ti] == 1], per)
+        elif 'dt' in statistic:
+            stat_name = statistic[:-3]
+            if ti == 0:
+                stat_val = 0
+            else:
+                stat_val = self.calc_timestep_statistic(stat_name, time) -\
+                    self.calc_timestep_statistic(stat_name, time - 1)
+        else:
+            stat_val = np.nan
+        return stat_val
+
+    def calc_shape_statistics(self, stat_names):
+        """
+        Calculate shape statistics using regionprops applied to the object mask.
+        
+        :param stat_names: List of statistics to be extracted from those calculated by regionprops.
+        """
+        stats = {}
+        try:
+            all_props = [regionprops(m) for m in self.masks]
+        except TypeError:
+            print self.masks
+            exit()
+        for stat in stat_names:
+            stats[stat] = np.mean([p[0][stat] for p in all_props])
+        return stats
+
+    def to_geojson(self, filename, proj, metadata=dict()):
+        json_obj = {"type": "FeatureCollection", "features": [], "properties": {}}
+        json_obj['properties']['times'] = self.times.tolist()
+        for k, v in metadata.iteritems():
+            json_obj['properties'][k] = v
+        for t, time in enumerate(self.times):
+            feature = {"type": "Feature",
+                       "geometry": {"type": "Polygon"},
+                       "properties": {}}
+            boundary_coords = self.boundary_polygon(time)
+            lonlat = np.vstack(proj(boundary_coords[0], boundary_coords[1], inverse=True))
+            feature["geometry"]["coordinates"] = lonlat.T.tolist()
+            for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
+                feature["properties"][attr] = getattr(self, attr)[t].tolist()
+            feature["properties"]["attributes"] = {}
+            for attr_name, steps in self.attributes.iteritems():
+                feature["properties"]["attributes"][attr_name] = steps[t].tolist()
+            json_obj['features'].append(feature)
+        with open(filename, "w") as file_obj:
+            json.dump(json_obj, file_obj, indent=1, sort_keys=True)
+        return
+
+
+def findSpatialRelationships(rtype, graphid, member, neighborhoodObj, graphObjects):
+    neighbor_relations = []
+    sourceId = graphid + "_neighborhood_" + member
+    for variable in graphObjects.keys():
+        for objNum, obj in graphObjects[variable][member].iteritems():
+            targetId = graphid + "_" + variable + "_object_" + member + "_%03d" % objNum
+            start = obj.startTime
+            end = obj.endTime
+            com1 = []
+            com2 = []
+            for t in range(start, end + 1):
+                com1.append(neighborhoodObj.centerOfMass(t))
+                com2.append(obj.centerOfMass(t))
+            com1 = np.array(com1).reshape(end - start + 1, 2)
+            com2 = np.array(com2).reshape(end - start + 1, 2)
+            distances = calcDistances(com1[:, 0], com1[:, 1], com2[:, 0], com2[:, 1])
+            neighbor_relations.append(SpatialRelationship("nearby", sourceId, targetId, start, end, distances))
+    return neighbor_relations
+
+
+def findNearbyRelationships(graphid, member, gridpointObject, stormObjects):
+    nearbyRelationships = []
+    sourceId = gridpointObject.objId
+
+    for s, stormObject in stormObjects.iteritems():
+        targetId = graphid + "_storm_" + member + "_%03d" % s
+        start = stormObject.startTime
+        end = stormObject.endTime
+        stormCoM = [stormObject.centerOfMass(t) for t in range(start, end + 1)]
+        stormCoM = np.array(stormCoM).reshape(end - start + 1, 2)
+        attributes = calcDistances(gridpointObject.x, gridpointObject.y, stormCoM[:, 0], stormCoM[:, 1])
+        nearbyRelationships.append(SpatialRelationship("nearby", sourceId, targetId, start, end, attributes))
+    return nearbyRelationships
+
+
+def findNearbyStormRelationships(graphid, member, stormObjects):
+    stormKeys = stormObjects.keys()
+    nearbyStormRelationships = []
+    for i, source in enumerate(stormKeys[:-1]):
+        sourceId = graphid + "_storm_" + member + "_%03d" % source
+        for target in stormKeys[i + 1:]:
+            timeIntersect = np.intersect1d(np.arange(stormObjects[source].startTime,
+                                                     stormObjects[source].endTime + 1),
+                                           np.arange(stormObjects[target].startTime,
+                                                     stormObjects[target].endTime + 1))
+            if timeIntersect.shape[0] > 0:
+                targetId = graphid + "_storm_" + member + "_%03d" % target
+                start = timeIntersect.min()
+                end = timeIntersect.max()
+                comSource = np.empty((end - start + 1, 2))
+                comTarget = np.empty((end - start + 1, 2))
+                for ti, t in enumerate(range(start, end + 1)):
+                    comSource[ti, :] = stormObjects[source].centerOfMass(t)
+                    comTarget[ti, :] = stormObjects[target].centerOfMass(t)
+                attributes = calcDistances(comSource[:, 0], comSource[:, 1], comTarget[:, 0], comTarget[:, 1])
+                nearbyStormRelationships.append(SpatialRelationship("nearbystorm",
+                                                                    sourceId,
+                                                                    targetId,
+                                                                    start,
+                                                                    end,
+                                                                    attributes))
+    return nearbyStormRelationships
+
+
+def calcDistances(x1, y1, x2, y2):
+    distances = {}
+    xDistSq = (x1 - x2) ** 2
+    yDistSq = (y1 - y2) ** 2
+    distances["distance"] = np.sqrt(xDistSq + yDistSq)
+    xDist = x2 - x1
+    yDist = y2 - y1
+    azimuth = np.arctan2(xDist, yDist)
+    azimuth[azimuth < 0] += 360
+    distances["north-distance"] = yDist
+    distances["east-distance"] = xDist
+    distances["direction"] = azimuth
+    return distances
+
+
+def calcDistancesArray(x1, y1, x2, y2):
+    distances = np.zeros(3)
+    xDistSq = (x1 - x2) ** 2
+    yDistSq = (y1 - y2) ** 2
+    distances[0] = np.sqrt(xDistSq + yDistSq)
+    xDist = x2 - x1
+    yDist = y2 - y1
+    distances[1] = yDist
+    distances[2] = xDist
+    return distances
+
+
+class SpatialRelationship(object):
+    def __init__(self, rel_type, source_id, target_id, start_time, end_time, attributes):
+        self.rel_type = rel_type
+        self.rel_id = self.rel_type + "_" + source_id + "_" + target_id
+        self.source_id = source_id
+        self.target_id = target_id
+        self.start_time = start_time
+        self.end_time = end_time
+        self.attributes = attributes
+        return
+
+    def __str__(self):
+        return self.rel_id + " start=%02d end=%02d" % (self.start_time, self.end_time)
