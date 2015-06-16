@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+import argparse
+from multiprocessing import Pool
+from hagelslag.util.Config import Config
+
+
+
+def main():
+    parser = argparse.ArgumentParser("Hagelslag Data Processor")
+    parser.add_argument("config", help="Configuration file")
+    parser.add_argument("-p", "--proc", type=int, default=1,
+                        help="Number of processors")
+    args = parser.parse_args()
+    required = ['dates', 'start_hour', 'end_hour', 'ensemble_members', 
+               'watershed_variable', 'model_path', "ensemble_name",
+               'model_watershed_params', 'object_matcher_params', 
+               'track_matcher_params', 'size_filter', 'gaussian_window',
+               'mesh_path', 'mesh_watershed_params', 
+               'storm_variables', 'potential_variables', 
+               'variable_statistics',
+               'csv_path', 'geojson_path', 'train', 'proj']
+    config = Config(args.config)
+    if args.proc > 1:
+        pool = Pool(args.proc)
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                pool.apply_async(process_ensemble_member, (run_date, member, config))
+        pool.close()
+        pool.join()
+    else:
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                apply(process_ensemble_member, (run_date, member, config))
+    return
+
+def process_ensemble_member(run_date, member, config):
+    return
+
+if __name__ == "__main__":
+    main()
