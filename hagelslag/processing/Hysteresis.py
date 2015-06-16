@@ -1,37 +1,5 @@
-if __name__ == "__main__":
-    import matplotlib
-
-    matplotlib.use('agg')
 import numpy as np
 from scipy.ndimage import label, maximum, gaussian_filter, find_objects
-
-
-def main():
-    from data.SSEFModelGrid import SSEFModelGrid
-    import matplotlib.pyplot as plt
-
-    min_hour = 21
-    max_hour = 23
-    data = SSEFModelGrid("/sharp/djgagne/spring2013/", "wrf-s4cn_arw", "20130520", min_hour, max_hour, "cqgmax")
-    fig_path = "/sharp/djgagne/ew_test_figures/"
-    low_thresh = 8
-    high_thresh = 15
-    size_thresh = 10
-    hyst = Hysteresis(low_thresh, high_thresh)
-    for hour in range(min_hour, max_hour + 1):
-        print "Labeling {0:02d}".format(hour)
-        labels = hyst.size_filter(hyst.label(gaussian_filter(data.data[hour - min_hour], 1)), size_thresh)
-        print "There are {0:d} objects.".format(labels.max())
-        cmap = matplotlib.colors.ListedColormap(np.random.rand(labels.max(), 3))
-        plt.figure(figsize=(10, 6))
-        data.basemap.drawstates()
-        data.basemap.drawcoastlines()
-        data.basemap.drawcountries()
-        plt.pcolormesh(data.x, data.y, np.ma.array(labels, mask=labels == 0), vmin=1, vmax=labels.max(), cmap=cmap)
-        plt.title("Hysteresis F{0:02d}".format(hour))
-        plt.savefig(fig_path + "hysteresis_{0:02d}.png".format(hour), dpi=200, bbox_inches="tight")
-        plt.close()
-    return
 
 
 class Hysteresis(object):
@@ -93,7 +61,3 @@ class Hysteresis(object):
                 out_grid[np.nonzero(labeled_grid == i + 1)] = j
                 j += 1
         return out_grid
-
-
-if __name__ == "__main__":
-    main()

@@ -1,5 +1,5 @@
-from data.SSEFModelGrid import SSEFModelGrid
-from data.MESHGrid import MESHInterpolatedGrid
+from hagelslag.data.SSEFModelGrid import SSEFModelGrid
+from hagelslag.data.MRMSGrid import MRMSGrid
 from EnhancedWatershedSegmenter import EnhancedWatershed
 from ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
@@ -30,8 +30,9 @@ class TrackProcessor(object):
     :param track_matcher_params: tuple of parameters for TrackMatcher.
     :param size_filter: minimum size of model objects
     :param gaussian_window: number of grid points
-    :param mesh_path: Path to MESH files
-    :param mesh_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
+    :param mrms_path: Path to MRMS netCDF files
+    :param mrms_variable: MRMS variable being used
+    :param mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
     """
     def __init__(self,
                  run_date,
@@ -45,8 +46,9 @@ class TrackProcessor(object):
                  track_matcher_params,
                  size_filter,
                  gaussian_window,
-                 mesh_path=None,
-                 mesh_watershed_params=None
+                 mrms_path=None,
+                 mrms_variable=None,
+                 mrms_watershed_params=None
                  ):
         self.run_date = run_date
         self.start_date = start_date
@@ -62,7 +64,7 @@ class TrackProcessor(object):
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
         self.model_path = model_path
-        self.mesh_path = mesh_path
+        self.mrms_path = mrms_path
         self.model_grid = SSEFModelGrid(self.model_path,
                                         self.ensemble_member,
                                         self.run_date.strftime("%Y%m%d"),
@@ -70,12 +72,14 @@ class TrackProcessor(object):
                                         self.end_hour,
                                         self.variable
                                         )
-        if self.mesh_path is not None:
-            self.mesh_grid = MESHInterpolatedGrid(self.start_date, self.end_date, self.mesh_path)
-            self.mesh_ew = EnhancedWatershed(*mesh_watershed_params)
+        if self.mrms_path is not None:
+            self.mrms_variable = mrms_variable
+            self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
+            self.mrms_grid.load_data()
+            self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
         else:
-            self.mesh_grid = None
-            self.mesh_ew = None
+            self.mrms_grid = None
+            self.mrms_ew = None
         return
     
     def find_model_tracks(self):
@@ -127,17 +131,17 @@ class TrackProcessor(object):
 
         return tracked_model_objects
 
-    def find_mesh_tracks(self):
+    def find_mrms_tracks(self):
         """
-        Identify objects from MESH timesteps and link them together with object matching.
+        Identify objects from MRMS timesteps and link them together with object matching.
 
         :return: list of STObjects containing MESH track information.
         """
         obs_objects = []
         tracked_obs_objects = []
-        if self.mesh_ew is not None:
+        if self.mrms_ew is not None:
             for h, hour in enumerate(self.hours):
-                hour_labels = self.mesh_ew.size_filter(self.mesh_ew.label(gaussian_filter(self.mesh_grid.MESH[h],
+                hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(self.mrms_grid.data[h],
                                                                                           self.gaussian_window)),
                                                        self.size_filter)
                 obj_slices = find_objects(hour_labels)
@@ -145,7 +149,7 @@ class TrackProcessor(object):
                 obs_objects.append([])
                 if num_slices > 0:
                     for sl in obj_slices:
-                        obs_objects[-1].append(STObject(self.mesh_grid.MESH[h][sl],
+                        obs_objects[-1].append(STObject(self.mrms_grid.data[h][sl],
                                                         np.where(hour_labels[sl] > 0, 1, 0),
                                                         self.model_grid.x[sl],
                                                         self.model_grid.y[sl],

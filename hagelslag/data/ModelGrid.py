@@ -1,13 +1,25 @@
 from netCDF4 import Dataset
 import numpy as np
-
+from pandas import DatetimeIndex, Timestamp
 
 class ModelGrid(object):
     """
     Base class for reading 2D model output grids from netCDF files.
     """
-    def __init__(self, filenames):
+    def __init__(self, 
+                 filenames, 
+                 run_date, 
+                 start_date, 
+                 end_date,
+                 frequency="1H"):
         self.filenames = filenames
+        self.run_date = Timestamp(run_date)
+        self.start_date = Timestamp(start_date)
+        self.end_date = Timestamp(end_date)
+        self.frequency = frequency
+        self.valid_dates = DatetimeIndex(start=self.start_date,
+                                         end=self.end_date,
+                                         freq=self.frequency)
         self.file_objects = []
 
     def __enter__(self):
