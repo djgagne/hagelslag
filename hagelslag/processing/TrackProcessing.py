@@ -1,4 +1,4 @@
-from hagelslag.data.SSEFModelGrid import SSEFModelGrid
+from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
 from EnhancedWatershedSegmenter import EnhancedWatershed
 from ObjectMatcher import ObjectMatcher, TrackMatcher
@@ -7,10 +7,7 @@ from STObject import STObject
 import numpy as np
 from scipy.interpolate import interp1d
 import pandas as pd
-
-
-def main():
-    return
+from datetime import timedelta
 
 
 class TrackProcessor(object):
@@ -22,9 +19,11 @@ class TrackProcessor(object):
     :param run_date: Datetime model run was initialized
     :param start_date: Datetime for the beginning of storm extraction.
     :param end_date: Datetime for the ending of storm extraction.
+    :param ensemble_name: Name of the ensemble being used.
     :param ensemble_member: name of the ensemble member being used.
     :param variable: model variable being used for extraction.
     :param model_path: path to the ensemble output.
+    :param model_map_file: File containing model map projection information.
     :param model_watershed_params: tuple of parameters used for EnhancedWatershed
     :param object_matcher_params: tuple of parameters used for ObjectMatcher.
     :param track_matcher_params: tuple of parameters for TrackMatcher.
@@ -38,9 +37,11 @@ class TrackProcessor(object):
                  run_date,
                  start_date,
                  end_date,
+                 ensemble_name,
                  ensemble_member,
                  variable,
                  model_path,
+                 model_map_file,
                  model_watershed_params,
                  object_matcher_params,
                  track_matcher_params,
@@ -48,14 +49,15 @@ class TrackProcessor(object):
                  gaussian_window,
                  mrms_path=None,
                  mrms_variable=None,
-                 mrms_watershed_params=None
-                 ):
+                 mrms_watershed_params=None,
+                 single_step=True):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
         self.start_hour = int((self.start_date - self.run_date).total_seconds()) / 3600
         self.end_hour = int((self.end_date - self.run_date).total_seconds()) / 3600
         self.hours = range(self.start_hour, self.end_hour + 1)
+        self.ensemble_name = ensemble_name
         self.ensemble_member = ensemble_member
         self.variable = variable
         self.model_ew = EnhancedWatershed(*model_watershed_params)
@@ -65,13 +67,11 @@ class TrackProcessor(object):
         self.gaussian_window = gaussian_window
         self.model_path = model_path
         self.mrms_path = mrms_path
-        self.model_grid = SSEFModelGrid(self.model_path,
-                                        self.ensemble_member,
-                                        self.run_date.strftime("%Y%m%d"),
-                                        self.start_hour,   
-                                        self.end_hour,
-                                        self.variable
-                                        )
+        self.single_step = single_step
+        self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
+                                      self.start_date, self.end_date, self.model_path, single_step=self.single_step)
+        self.model_grid.load_data()
+        self.model_grid.load_map_info(model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
@@ -201,27 +201,21 @@ class TrackProcessor(object):
         """
         for storm_var in storm_variables:
             print storm_var, self.ensemble_member, self.run_date
-            storm_grid = SSEFModelGrid(self.model_path, 
-                                       self.ensemble_member,
-                                       self.run_date.strftime("%Y%m%d"),
-                                       self.start_hour,
-                                       self.end_hour,
-                                       storm_var,
-                                       loadMap=False)
-            storm_grid.close()
+            storm_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
+                                     self.run_date, storm_var, self.start_date, self.end_date,
+                                     self.model_path, self.single_step)
+            storm_grid.load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(storm_grid)
 
         for potential_var in potential_variables:
             print potential_var, self.ensemble_member, self.run_date
-            potential_grid = SSEFModelGrid(self.model_path,
-                                           self.ensemble_member,
-                                           self.run_date.strftime("%Y%m%d"),
-                                           self.start_hour - 1,
-                                           self.end_hour - 1,
-                                           potential_var,
-                                           loadMap=False)
-            potential_grid.close()
+            potential_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
+                                         self.run_date, potential_var,
+                                         self.start_date - timedelta(hours=1),
+                                         self.end_date - timedelta(hours=1),
+                                         self.model_path, self.single_step)
+            potential_grid.load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(potential_grid, potential=True)
 
@@ -289,5 +283,4 @@ class TrackProcessor(object):
             track_errors.loc[pair[0], 'end_time_difference'] = model_track.end_time - obs_track.end_time 
         return track_errors
 
-if __name__ == "__main__":
-    main()
+

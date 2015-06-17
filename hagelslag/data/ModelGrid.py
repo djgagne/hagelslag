@@ -11,15 +11,18 @@ class ModelGrid(object):
                  run_date, 
                  start_date, 
                  end_date,
+                 variable,
                  frequency="1H"):
         self.filenames = filenames
-        self.run_date = Timestamp(run_date)
-        self.start_date = Timestamp(start_date)
-        self.end_date = Timestamp(end_date)
+        self.variable = variable
+        self.run_date = np.datetime64(run_date)
+        self.start_date = np.datetime64(start_date)
+        self.end_date = np.datetime64(end_date)
         self.frequency = frequency
         self.valid_dates = DatetimeIndex(start=self.start_date,
                                          end=self.end_date,
                                          freq=self.frequency)
+        self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
 
     def __enter__(self):
@@ -34,7 +37,7 @@ class ModelGrid(object):
                 print("Warning: File {0} not found.".format(filename))
                 self.file_objects.append(None)
 
-    def load_data(self, variable):
+    def load_data(self):
         """
         Loads time series of 2D data grids from each opened file. The code 
         handles loading a full time series from one file or individual time steps
@@ -43,17 +46,17 @@ class ModelGrid(object):
         :param variable: Name of the variable being loaded
         """
         if len(self.file_objects) == 1 and self.file_objects[0] is not None:
-            data = self.file_objects[0].variables[variable][:]
+            data = self.file_objects[0].variables[self.variable][self.forecast_hours]
         elif len(self.file_objects) > 1:
-            grid_shape = [len(file_objects), 1, 1]
+            grid_shape = [len(self.file_objects), 1, 1]
             for file_object in self.file_objects:
                 if file_object is not None:
-                    grid_shape = file_object.variables[variable].shape
+                    grid_shape = file_object.variables[self.variable].shape
                     break
             data = np.zeros((len(self.file_objects), grid_shape[1], grid_shape[2]))
             for f, file_object in self.file_objects:
                 if file_object is not None:
-                    data[f] = file_object.variables[variable][0]
+                    data[f] = file_object.variables[self.variable][0]
         else:
             data = None
         return data

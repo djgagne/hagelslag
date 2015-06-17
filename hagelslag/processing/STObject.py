@@ -74,6 +74,7 @@ class STObject(object):
         self.attributes = {}
         self.observations = None
 
+    @property
     def __str__(self):
         com_x, com_y = self.center_of_mass(self.start_time)
         data = dict(maxsize=self.max_size(), comx=com_x, comy=com_y, start=self.start_time, end=self.end_time)
@@ -272,7 +273,7 @@ class STObject(object):
             timesteps = np.arange(self.start_time, self.end_time + 1)
         for ti, t in enumerate(timesteps):
             self.attributes[model_grid.varName].append(
-                model_grid.data[t - model_grid.startHour, self.i[ti], self.j[ti]])
+                model_grid.data[t - model_grid.start_hour, self.i[ti], self.j[ti]])
 
     def calc_attribute_statistics(self, statistic_name):
         """
@@ -369,107 +370,3 @@ class STObject(object):
         return
 
 
-def findSpatialRelationships(rtype, graphid, member, neighborhoodObj, graphObjects):
-    neighbor_relations = []
-    sourceId = graphid + "_neighborhood_" + member
-    for variable in graphObjects.keys():
-        for objNum, obj in graphObjects[variable][member].iteritems():
-            targetId = graphid + "_" + variable + "_object_" + member + "_%03d" % objNum
-            start = obj.startTime
-            end = obj.endTime
-            com1 = []
-            com2 = []
-            for t in range(start, end + 1):
-                com1.append(neighborhoodObj.centerOfMass(t))
-                com2.append(obj.centerOfMass(t))
-            com1 = np.array(com1).reshape(end - start + 1, 2)
-            com2 = np.array(com2).reshape(end - start + 1, 2)
-            distances = calcDistances(com1[:, 0], com1[:, 1], com2[:, 0], com2[:, 1])
-            neighbor_relations.append(SpatialRelationship("nearby", sourceId, targetId, start, end, distances))
-    return neighbor_relations
-
-
-def findNearbyRelationships(graphid, member, gridpointObject, stormObjects):
-    nearbyRelationships = []
-    sourceId = gridpointObject.objId
-
-    for s, stormObject in stormObjects.iteritems():
-        targetId = graphid + "_storm_" + member + "_%03d" % s
-        start = stormObject.startTime
-        end = stormObject.endTime
-        stormCoM = [stormObject.centerOfMass(t) for t in range(start, end + 1)]
-        stormCoM = np.array(stormCoM).reshape(end - start + 1, 2)
-        attributes = calcDistances(gridpointObject.x, gridpointObject.y, stormCoM[:, 0], stormCoM[:, 1])
-        nearbyRelationships.append(SpatialRelationship("nearby", sourceId, targetId, start, end, attributes))
-    return nearbyRelationships
-
-
-def findNearbyStormRelationships(graphid, member, stormObjects):
-    stormKeys = stormObjects.keys()
-    nearbyStormRelationships = []
-    for i, source in enumerate(stormKeys[:-1]):
-        sourceId = graphid + "_storm_" + member + "_%03d" % source
-        for target in stormKeys[i + 1:]:
-            timeIntersect = np.intersect1d(np.arange(stormObjects[source].startTime,
-                                                     stormObjects[source].endTime + 1),
-                                           np.arange(stormObjects[target].startTime,
-                                                     stormObjects[target].endTime + 1))
-            if timeIntersect.shape[0] > 0:
-                targetId = graphid + "_storm_" + member + "_%03d" % target
-                start = timeIntersect.min()
-                end = timeIntersect.max()
-                comSource = np.empty((end - start + 1, 2))
-                comTarget = np.empty((end - start + 1, 2))
-                for ti, t in enumerate(range(start, end + 1)):
-                    comSource[ti, :] = stormObjects[source].centerOfMass(t)
-                    comTarget[ti, :] = stormObjects[target].centerOfMass(t)
-                attributes = calcDistances(comSource[:, 0], comSource[:, 1], comTarget[:, 0], comTarget[:, 1])
-                nearbyStormRelationships.append(SpatialRelationship("nearbystorm",
-                                                                    sourceId,
-                                                                    targetId,
-                                                                    start,
-                                                                    end,
-                                                                    attributes))
-    return nearbyStormRelationships
-
-
-def calcDistances(x1, y1, x2, y2):
-    distances = {}
-    xDistSq = (x1 - x2) ** 2
-    yDistSq = (y1 - y2) ** 2
-    distances["distance"] = np.sqrt(xDistSq + yDistSq)
-    xDist = x2 - x1
-    yDist = y2 - y1
-    azimuth = np.arctan2(xDist, yDist)
-    azimuth[azimuth < 0] += 360
-    distances["north-distance"] = yDist
-    distances["east-distance"] = xDist
-    distances["direction"] = azimuth
-    return distances
-
-
-def calcDistancesArray(x1, y1, x2, y2):
-    distances = np.zeros(3)
-    xDistSq = (x1 - x2) ** 2
-    yDistSq = (y1 - y2) ** 2
-    distances[0] = np.sqrt(xDistSq + yDistSq)
-    xDist = x2 - x1
-    yDist = y2 - y1
-    distances[1] = yDist
-    distances[2] = xDist
-    return distances
-
-
-class SpatialRelationship(object):
-    def __init__(self, rel_type, source_id, target_id, start_time, end_time, attributes):
-        self.rel_type = rel_type
-        self.rel_id = self.rel_type + "_" + source_id + "_" + target_id
-        self.source_id = source_id
-        self.target_id = target_id
-        self.start_time = start_time
-        self.end_time = end_time
-        self.attributes = attributes
-        return
-
-    def __str__(self):
-        return self.rel_id + " start=%02d end=%02d" % (self.start_time, self.end_time)

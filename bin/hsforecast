@@ -1,0 +1,96 @@
+#!/usr/bin/env python
+import argparse
+from hagelslag.util.Config import Config
+from hagelslag.processing.TrackModeler import TrackModeler
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help="Config filename.")
+    parser.add_argument("-t", "--train", action="store_true", help="Train models.")
+    parser.add_argument("-c", "--cop", action="store_true", help="Calculate copulas.")
+    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
+    args = parser.parse_args()
+    required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
+                "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
+                "condition_output_column", "output_threshold", "group_col", "size_model_names",
+                "size_model_objs", "size_input_columns", "size_output_column", "size_range_params",
+                "track_model_names", "track_model_objs", "track_input_columns", "track_output_columns",
+                "track_output_ranges", "model_path", "metadata_columns", "data_json_path", "forecast_json_path",
+                "load_models"]
+    config = Config(args.config, required)
+    track_modeler = TrackModeler(config.ensemble_name,
+                                 config.train_data_path,
+                                 config.forecast_data_path,
+                                 config.member_files,
+                                 config.group_col)
+    if args.train:
+        train_models(track_modeler, config)
+    if args.cop:
+        track_modeler.calc_copulas(config.copula_file)
+    if args.fore:
+        forecasts = make_forecasts(track_modeler, config)
+        output_forecasts(forecasts, track_modeler, config)
+    return
+
+
+def train_models(track_modeler, config):
+    track_modeler.load_data(mode="train", format=config.data_format)
+    track_modeler.fit_condition_models(config.condition_model_names,
+                                       config.condition_model_objs,
+                                       config.condition_input_columns,
+                                       config.condition_output_column,
+                                       config.output_threshold,
+                                      )
+    track_modeler.fit_size_models(config.size_model_names,
+                                  config.size_model_objs,
+                                  config.size_input_columns,
+                                  config.size_output_column,
+                                  output_start=config.size_range_params[0],
+                                  output_stop=config.size_range_params[1],
+                                  output_step=config.size_range_params[2])
+    track_modeler.fit_track_models(config.track_model_names,
+                                   config.track_model_objs,
+                                   config.track_input_columns,
+                                   config.track_output_columns,
+                                   config.track_output_ranges)
+    track_modeler.save_models(config.model_path)
+    return
+
+
+def make_forecasts(track_modeler, config):
+    print "Load data"
+    track_modeler.load_data(mode="forecast", format=config.data_format)
+    if config.load_models:
+        print "Load models"
+        track_modeler.load_models(config.model_path)
+    forecasts = {}
+    print "Condition forecasts"
+    forecasts["condition"] = track_modeler.predict_condition_models(config.condition_model_names,
+                                                                    config.condition_input_columns,
+                                                                    config.metadata_columns)
+    print "Size forecasts"
+    forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
+                                                          config.size_input_columns,
+                                                          config.metadata_columns)
+    print "Track forecasts"
+    forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
+                                                            config.track_input_columns,
+                                                            config.metadata_columns,
+                                                            )
+
+    return forecasts
+
+
+def output_forecasts(forecasts, track_modeler, config):
+    track_modeler.output_forecasts_json(forecasts,
+                                        config.condition_model_names,
+                                        config.size_model_names,
+                                        config.track_model_names,
+                                        config.data_json_path,
+                                        config.forecast_json_path)
+    return
+
+
+if __name__ == "__main__":
+    main()
