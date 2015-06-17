@@ -19,10 +19,10 @@ def main():
                'watershed_variable', 'model_path', "ensemble_name",
                'model_watershed_params', 'object_matcher_params', 
                'track_matcher_params', 'size_filter', 'gaussian_window',
-               'mesh_path', 'mesh_watershed_params', 
+               'mrms_path', 'mrms_watershed_params',
                'storm_variables', 'potential_variables', 
                'variable_statistics','model_map_file',
-               'csv_path', 'geojson_path', 'train', 'proj']
+               'csv_path', 'geojson_path', 'train', 'single_step']
     config = Config(args.config, required_attributes=required)
     if args.proc > 1:
         pool = Pool(args.proc)
@@ -61,9 +61,9 @@ def process_ensemble_member(run_date, member, config):
                                 config.track_matcher_params,
                                 config.size_filter,
                                 config.gaussian_window,
-                                mrms_path=config.mesh_path,
+                                mrms_path=config.mrms_path,
                                 mrms_variable=config.mrms_variable,
-                                mrms_watershed_params=config.mesh_watershed_params,
+                                mrms_watershed_params=config.mrms_watershed_params,
                                 single_step=config.single_step)
     print "Find model tracks", run_date, member
     model_tracks = track_proc.find_model_tracks()
