@@ -23,7 +23,10 @@ class ModelGrid(object):
                                          end=self.end_date,
                                          freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
+        print self.start_date, self.end_date, self.valid_dates
+        print "Forecast hours", self.forecast_hours
         self.file_objects = []
+        self.__enter__()
 
     def __enter__(self):
         """

@@ -7,6 +7,7 @@ from datetime import timedelta
 import pandas as pd
 import numpy as np
 import os
+import traceback
 
 
 def main():
@@ -45,73 +46,78 @@ def process_ensemble_member(run_date, member, config):
     :param member: name of the ensemble member
     :param config: Config object containing model parameters
     """
-    print "Starting", run_date, member
-    start_date = run_date + timedelta(hours=config.start_hour*3600)
-    end_date = run_date + timedelta(seconds=config.end_hour*3600)
-    track_proc = TrackProcessor(run_date,
-                                start_date,
-                                end_date,
-                                config.ensemble_name,
-                                member,
-                                config.watershed_variable,
-                                config.model_path,
-                                config.model_map_file,
-                                config.model_watershed_params,
-                                config.object_matcher_params,
-                                config.track_matcher_params,
-                                config.size_filter,
-                                config.gaussian_window,
-                                mrms_path=config.mrms_path,
-                                mrms_variable=config.mrms_variable,
-                                mrms_watershed_params=config.mrms_watershed_params,
-                                single_step=config.single_step)
-    print "Find model tracks", run_date, member
-    model_tracks = track_proc.find_model_tracks()
-    print "Extract model attributes", run_date, member
-    track_proc.extract_model_attributes(model_tracks,
-                                        config.storm_variables,
-                                        config.potential_variables)
-    if config.train and len(model_tracks) > 0:
-        print "Find obs tracks", run_date, member
-        mrms_tracks = track_proc.find_mrms_tracks()
-        if len(mrms_tracks) > 0 and len(model_tracks) > 0:
-            track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks)
-            track_proc.match_hail_sizes(model_tracks, mrms_tracks, track_pairings)
-            track_errors = track_proc.calc_track_errors(model_tracks,
-                                                        mrms_tracks,
-                                                        track_pairings)
-            print "Output data", run_date, member
-            forecast_data = make_forecast_track_data(model_tracks, run_date, member,
-                                                     config, track_proc.model_grid.proj, mrms_tracks, track_errors)
-            obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-            #if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
-            #    try:
-            #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
-            #    except:
-            #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
-            for table_name, table_data in obs_data.iteritems():
-                table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                                 "obs",
-                                                                                 member,
-                                                                                 run_date.strftime("%Y%m%d")),
-                                  na_rep="nan",
-                                  float_format="%0.5f",
-                                  index=False)
+    try:
+        print "Starting", run_date, member
+        start_date = run_date + timedelta(hours=config.start_hour*3600)
+        end_date = run_date + timedelta(seconds=config.end_hour*3600)
+        track_proc = TrackProcessor(run_date,
+                                    start_date,
+                                    end_date,
+                                    config.ensemble_name,
+                                    member,
+                                    config.watershed_variable,
+                                    config.model_path,
+                                    config.model_map_file,
+                                    config.model_watershed_params,
+                                    config.object_matcher_params,
+                                    config.track_matcher_params,
+                                    config.size_filter,
+                                    config.gaussian_window,
+                                    mrms_path=config.mrms_path,
+                                    mrms_variable=config.mrms_variable,
+                                    mrms_watershed_params=config.mrms_watershed_params,
+                                    single_step=config.single_step)
+        print "Find model tracks", run_date, member
+        model_tracks = track_proc.find_model_tracks()
+        print model_tracks
+        print "Extract model attributes", run_date, member
+        track_proc.extract_model_attributes(model_tracks,
+                                            config.storm_variables,
+                                            config.potential_variables)
+        if config.train and len(model_tracks) > 0:
+            print "Find obs tracks", run_date, member
+            mrms_tracks = track_proc.find_mrms_tracks()
+            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
+                track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks)
+                track_proc.match_hail_sizes(model_tracks, mrms_tracks, track_pairings)
+                track_errors = track_proc.calc_track_errors(model_tracks,
+                                                            mrms_tracks,
+                                                            track_pairings)
+                print "Output data", run_date, member
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member,
+                                                        config, track_proc.model_grid.proj, mrms_tracks, track_errors)
+                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+                #if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
+                #    try:
+                #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
+                #    except:
+                #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
+                for table_name, table_data in obs_data.iteritems():
+                    table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                                    "obs",
+                                                                                    member,
+                                                                                    run_date.strftime("%Y%m%d")),
+                                    na_rep="nan",
+                                    float_format="%0.5f",
+                                    index=False)
 
-        else:
+            else:
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+        elif len(model_tracks) > 0:
             forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-    elif len(model_tracks) > 0:
-        forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-    else:
-        forecast_data = {}
-    for table_name, table_data in forecast_data.iteritems():
-        table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                         config.ensemble_name,
-                                                                         member,
-                                                                         run_date.strftime("%Y%m%d")),
-                          na_rep="nan",
-                          float_format="%0.5f",
-                          index=False)
+        else:
+            forecast_data = {}
+        for table_name, table_data in forecast_data.iteritems():
+            table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                            config.ensemble_name,
+                                                                            member,
+                                                                            run_date.strftime("%Y%m%d")),
+                            na_rep="nan",
+                            float_format="%0.5f",
+                            index=False)
+    except Exception:
+        print traceback.format_exc()
+        raise
     return
 
 

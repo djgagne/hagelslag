@@ -3,7 +3,7 @@ import numpy as np
 from pandas import DatetimeIndex
 
 class NCARModelGrid(ModelGrid):
-    def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=True):
+    def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=False):
         self.member = member
         self.valid_dates = DatetimeIndex(start=start_date, end=end_date, freq="1H")
         self.path = path
@@ -11,7 +11,7 @@ class NCARModelGrid(ModelGrid):
                                         (end_date - run_date).total_seconds() / 3600 + 1)
         filenames = []
         if not single_step:
-            filenames.append("{0}{1}/{2}_surrogate_{1}.nc".format(self.path, 
+            filenames.append("{0}{1}/{2}_surrogate_{1}.nc".format(self.path,
                                                                   run_date.strftime("%Y%m%d%H"),
                                                                   self.member))
         else:
@@ -20,5 +20,6 @@ class NCARModelGrid(ModelGrid):
                                                                                             run_date.strftime("%Y%m%d%H"),
                                                                                             self.member,
                                                                                             hour))
+        print filenames
         super(NCARModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
 

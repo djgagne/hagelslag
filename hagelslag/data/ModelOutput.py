@@ -45,14 +45,16 @@ class ModelOutput(object):
                                single_step=self.single_step) as mg:
                 self.data = mg.load_data()
         elif self.ensemble_name.upper() == "NCAR":
-            with NCARModelGrid(self.member_name,
+            print "Loading NCAR ensemble"
+            mg = NCARModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
                                self.end_date,
                                self.path,
-                               single_step=self.single_step) as mg:
-                self.data = mg.load_data()
+                               single_step=self.single_step)
+            self.data = mg.load_data()
+            mg.close()
 
     def load_map_info(self, map_file):
         if self.ensemble_name.upper() == "SSEF":

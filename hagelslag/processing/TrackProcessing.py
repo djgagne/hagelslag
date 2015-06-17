@@ -72,6 +72,7 @@ class TrackProcessor(object):
                                       self.start_date, self.end_date, self.model_path, single_step=self.single_step)
         self.model_grid.load_data()
         self.model_grid.load_map_info(model_map_file)
+        print self.model_grid.data.shape
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
@@ -92,6 +93,7 @@ class TrackProcessor(object):
         tracked_model_objects = []
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
+            print hour
             hour_labels = self.model_ew.size_filter(self.model_ew.label(gaussian_filter(self.model_grid.data[h],
                                                                                         self.gaussian_window)), 
                                                     self.size_filter)
