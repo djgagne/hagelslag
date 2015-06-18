@@ -36,16 +36,16 @@ class ModelOutput(object):
 
     def load_data(self):
         if self.ensemble_name.upper() == "SSEF":
-            with SSEFModelGrid(self.member_name,
+            mg = SSEFModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
                                self.end_date,
                                self.path,
-                               single_step=self.single_step) as mg:
-                self.data = mg.load_data()
+                               single_step=self.single_step)
+            self.data = mg.load_data()
+            mg.close()
         elif self.ensemble_name.upper() == "NCAR":
-            print "Loading NCAR ensemble"
             mg = NCARModelGrid(self.member_name,
                                self.run_date,
                                self.variable,

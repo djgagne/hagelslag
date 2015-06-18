@@ -67,6 +67,9 @@ def process_ensemble_member(run_date, member, config):
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
                                     single_step=config.single_step)
+        if track_proc.model_grid.data is None:
+            print "No model output available for {0} {1}.".format(run_date, member)
+            return
         print "Find model tracks", run_date, member
         model_tracks = track_proc.find_model_tracks()
         print model_tracks

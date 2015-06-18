@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 
+
 class MRMSGrid(object):
     def __init__(self, start_date, end_date, variable, path, freq="1H"):
         self.start_date = start_date
@@ -17,19 +18,26 @@ class MRMSGrid(object):
     def load_data(self):
         data = []
         valid_dates = []
-        mrms_files = np.array(sorted(os.listdir(self.path + self.variable)))
-        mrms_file_dates = pd.DatetimeIndex([m_file.split("_")[-2].split("-")[0]
+        mrms_files = np.array(sorted(os.listdir(self.path + self.variable + "/")))
+        mrms_file_dates = np.array([m_file.split("_")[-2].split("-")[0]
             for m_file in mrms_files])
-        for timestamp in self.all_dates:
-            mrms_file = mrms_files[timestamp.date() == mrms_file_dates.date]
-            file_obj = Dataset(self.path + self.variable + "/" + mrms_file)
-            file_valid_dates = pd.DatetimeIndex(num2date(file_obj.variables["date"][:],
-                                                         file_obj.variables["date"].units))
-            time_index = np.where(file_valid_dates == timestamp)[0]
-            if len(time_index) > 0:
-                data.append(file_obj.variables[self.variable][time_index])
-                valid_dates.append(timestamp)
+        mrms_file = None
+        old_mrms_file = None
+        file_obj = None
+        for t in range(self.all_dates.shape[0]):
+            file_index = np.where(mrms_file_dates == self.all_dates[t].strftime("%Y%m%d"))[0]
+            if len(file_index) > 0:
+                mrms_file = mrms_files[file_index][0]
+                if mrms_file != old_mrms_file:
+                    if file_obj is not None:
+                        file_obj.close()
+                    file_obj = Dataset(self.path + self.variable + "/" + mrms_file)
+                    old_mrms_file = mrms_file
+                    file_valid_dates = pd.DatetimeIndex(num2date(file_obj.variables["time"][:],
+                                                                 file_obj.variables["time"].units))
+                time_index = np.where(file_valid_dates.values == self.all_dates.values[t])[0]
+                if len(time_index) > 0:
+                    data.append(file_obj.variables[self.variable][time_index[0]])
+                    valid_dates.append(self.all_dates[t])
         self.data = np.array(data)
-        self.valid_dates = pd.DatetimeIndex(valid_dates)
-            
-    
+        self.valid_dates = pd.DatetimeIndex(valid_dates) 

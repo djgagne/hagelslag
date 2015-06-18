@@ -2,7 +2,7 @@ from ModelGrid import ModelGrid
 from glob import glob
 import pandas as pd
 import numpy as np
-
+import os
 
 class SSEFModelGrid(ModelGrid):
     """
@@ -17,17 +17,21 @@ class SSEFModelGrid(ModelGrid):
             full_path = self.path + "/".join([member, run_date.strftime("%Y%m%d"), "0000Z", "data2d"]) + "/"
         else:
             full_path = self.path + "/".join([member, run_date.strftime("%Y%m%d")]) + "/"
-        filenames = []
+        potential_filenames = []
         if single_step:
             for hour in forecast_hours:
-                filenames.append("{0}ar{1}00.net{2}{3:06d}".format(full_path, 
-                                                                   run_date.strftime("%Y%m%d"),
-                                                                   variable.ljust(6,"_"),
-                                                                   hour * 3600))
+                potential_filenames.append("{0}ar{1}00.net{2}{3:06d}".format(full_path, 
+                                                                             run_date.strftime("%Y%m%d"),
+                                                                             variable.ljust(6,"_"),
+                                                                             int(hour) * 3600))
         else:
-            filenames.append("{0}ssef_{1}_{2}_{3}.nc".format(full_path,
-                                                             self.member,
-                                                             run_date.strftime("%Y%m%d"),
-                                                             variable))
+            potential_filenames.append("{0}ssef_{1}_{2}_{3}.nc".format(full_path,
+                                                                       self.member,
+                                                                       run_date.strftime("%Y%m%d"),
+                                                                       variable))
+        filenames = []
+        for filename in potential_filenames:
+            if os.access(filename, os.R_OK):
+                filenames.append(filename)
         super(SSEFModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
         return

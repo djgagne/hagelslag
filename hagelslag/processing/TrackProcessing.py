@@ -72,12 +72,12 @@ class TrackProcessor(object):
                                       self.start_date, self.end_date, self.model_path, single_step=self.single_step)
         self.model_grid.load_data()
         self.model_grid.load_map_info(model_map_file)
-        print self.model_grid.data.shape
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
             self.mrms_grid.load_data()
             self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
+            print self.mrms_grid.data.shape
         else:
             self.mrms_grid = None
             self.mrms_ew = None
@@ -93,7 +93,7 @@ class TrackProcessor(object):
         tracked_model_objects = []
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
-            print hour
+            print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member, self.run_date.strftime("%Y%m%d%H"), hour))
             hour_labels = self.model_ew.size_filter(self.model_ew.label(gaussian_filter(self.model_grid.data[h],
                                                                                         self.gaussian_window)), 
                                                     self.size_filter)
@@ -129,7 +129,7 @@ class TrackProcessor(object):
                 if len(unpaired) > 0:
                     for up in unpaired:
                         tracked_model_objects.append(model_objects[h][up])
-            print "Tracked Model Objects: ", len(tracked_model_objects), " Hour ", hour
+            print("Tracked Model Objects: {0:03d} Hour: {1:02d}".format(len(tracked_model_objects), hour))
 
         return tracked_model_objects
 
@@ -143,7 +143,10 @@ class TrackProcessor(object):
         tracked_obs_objects = []
         if self.mrms_ew is not None:
             for h, hour in enumerate(self.hours):
-                hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(self.mrms_grid.data[h],
+                mrms_data = np.zeros(self.mrms_grid.data[h].shape)
+                mrms_data[:] = np.array(self.mrms_grid.data[h])
+                mrms_data[mrms_data < 0] = 0
+                hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
                                                                                           self.gaussian_window)),
                                                        self.size_filter)
                 obj_slices = find_objects(hour_labels)
@@ -151,7 +154,7 @@ class TrackProcessor(object):
                 obs_objects.append([])
                 if num_slices > 0:
                     for sl in obj_slices:
-                        obs_objects[-1].append(STObject(self.mrms_grid.data[h][sl],
+                        obs_objects[-1].append(STObject(mrms_data,
                                                         np.where(hour_labels[sl] > 0, 1, 0),
                                                         self.model_grid.x[sl],
                                                         self.model_grid.y[sl],
@@ -176,7 +179,7 @@ class TrackProcessor(object):
                     if len(unpaired) > 0:
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
-                print "Tracked Obs Objects: ", len(tracked_obs_objects), " Hour ", hour
+                print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks):
@@ -202,7 +205,7 @@ class TrackProcessor(object):
         :param potential_variables: List of potential variable names.
         """
         for storm_var in storm_variables:
-            print storm_var, self.ensemble_member, self.run_date
+            print("{0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             storm_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
                                      self.run_date, storm_var, self.start_date, self.end_date,
                                      self.model_path, self.single_step)
@@ -211,7 +214,7 @@ class TrackProcessor(object):
                 model_obj.extract_attribute_grid(storm_grid)
 
         for potential_var in potential_variables:
-            print potential_var, self.ensemble_member, self.run_date
+            print("{0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             potential_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
                                          self.run_date, potential_var,
                                          self.start_date - timedelta(hours=1),
@@ -284,5 +287,4 @@ class TrackProcessor(object):
             track_errors.loc[pair[0], 'start_time_difference'] = model_track.start_time - obs_track.start_time
             track_errors.loc[pair[0], 'end_time_difference'] = model_track.end_time - obs_track.end_time 
         return track_errors
-
 

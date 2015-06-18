@@ -23,8 +23,6 @@ class ModelGrid(object):
                                          end=self.end_date,
                                          freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
-        print self.start_date, self.end_date, self.valid_dates
-        print "Forecast hours", self.forecast_hours
         self.file_objects = []
         self.__enter__()
 
@@ -54,12 +52,25 @@ class ModelGrid(object):
             grid_shape = [len(self.file_objects), 1, 1]
             for file_object in self.file_objects:
                 if file_object is not None:
-                    grid_shape = file_object.variables[self.variable].shape
+                    if self.variable in file_object.variables.keys():
+                        grid_shape = file_object.variables[self.variable].shape
+                    elif self.variable.ljust(6, "_") in file_object.variables.keys():
+                        grid_shape = file_object.variables[self.variable.ljust(6, "_")].shape
+                    else:
+                        print("{0} not found".format(self.variable))
+                        raise KeyError
                     break
             data = np.zeros((len(self.file_objects), grid_shape[1], grid_shape[2]))
-            for f, file_object in self.file_objects:
+            for f, file_object in enumerate(self.file_objects):
                 if file_object is not None:
-                    data[f] = file_object.variables[self.variable][0]
+                    if self.variable in file_object.variables.keys():
+                        data[f] = file_object.variables[self.variable][0]
+                    elif self.variable.ljust(6, "_") in file_object.variables.keys():
+                        data[f] = file_object.variables[self.variable.ljust(6, "_")][0]
+                    else:
+                        print("{0} not found".format(self.variable))
+                        raise KeyError
+                        
         else:
             data = None
         return data

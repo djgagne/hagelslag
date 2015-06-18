@@ -266,13 +266,13 @@ class STObject(object):
         
         :param model_grid: A ModelGrid Object
         """
-        self.attributes[model_grid.varName] = []
+        self.attributes[model_grid.variable] = []
         if potential:
             timesteps = np.arange(self.start_time - 1, self.end_time)
         else:
             timesteps = np.arange(self.start_time, self.end_time + 1)
         for ti, t in enumerate(timesteps):
-            self.attributes[model_grid.varName].append(
+            self.attributes[model_grid.variable].append(
                 model_grid.data[t - model_grid.start_hour, self.i[ti], self.j[ti]])
 
     def calc_attribute_statistics(self, statistic_name):
