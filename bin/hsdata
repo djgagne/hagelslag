@@ -48,8 +48,8 @@ def process_ensemble_member(run_date, member, config):
     """
     try:
         print "Starting", run_date, member
-        start_date = run_date + timedelta(hours=config.start_hour*3600)
-        end_date = run_date + timedelta(seconds=config.end_hour*3600)
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
         track_proc = TrackProcessor(run_date,
                                     start_date,
                                     end_date,

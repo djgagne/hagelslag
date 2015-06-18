@@ -5,7 +5,6 @@ from pandas import DatetimeIndex
 class NCARModelGrid(ModelGrid):
     def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=False):
         self.member = member
-        self.valid_dates = DatetimeIndex(start=start_date, end=end_date, freq="1H")
         self.path = path
         self.forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
                                         (end_date - run_date).total_seconds() / 3600 + 1)
