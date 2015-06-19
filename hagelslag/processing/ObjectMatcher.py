@@ -198,3 +198,8 @@ def mean_min_time_distance(item_a, item_b, max_value):
     distance_matrix = (times_a - times_b) ** 2
     mean_min_distances = np.sqrt(distance_matrix.min(axis=0).mean() + distance_matrix.min(axis=1).mean())
     return mean_min_distances / float(max_value)
+
+def duration_distance(item_a, item_b, max_value):
+    duration_a = item_a.times.size
+    duration_b = item_b.times.size
+    return np.abs(duration_a - duration_b) / float(max_value)
