@@ -154,7 +154,7 @@ class TrackProcessor(object):
                 obs_objects.append([])
                 if num_slices > 0:
                     for sl in obj_slices:
-                        obs_objects[-1].append(STObject(mrms_data,
+                        obs_objects[-1].append(STObject(mrms_data[sl],
                                                         np.where(hour_labels[sl] > 0, 1, 0),
                                                         self.model_grid.x[sl],
                                                         self.model_grid.y[sl],
