@@ -111,7 +111,8 @@ class TrackProcessor(object):
                                                       hour,
                                                       dx=self.model_grid.dx))
                     if h > 0:
-                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h-1], 25, 25)
+                        dims = model_objects[-1][-1].timesteps[0].shape
+                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
         for h, hour in enumerate(self.hours):
             past_time_objs = []
             for obj in tracked_model_objects:
