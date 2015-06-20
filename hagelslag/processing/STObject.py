@@ -231,7 +231,11 @@ class STObject(object):
             j_shift = j_vals - u
             for v in v_shifts:
                 i_shift = i_vals - v
-                shift_vals = intensity_grid[i_shift, j_shift]
+                if np.all((0 <= i_shift) & (i_shift < intensity_grid.shape[0]) &
+                                  (0 <= j_shift) & (j_shift < intensity_grid.shape[1])):
+                    shift_vals = intensity_grid[i_shift, j_shift]
+                else:
+                    shift_vals = np.zeros(i_shift.shape)
                 error = np.abs(shift_vals - obj_vals).mean()
                 if error < min_error:
                     min_error = error

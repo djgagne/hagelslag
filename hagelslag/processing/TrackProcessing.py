@@ -108,7 +108,10 @@ class TrackProcessor(object):
                                                       self.model_grid.i[sl], 
                                                       self.model_grid.j[sl],
                                                       hour,
-                                                      hour))
+                                                      hour,
+                                                      dx=self.model_grid.dx))
+                    if h > 0:
+                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h-1], 25, 25)
         for h, hour in enumerate(self.hours):
             past_time_objs = []
             for obj in tracked_model_objects:
@@ -160,7 +163,10 @@ class TrackProcessor(object):
                                                         self.model_grid.i[sl],
                                                         self.model_grid.j[sl],
                                                         hour,
-                                                        hour))
+                                                        hour,
+                                                        dx=self.model_grid.dx))
+                        if h > 0:
+                            obs_objects[-1][-1].estimate_motion(hour, self.mrms_grid.data[h-1], 25, 25)
         
             for h, hour in enumerate(self.hours):
                 past_time_objs = []

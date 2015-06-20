@@ -13,4 +13,5 @@ if __name__ == "__main__":
                             "scipy", 
                             "matplotlib", 
                             "netCDF4", 
-                            "scikit-learn>=0.16"])
+                            "scikit-learn>=0.16",
+                            "basemap"])

@@ -20,8 +20,8 @@ class ModelOutput(object):
         self.variable = variable
         self.start_date = start_date
         self.end_date = end_date
-        self.start_hour = (self.start_date - self.run_date).total_seconds() / 3600
-        self.end_hour = (self.end_date - self.run_date).total_seconds() / 3600
+        self.start_hour = int((self.start_date - self.run_date).total_seconds()) / 3600
+        self.end_hour = int((self.end_date - self.run_date).total_seconds()) / 3600
         self.data = None
         self.valid_dates = None
         self.path = path
@@ -32,10 +32,12 @@ class ModelOutput(object):
         self.i = None
         self.j = None
         self.proj = None
+        self.dx = None
         self.single_step = single_step
 
     def load_data(self):
         if self.ensemble_name.upper() == "SSEF":
+            print("Loading SSEF")
             mg = SSEFModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
@@ -46,6 +48,7 @@ class ModelOutput(object):
             self.data = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "NCAR":
+            print("Loading NCAR")
             mg = NCARModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
@@ -55,10 +58,13 @@ class ModelOutput(object):
                                single_step=self.single_step)
             self.data = mg.load_data()
             mg.close()
+        else:
+            print(self.ensemble_name + " not supported.")
 
     def load_map_info(self, map_file):
         if self.ensemble_name.upper() == "SSEF":
             proj_dict, grid_dict = read_arps_map_file(map_file)
+            self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
             for m, v in mapping_data.iteritems():
                 setattr(self, m, v)
@@ -66,6 +72,7 @@ class ModelOutput(object):
             self.proj = get_proj_obj(proj_dict)
         elif self.ensemble_name.upper() == "NCAR":
             proj_dict, grid_dict = read_ncar_map_file(map_file)
+            self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
             for m, v in mapping_data.iteritems():
                 setattr(self, m, v)
