@@ -33,8 +33,13 @@ class MRMSGrid(object):
                         file_obj.close()
                     file_obj = Dataset(self.path + self.variable + "/" + mrms_file)
                     old_mrms_file = mrms_file
-                    file_valid_dates = pd.DatetimeIndex(num2date(file_obj.variables["time"][:],
-                                                                 file_obj.variables["time"].units))
+                    
+                    if "time" in file_obj.variables.keys():
+                        time_var = "time"
+                    else:
+                        time_var = "date"
+                    file_valid_dates = pd.DatetimeIndex(num2date(file_obj.variables[time_var][:],
+                                                                 file_obj.variables[time_var].units))
                 time_index = np.where(file_valid_dates.values == self.all_dates.values[t])[0]
                 if len(time_index) > 0:
                     data.append(file_obj.variables[self.variable][time_index[0]])

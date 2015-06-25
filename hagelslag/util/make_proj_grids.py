@@ -32,7 +32,7 @@ def read_arps_map_file(map_filename):
 
 
 def read_ncar_map_file(map_filename):
-    proj_keys = ["proj", "a", "b", "lat_2", "lat_1", "lat_0"]
+    proj_keys = ["proj", "a", "b", "lat_2", "lat_1", "lat_0", "lon_0", "units"]
     grid_keys = ["sw_lat", "sw_lon", "ne_lat", "ne_lon", "dx", "dy"]
     proj_dict = {}
     grid_dict = {}
