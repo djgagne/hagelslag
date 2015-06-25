@@ -18,11 +18,15 @@ class TrackModeler(object):
                  train_data_path,
                  forecast_data_path,
                  member_files,
+                 start_dates,
+                 end_dates,
                  group_col="Microphysics"):
         self.train_data_path = train_data_path
         self.forecast_data_path = forecast_data_path
         self.ensemble_name = ensemble_name
         self.member_files = member_files
+        self.start_dates = start_dates
+        self.end_dates = end_dates
         self.data = {"train": {}, "forecast": {}}
         self.condition_models = {}
         self.size_models = {}
@@ -42,10 +46,24 @@ class TrackModeler(object):
         :param format: file format being used. Default is "csv"
         """
         if mode in self.data.keys():
-            total_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
+            run_dates = pd.DatetimeIndex(start=self.start_dates[mode],
+                                        end=self.end_dates[mode],
+                                        freq="1D")
+            run_date_str = [d.strftime("%Y%m%d") for d in run_dates.date]
+            all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                             "*total_" + self.ensemble_name + "*." + format))
-            step_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
+            all_step_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                            "*step_" + self.ensemble_name + "*." + format))
+            total_track_files = []
+            for track_file in all_total_track_files:
+                file_date = track_file.split("_")[-1][:-4]
+                if file_date in run_date_str:
+                    total_track_files.append(track_file)
+            step_track_files = []
+            for step_file in all_step_track_files:
+                file_date = step_file.split("_")[-1][:-4]
+                if file_date in run_date_str:
+                    step_track_files.append(step_file)            
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
                                                  ignore_index=True)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),

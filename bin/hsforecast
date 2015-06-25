@@ -2,7 +2,10 @@
 import argparse
 from hagelslag.util.Config import Config
 from hagelslag.processing.TrackModeler import TrackModeler
-
+from hagelslag.processing.TrackSampler import sample_member_run_tracks
+from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
+from multiprocessing import Pool
+import pandas as pd
 
 def main():
     parser = argparse.ArgumentParser()
@@ -10,6 +13,8 @@ def main():
     parser.add_argument("-t", "--train", action="store_true", help="Train models.")
     parser.add_argument("-c", "--cop", action="store_true", help="Calculate copulas.")
     parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
+    parser.add_argument("-s", "--samp", action="store_true", help="Sample tracks.")
+    parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors")
     args = parser.parse_args()
     required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
                 "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
@@ -17,21 +22,58 @@ def main():
                 "size_model_objs", "size_input_columns", "size_output_column", "size_range_params",
                 "track_model_names", "track_model_objs", "track_input_columns", "track_output_columns",
                 "track_output_ranges", "model_path", "metadata_columns", "data_json_path", "forecast_json_path",
-                "load_models"]
+                "load_models", "ensemble_members"]
     config = Config(args.config, required)
-    track_modeler = TrackModeler(config.ensemble_name,
-                                 config.train_data_path,
-                                 config.forecast_data_path,
-                                 config.member_files,
-                                 config.group_col)
-    if args.train:
-        train_models(track_modeler, config)
-    if args.cop:
-        track_modeler.calc_copulas(config.copula_file)
-    if args.fore:
-        forecasts = make_forecasts(track_modeler, config)
-        output_forecasts(forecasts, track_modeler, config)
+    if any([args.train, args.cop, args.fore]):
+        track_modeler = TrackModeler(config.ensemble_name,
+                                     config.train_data_path,
+                                     config.forecast_data_path,
+                                     config.member_files,
+                                     config.start_dates,
+                                     config.end_dates,
+                                     config.group_col)
+        if args.train:
+            train_models(track_modeler, config)
+        if args.cop:
+            track_modeler.calc_copulas(config.copula_file)
+        if args.fore:
+            forecasts = make_forecasts(track_modeler, config)
+            output_forecasts(forecasts, track_modeler, config)
+    if args.samp:
+        sample_all_tracks(config, args.proc)
     return
+
+
+def sample_all_tracks(config, num_procs, mode="forecast"):
+    pool = Pool(num_procs)
+    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
+                                 end=config.end_dates[mode],
+                                 freq='1D')
+    member_info = pd.read_csv(config.member_files[mode], index_col="Ensemble_Member")
+    if config.ensemble_name.upper() == "SSEF":
+        proj_dict, grid_dict = read_arps_map_file(config.map_filename)
+    else:
+        proj_dict, grid_dict = read_ncar_map_file(config.map_filename)
+    mapping_data = make_proj_grids(proj_dict, grid_dict)
+    for run_date in run_dates.to_pydatetime():
+        for member in config.ensemble_members:
+            group = member_info.loc[member, config.group_col]
+            pool.apply_async(sample_member_run_tracks(member,
+                                                      group,
+                                                      run_date,
+                                                      config.size_model_names,
+                                                      config.start_hour,
+                                                      config.end_hour,
+                                                      mapping_data['lon'].shape,
+                                                      grid_dict['dx'].shape,
+                                                      config.forecast_json_path,
+                                                      config.num_track_samples,
+                                                      config.sampler_thresholds,
+                                                      config.copula_file,
+                                                      config.sampler_out_path))
+    pool.close()
+    pool.join()
+
 
 
 def train_models(track_modeler, config):

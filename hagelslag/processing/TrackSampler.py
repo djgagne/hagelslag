@@ -10,6 +10,7 @@ import argparse
 import cPickle
 from scipy.ndimage import binary_dilation
 from scipy.stats import multivariate_normal
+import traceback
 
 
 def load_grid_info(grid_file):
@@ -103,21 +104,25 @@ def sample_member_run_tracks(member,
                              thresholds,
                              copula_file,
                              out_path):
-    ts = TrackSampler(member,
-                      group,
-                      run_date,
-                      model_names,
-                      start_hour,
-                      end_hour,
-                      grid_shape,
-                      dx,
-                      track_path,
-                      num_samples,
-                      copula_file=copula_file
-                      )
-    ts.load_track_forecasts()
-    track_probs = ts.sample_tracks(thresholds)
-    ts.output_track_probs(track_probs, out_path)
+    try:
+        ts = TrackSampler(member,
+                          group,
+                          run_date,
+                          model_names,
+                          start_hour,
+                          end_hour,
+                          grid_shape,
+                          dx,
+                          track_path,
+                          num_samples,
+                          copula_file=copula_file
+                          )
+        ts.load_track_forecasts()
+        track_probs = ts.sample_tracks(thresholds)
+        ts.output_track_probs(track_probs, out_path)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
     return
 
 
