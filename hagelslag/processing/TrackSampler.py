@@ -103,7 +103,9 @@ def sample_member_run_tracks(member,
                              num_samples,
                              thresholds,
                              copula_file,
-                             out_path):
+                             out_path,
+                             size_ranges,
+                             track_ranges):
     try:
         ts = TrackSampler(member,
                           group,
@@ -118,7 +120,7 @@ def sample_member_run_tracks(member,
                           copula_file=copula_file
                           )
         ts.load_track_forecasts()
-        track_probs = ts.sample_tracks(thresholds)
+        track_probs = ts.sample_tracks(size_ranges, track_ranges, thresholds)
         ts.output_track_probs(track_probs, out_path)
     except Exception as e:
         print(traceback.format_exc())
@@ -160,17 +162,27 @@ class TrackSampler(object):
         ranks = np.argsort(copula_samples, axis=0)
         return pd.DataFrame(data=ranks, columns=self.copula[self.group]['model_names'])
 
-    def sample_tracks(self, thresholds=np.array([0, 25, 50]), dilation=13):
+    def sample_tracks(self, size_ranges, track_ranges, thresholds=np.array([0, 25, 50]), dilation=13):
         track_probs = {}
         print self.member, "Sample condition"
         condition_samples = self.sample_condition()
         print self.member, "Sample size"
-        size_samples = self.sample_size()
+        size_values = np.arange(size_ranges[0], size_ranges[1] + size_ranges[2], size_ranges[2], dtype=int)
+        size_samples = self.sample_size(size_values=size_values)
         print self.member, "Sample start time"
-        st_samples = self.sample_start_time()
+        start_time_values = np.arange(track_ranges['start-time'][0],
+                                      track_ranges['start-time'][1] + track_ranges['start-time'][2],
+                                      track_ranges['start-time'][2], dtype=int)
+        st_samples = self.sample_start_time(start_time_values=start_time_values)
         print self.member, "Sample translation"
-        tx_samples = self.sample_translation_x()
-        ty_samples = self.sample_translation_y()
+        translation_x_values = np.arange(track_ranges['translation-x'][0],
+                                         track_ranges['translation-x'][1] + track_ranges['translation-x'][2],
+                                         track_ranges['translation-x'][2], dtype=int)
+        translation_y_values = np.arange(track_ranges['translation-y'][0],
+                                         track_ranges['translation-y'][1] + track_ranges['translation-y'][2],
+                                         track_ranges['translation-y'][2], dtype=int)
+        tx_samples = self.sample_translation_x(translation_x_values=translation_x_values)
+        ty_samples = self.sample_translation_y(translation_y_values=translation_y_values)
         if self.copula_file is not None:
             copula_ranks = self.generate_copula_ranks()
         for model_name in self.model_names:

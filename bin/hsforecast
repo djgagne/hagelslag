@@ -69,7 +69,9 @@ def sample_all_tracks(config, mode="forecast"):
                                                       config.num_track_samples,
                                                       config.sampler_thresholds,
                                                       config.copula_file,
-                                                      config.sampler_out_path))
+                                                      config.sampler_out_path,
+                                                      config.size_range_params,
+                                                      config.track_output_ranges))
     pool.close()
     pool.join()
 
