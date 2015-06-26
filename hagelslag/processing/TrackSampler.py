@@ -132,7 +132,7 @@ class TrackSampler(object):
         self.member = member
         self.group = group
         self.run_date = run_date
-        self.model_names = model_names
+        self.model_names = [mn.replace(" ", "-") for mn in model_names]
         self.track_path = track_path
         self.num_samples = num_samples
         self.start_hour = start_hour

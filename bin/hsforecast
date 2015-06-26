@@ -39,11 +39,11 @@ def main():
             forecasts = make_forecasts(track_modeler, config)
             output_forecasts(forecasts, track_modeler, config)
     if args.samp:
-        sample_all_tracks(config, args.proc)
+        sample_all_tracks(config)
     return
 
 
-def sample_all_tracks(config, num_procs, mode="forecast"):
+def sample_all_tracks(config, mode="forecast"):
     pool = Pool(config.num_procs)
     run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
                                  end=config.end_dates[mode],
@@ -64,7 +64,7 @@ def sample_all_tracks(config, num_procs, mode="forecast"):
                                                       config.start_hour,
                                                       config.end_hour,
                                                       mapping_data['lon'].shape,
-                                                      grid_dict['dx'].shape,
+                                                      grid_dict['dx'],
                                                       config.forecast_json_path,
                                                       config.num_track_samples,
                                                       config.sampler_thresholds,

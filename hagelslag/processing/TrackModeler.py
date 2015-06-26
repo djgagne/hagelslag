@@ -3,7 +3,7 @@ import pandas as pd
 import cPickle
 import json
 import os
-from copy import copy
+from copy import deepcopy
 from glob import glob
 
 
@@ -97,16 +97,18 @@ class TrackModeler(object):
             self.load_data()
         groups = self.data["train"]["member"][self.group_col].unique()
         copulas = {}
+        label_columns = list(label_columns)
         for group in groups:
             print group
             group_data = self.data["train"]["total_group"].loc[
                 self.data["train"]["total_group"][self.group_col] == group]
+            print group_data.columns
             group_data.dropna(inplace=True)
             group_data.reset_index(drop=True, inplace=True)
             copulas[group] = {}
             copulas[group]["mean"] = group_data[label_columns].mean(axis=0).values
             copulas[group]["cov"] = np.cov(group_data[label_columns].values.T)
-            copulas[group]["model_names"] = model_names
+            copulas[group]["model_names"] = list(model_names)
             del group_data
         cPickle.dump(copulas, open(output_file, "w"), cPickle.HIGHEST_PROTOCOL)
 
@@ -134,7 +136,7 @@ class TrackModeler(object):
             self.condition_models[group] = {}
             for m, model_name in enumerate(model_names):
                 print model_name
-                self.condition_models[group][model_name] = copy(model_objs[m])
+                self.condition_models[group][model_name] = deepcopy(model_objs[m])
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
 
     def predict_condition_models(self, model_names,
@@ -201,7 +203,7 @@ class TrackModeler(object):
             print "Output", self.size_models[group]["outputvalues"]
             for m, model_name in enumerate(model_names):
                 print model_name
-                self.size_models[group][model_name] = copy(model_objs[m])
+                self.size_models[group][model_name] = deepcopy(model_objs[m])
                 self.size_models[group][model_name].fit(group_data[input_columns], discrete_data)
 
     def predict_size_models(self, model_names,
@@ -282,7 +284,7 @@ class TrackModeler(object):
                 print "Discrete values", np.unique(discrete_data)
                 for m, model_name in enumerate(model_names):
                     print model_name
-                    model_dict[group][model_name] = copy(model_objs[m])
+                    model_dict[group][model_name] = deepcopy(model_objs[m])
                     model_dict[group][model_name].fit(group_data[input_columns], discrete_data)
 
     def predict_track_models(self, model_names,
@@ -430,7 +432,7 @@ class TrackModeler(object):
             member = total_tracks.loc[r, "Ensemble_Member"]
             group = self.data["forecast"]["member"].loc[self.data["forecast"]["member"]["Ensemble_Member"] == member,
                                                         self.group_col].values[0]
-            run_date = track_id.split("_")[3][:8]
+            run_date = track_id.split("_")[-4][:8]
             step_forecasts = {}
             for mlmodel in condition_model_names:
                 step_forecasts["condition_" + mlmodel.replace(" ", "-")] = forecasts["condition"][group].loc[
