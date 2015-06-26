@@ -14,7 +14,6 @@ def main():
     parser.add_argument("-c", "--cop", action="store_true", help="Calculate copulas.")
     parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
     parser.add_argument("-s", "--samp", action="store_true", help="Sample tracks.")
-    parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors")
     args = parser.parse_args()
     required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
                 "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
@@ -45,7 +44,7 @@ def main():
 
 
 def sample_all_tracks(config, num_procs, mode="forecast"):
-    pool = Pool(num_procs)
+    pool = Pool(config.num_procs)
     run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
                                  end=config.end_dates[mode],
                                  freq='1D')
