@@ -42,6 +42,7 @@ class Reliability(object):
         self.obs_threshold = obs_threshold
         self.pos_relative_frequency = np.zeros(self.thresholds.shape)
         self.total_relative_frequency = np.zeros(self.thresholds.shape)
+        self.calc_reliability_curve()
 
     def calc_reliability_curve(self):
         pos_frequency = np.zeros(self.thresholds.shape)
@@ -58,4 +59,26 @@ class Reliability(object):
             else:
                 self.pos_relative_frequency[t] = np.nan
         self.pos_relative_frequency[-1] = np.nan
+
+    def brier_score(self):
+        obs_truth = np.where(self.observations >= self.obs_threshold, 1, 0)
+        return np.mean((self.forecasts - obs_truth) ** 2)
+
+    def brier_score_components(self):
+        obs_truth = np.where(self.observations >= self.obs_threshold, 1, 0)
+        climo_freq = obs_truth.sum() / float(obs_truth.size)
+        total_freq = self.total_relative_frequency * self.forecasts.size
+        bins = 0.5 * (self.thresholds[0:-1] + self.thresholds[1:])
+        pos_rel_freq = np.where(np.isnan(self.pos_relative_frequency), 0, self.pos_relative_frequency)
+        reliability = np.mean(total_freq * (bins - pos_rel_freq) ** 2)
+        resolution = np.mean(total_freq * (pos_rel_freq - climo_freq) ** 2)
+        uncertainty = climo_freq * (1 - climo_freq)
+        return reliability, resolution, uncertainty
+
+    def brier_skill_score(self):
+        obs_truth = np.where(self.observations >= self.obs_threshold, 1, 0)
+        climo_freq = obs_truth.sum() / float(obs_truth.size)
+        bs_climo = np.mean((climo_freq - obs_truth) **2)
+        bs = self.brier_score()
+        return 1.0 - bs / bs_climo
 

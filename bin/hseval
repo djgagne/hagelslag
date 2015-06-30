@@ -2,7 +2,12 @@
 import argparse
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help="Config file")
+    args = parser.parse_args()
     return
+
+
 
 
 if __name__ == "__main__":

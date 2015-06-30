@@ -57,8 +57,12 @@ def make_proj_grids(proj_dict, grid_dict):
     ne_x, ne_y = map_proj(grid_dict['ne_lon'], grid_dict['ne_lat'])
     dx = grid_dict['dx']
     dy = grid_dict['dy']
-    x = np.arange(np.round(sw_x), np.round(ne_x) + dx, dx)
-    y = np.arange(np.round(sw_y), np.round(ne_y) + dy, dy)
+    if proj_dict['units'] == "m":
+        rounding = -2
+    else:
+        rounding = 0
+    x = np.arange(np.round(sw_x, rounding), np.round(ne_x, rounding) + dx, dx)
+    y = np.arange(np.round(sw_y, rounding), np.round(ne_y, rounding) + dy, dy)
     x_grid, y_grid = np.meshgrid(x, y)
     lon_grid, lat_grid = map_proj(x_grid, y_grid, inverse=True)
     mapping_data = {'lon': lon_grid, 'lat': lat_grid, 'x': x_grid, 'y': y_grid}
