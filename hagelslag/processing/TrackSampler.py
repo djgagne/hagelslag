@@ -140,7 +140,7 @@ class TrackSampler(object):
         self.start_hour = start_hour
         self.end_hour = end_hour
         self.grid_shape = grid_shape
-        self.dx = dx
+        self.dx = int(dx)
         self.copula_file = copula_file
         if self.copula_file is not None:
             with open(self.copula_file) as copula_obj:
