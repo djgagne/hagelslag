@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 from glob import glob
+from ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
 
 class ObjectEvaluator(object):
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
@@ -16,6 +17,9 @@ class ObjectEvaluator(object):
         self.track_data_csv_path = track_data_csv_path
         self.metadata_columns = ["Track_ID", "Obs_Track_ID", "Ensemble_Name", "Ensemble_Member", "Forecast_Hour",
                                  "Step_Duration", "Total_Duration", "Area"]
+        self.type_cols = {"translation-x": "Translation_Error_X",
+                          "translation-y": "Translation_Error_Y",
+                          "start-time": "Start_Time_Error"}
         self.forecasts = {}
         self.obs = None
         self.matched_forecasts = {}
@@ -72,3 +76,13 @@ class ObjectEvaluator(object):
                 self.matched_forecasts[model_type][model_name] = pd.merge(self.forecasts[model_type][model_name],
                                                                           self.obs, right_on="Step_ID", how="left")
 
+    def crps(self, model_type, model_name, query=None):
+        crps_obj = DistributedCRPS(self.forecast_bins[model_type])
+        if query is not None:
+            sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+            crps_obj.update(sub_forecasts[self.forecast_bins[model_type]].values,
+                            sub_forecasts[self.type_cols[model_type]].values)
+        else:
+            crps_obj.update(self.matched_forecasts[model_type][model_name][self.forecast_bins[model_type]].values,
+                            self.matched_forecasts[model_type][model_name][self.type_cols[model_type]].values)
+        return crps_obj
