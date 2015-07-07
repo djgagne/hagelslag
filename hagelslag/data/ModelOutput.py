@@ -37,7 +37,6 @@ class ModelOutput(object):
 
     def load_data(self):
         if self.ensemble_name.upper() == "SSEF":
-            print("Loading SSEF")
             mg = SSEFModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
@@ -48,7 +47,6 @@ class ModelOutput(object):
             self.data = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "NCAR":
-            print("Loading NCAR")
             mg = NCARModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
@@ -72,14 +70,11 @@ class ModelOutput(object):
             self.proj = get_proj_obj(proj_dict)
         elif self.ensemble_name.upper() == "NCAR":
             proj_dict, grid_dict = read_ncar_map_file(map_file)
-            print proj_dict, grid_dict
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
             for m, v in mapping_data.iteritems():
                 setattr(self, m, v)
-            print self.x.shape, self.y.shape
             self.i, self.j = np.indices(self.lon.shape)
-            print self.lon.shape, self.lat.shape, self.i.shape, self.j.shape
             self.proj = get_proj_obj(proj_dict)
 
 
