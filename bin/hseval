@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 import argparse
+import traceback
 from hagelslag.util.Config import Config
-
+import pandas as pd
+from multiprocessing import Pool
+from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
+from hagelslag.evaluation.GridEvaluator import GridEvaluator
+from hagelslag.evaluation.ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
 
 def main():
     parser = argparse.ArgumentParser()
@@ -10,12 +15,73 @@ def main():
     parser.add_argument("-g", "--grid", action="store_true", help="Perform grid-based evaluation.")
     parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors.")
     args = parser.parse_args()
-    config = Config(args.config)
-
+    config = Config(args.config, )
+    num_procs = args.proc
+    pool = Pool(num_procs)
+    if args.obj:
+        evaluate_objects(config, pool)
+    if args.grid:
+        evaluate_grids(config, pool)
+    pool.close()
+    pool.join()
     return
 
 
+def evaluate_objects(config, pool):
+    return
 
+
+def evaluate_object_run():
+    return
+
+
+def evaluate_grids(config, pool):
+    run_dates = pd.DatetimeIndex(start=config.start_date,
+                                 end=config.end_date, freq="1D")
+    ensemble_members = config.ensemble_members
+    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Size_Threshold", "Window_Size",
+                     "Window_Start", "Window_End", "ROC", "Reliability"]
+    all_scores = pd.DataFrame(columns=score_columns)
+    for run_date in run_dates:
+        for member in ensemble_members:
+            for model_name in config.model_names:
+                for window_size in config.window_sizes:
+                    pool.apply_async(evaluate_grid_run, (run_date, member, model_name, window_size, config,
+                                                         score_columns),
+                                     callback=all_scores.append)
+    return
+
+
+def evaluate_grid_run(run_date, member, model_name, window_size, config, score_columns):
+    try:
+        grid_eval = GridEvaluator(run_date, config.ensemble_name, member, [model_name], config.size_thresholds,
+                                  config.start_hour, config.end_hour, window_size, config.time_skip,
+                                  config.forecast_sample_path, config.mrms_path, config.mrms_variable,
+                                  config.obs_mask, config.mask_variable)
+        grid_eval.load_forecasts()
+        grid_eval.get_window_forecasts()
+        grid_eval.load_obs()
+        roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
+        rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
+        output_scores = pd.DataFrame(columns=score_columns)
+        for ml_model_name in roc_curves.keys():
+            for size_threshold in roc_curves[model_name].keys():
+                for hour_window in roc_curves[model_name][size_threshold].keys():
+                    row = [run_date, config.ensemble_name, member, ml_model_name, size_threshold, window_size,
+                           hour_window[0], hour_window[1], roc_curves[ml_model_name][size_threshold][hour_window],
+                           rel_curves[ml_model_name][size_threshold][hour_window]]
+                    index = "{0}_{1}_{2}_{3}_{4:02d}_{5:02d}_{6:02d}".format(run_date.strftime("%Y%m%d"),
+                                                                             config.ensemble_name,
+                                                                             member,
+                                                                             ml_model_name.replace(" ", "-"),
+                                                                             size_threshold,
+                                                                             window_size,
+                                                                             hour_window[0])
+                    output_scores.ix[index] = row
+        return output_scores
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
 
 if __name__ == "__main__":
     main()

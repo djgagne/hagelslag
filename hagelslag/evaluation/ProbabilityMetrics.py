@@ -54,6 +54,11 @@ class DistributedROC(object):
                                   & (observations < self.obs_threshold))
             self.contingency_tables.ix[t] += [tp, fp, fn, tn]
 
+    def __add__(self, other):
+        sum_roc = DistributedROC(self.thresholds, self.obs_threshold)
+        sum_roc.contingency_tables = self.contingency_tables + other.contingency_tables
+        return sum_roc
+
     def merge(self, other_roc):
         if other_roc.thresholds.size == self.thresholds.size and np.all(other_roc.thresholds == self.thresholds):
             self.contingency_tables += other_roc.contingency_tables
@@ -143,6 +148,11 @@ class DistributedReliability(object):
             self.frequencies.loc[t, "Total_Freq"] += np.count_nonzero((threshold <= forecasts) &
                                                                       (forecasts < self.thresholds[t+1]))
 
+    def __add__(self, other):
+        sum_rel = DistributedReliability(self.thresholds, self.obs_threshold)
+        sum_rel.frequencies = self.frequencies + other.frequencies
+        return sum_rel
+
     def merge(self, other_rel):
         if other_rel.thresholds.size == self.thresholds.size and np.all(other_rel.thresholds == self.thresholds):
             self.frequencies += other_rel.frequencies
@@ -162,10 +172,12 @@ class DistributedReliability(object):
 
     def brier_score_components(self):
         rel_curve = self.reliability_curve()
-        climo_freq = self.frequencies["Pos_Freq"].sum() / self.frequencies["Total_Freq"].sum()
-        reliability = np.mean(self.frequencies["Total_Freq"] * (rel_curve["Bin_Center"] -
-                                                                rel_curve["Positive_Relative_Freq"]) ** 2)
-        resolution = np.mean(self.frequencies["Total_Freq"] * (rel_curve["Positive_Relative_Freq"] - climo_freq) ** 2)
+        total = self.frequencies["Total_Freq"].sum()
+        climo_freq = float(self.frequencies["Positive_Freq"].sum()) / self.frequencies["Total_Freq"].sum()
+        reliability = np.sum(self.frequencies["Total_Freq"] * (rel_curve["Bin_Start"] -
+                                                                rel_curve["Positive_Relative_Freq"]) ** 2) / total
+        resolution = np.sum(self.frequencies["Total_Freq"] * (rel_curve["Positive_Relative_Freq"] - climo_freq) ** 2) \
+                     / total
         uncertainty = climo_freq * (1 - climo_freq)
         return reliability, resolution, uncertainty
 
@@ -193,9 +205,16 @@ class DistributedCRPS(object):
         self.errors["Pos_Counts"] += np.sum(obs_cdfs, axis=0)
         self.num_forecasts += forecasts.shape[0]
 
+    def __add__(self, other):
+        sum_crps = DistributedCRPS(self.thresholds)
+        sum_crps.errors = self.errors + other.errors
+        sum_crps.num_forecasts = self.num_forecasts + other.num_forecasts
+        return sum_crps
+
     def merge(self, other_crps):
         if other_crps.thresholds.size == self.thresholds.size and np.all(other_crps.thresholds == self.thresholds):
             self.errors += other_crps.errors
+            self.num_forecasts += other_crps.num_forecasts
         else:
             print("Input table thresholds do not match.")
 

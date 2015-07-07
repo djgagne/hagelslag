@@ -86,3 +86,31 @@ class ObjectEvaluator(object):
             crps_obj.update(self.matched_forecasts[model_type][model_name][self.forecast_bins[model_type]].values,
                             self.matched_forecasts[model_type][model_name][self.type_cols[model_type]].values)
         return crps_obj
+
+    def roc(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
+        roc_obj = DistributedROC(prob_thresholds, intensity_threshold)
+        if query is not None:
+            sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+        else:
+            sub_forecasts = self.matched_forecasts[model_type][model_name]
+        if len(self.forecast_bins[model_type]) > 1:
+            bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values.cumsum(axis=1)[:, bin]
+        else:
+            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values
+        roc_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
+        return roc_obj
+
+    def reliability(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
+        rel_obj = DistributedReliability(prob_thresholds, intensity_threshold)
+        if query is not None:
+            sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+        else:
+            sub_forecasts = self.matched_forecasts[model_type][model_name]
+        if len(self.forecast_bins[model_type]) > 1:
+            bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values.cumsum(axis=1)[:, bin]
+        else:
+            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values
+        rel_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
+        return rel_obj
