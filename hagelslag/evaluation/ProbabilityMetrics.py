@@ -83,6 +83,9 @@ class DistributedROC(object):
         roc_curve = self.roc_curve()
         return np.abs(np.trapz(roc_curve['POD'], x=roc_curve['POFD']))
 
+    def __str__(self):
+        return "ROC AUC: {0:0.3f}, Total: {1:03d}".format(self.auc(), self.contingency_tables.sum(axis=1)[0])
+
 
 class Reliability(object):
     def __init__(self, forecasts, observations, thresholds, obs_threshold):
@@ -131,6 +134,10 @@ class Reliability(object):
         bs_climo = np.mean((climo_freq - obs_truth) **2)
         bs = self.brier_score()
         return 1.0 - bs / bs_climo
+
+    def __str__(self):
+        return "Brier Score: {0:0.3f}, Reliability: {1:0.3f}, Resolution: {2:0.3f}, Uncertainty: {3:0.3f}".format(
+            tuple([self.brier_score()] + list(self.brier_score_components())))
 
 
 class DistributedReliability(object):
@@ -188,6 +195,10 @@ class DistributedReliability(object):
     def brier_skill_score(self):
         reliability, resolution, uncertainty = self.brier_score_components()
         return (resolution - reliability) / uncertainty
+
+    def __str__(self):
+        return "Brier Score: {0:0.3f}, Reliability: {1:0.3f}, Resolution: {2:0.3f}, Uncertainty: {3:0.3f}".format(
+            tuple([self.brier_score()] + list(self.brier_score_components())))
 
 
 class DistributedCRPS(object):
