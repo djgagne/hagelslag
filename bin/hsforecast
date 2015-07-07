@@ -57,21 +57,21 @@ def sample_all_tracks(config, mode="forecast"):
     for run_date in run_dates.to_pydatetime():
         for member in config.ensemble_members:
             group = member_info.loc[member, config.group_col]
-            pool.apply_async(sample_member_run_tracks(member,
-                                                      group,
-                                                      run_date,
-                                                      config.size_model_names,
-                                                      config.start_hour,
-                                                      config.end_hour,
-                                                      mapping_data['lon'].shape,
-                                                      grid_dict['dx'],
-                                                      config.forecast_json_path,
-                                                      config.num_track_samples,
-                                                      config.sampler_thresholds,
-                                                      config.copula_file,
-                                                      config.sampler_out_path,
-                                                      config.size_range_params,
-                                                      config.track_output_ranges))
+            pool.apply_async(sample_member_run_tracks, (member,
+                                                        group,
+                                                        run_date,
+                                                        config.size_model_names,
+                                                        config.start_hour,
+                                                        config.end_hour,
+                                                        mapping_data['lon'].shape,
+                                                        grid_dict['dx'],
+                                                        config.forecast_json_path,
+                                                        config.num_track_samples,
+                                                        config.sampler_thresholds,
+                                                        config.copula_file,
+                                                        config.sampler_out_path,
+                                                        config.size_range_params,
+                                                        config.track_output_ranges))
     pool.close()
     pool.join()
 
