@@ -87,5 +87,6 @@ class MRMSGrid(object):
                 if len(time_index) > 0:
                     data.append(file_obj.variables[self.variable][time_index[0]])
                     valid_dates.append(self.all_dates[t])
+        file_obj.close()
         self.data = np.array(data)
         self.valid_dates = pd.DatetimeIndex(valid_dates) 
