@@ -88,7 +88,7 @@ def evaluate_grid_run(run_date, member, model_name, window_size, config, score_c
     :return:
     """
     try:
-        print("Starting {1} {2} {3:02d} hours Run: {4}".format(member, model_name,
+        print("Starting {0} {1} {2:02d} hours Run: {3}".format(member, model_name,
                                                                window_size, run_date.strftime("%Y%m%d")))
         grid_eval = GridEvaluator(run_date, config.ensemble_name, member, [model_name], config.size_thresholds,
                                   config.start_hour, config.end_hour, window_size, config.time_skip,
@@ -97,7 +97,7 @@ def evaluate_grid_run(run_date, member, model_name, window_size, config, score_c
         grid_eval.load_forecasts()
         grid_eval.get_window_forecasts()
         grid_eval.load_obs()
-        print("Scoring {1} {2} {3:02d} hours Run: {4}".format(member, model_name,
+        print("Scoring {0} {1} {2:02d} hours Run: {3}".format(member, model_name,
                                                                window_size, run_date.strftime("%Y%m%d")))
         roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
         rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
