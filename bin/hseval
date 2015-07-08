@@ -62,12 +62,18 @@ def evaluate_grids(config, num_procs):
     score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Size_Threshold", "Window_Size",
                      "Window_Start", "Window_End", "ROC", "Reliability"]
     score_list = []
-    for run_date in run_dates:
-        for member in ensemble_members:
-            for window_size in config.window_sizes:
+    def append_scores(score_set):
+        score_list.append(score_set)
+        temp_scores = pd.concat(score_list)
+        pickle_file = open(config.out_path + "grid_scores_temp.pkl", "w")
+        cPickle.dump(temp_scores, pickle_file, cPickle.HIGHEST_PROTOCOL)
+        pickle_file.close()
+    for window_size in config.window_sizes:
+        for run_date in run_dates:
+            for member in ensemble_members:
                 pool.apply_async(evaluate_grid_run, (run_date, member, window_size, config,
                                                      score_columns),
-                                 callback=score_list.append)
+                                 callback=append_scores)
     pool.close()
     pool.join()
     all_scores = pd.concat(score_list)
