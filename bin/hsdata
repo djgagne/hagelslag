@@ -119,9 +119,9 @@ def process_ensemble_member(run_date, member, config):
                             na_rep="nan",
                             float_format="%0.5f",
                             index=False)
-    except Exception:
+    except Exception as e:
         print traceback.format_exc()
-        raise
+        raise e
     return
 
 
@@ -244,7 +244,7 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
                                                                     obs_track.start_time,
                                                                     obs_track.end_time,
                                                                     o)
-        if o in track_pairing_array[:, 1]:
+        if track_pairing_array.shape[0] > 0 and o in track_pairing_array[:, 1]:
             f = track_pairing_array[np.where(track_pairing_array[:,1]==o)[0][0], 0]
             forecast_track = forecast_tracks[f]
             track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,

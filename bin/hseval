@@ -64,18 +64,17 @@ def evaluate_grids(config, num_procs):
     score_list = []
     for run_date in run_dates:
         for member in ensemble_members:
-            for model_name in config.model_names:
-                for window_size in config.window_sizes:
-                    pool.apply_async(evaluate_grid_run, (run_date, member, model_name, window_size, config,
-                                                         score_columns),
-                                     callback=score_list.append)
+            for window_size in config.window_sizes:
+                pool.apply_async(evaluate_grid_run, (run_date, member, window_size, config,
+                                                     score_columns),
+                                 callback=score_list.append)
     pool.close()
     pool.join()
     all_scores = pd.concat(score_list)
     return all_scores
 
 
-def evaluate_grid_run(run_date, member, model_name, window_size, config, score_columns):
+def evaluate_grid_run(run_date, member, window_size, config, score_columns):
     """
     Calculate verification statistics on a single ensemble member run for a single machine learning model.
 
@@ -88,23 +87,24 @@ def evaluate_grid_run(run_date, member, model_name, window_size, config, score_c
     :return:
     """
     try:
-        print("Starting {0} {1} {2:02d} hours Run: {3}".format(member, model_name,
-                                                               window_size, run_date.strftime("%Y%m%d")))
-        grid_eval = GridEvaluator(run_date, config.ensemble_name, member, [model_name], config.size_thresholds,
+        print("Starting {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        grid_eval = GridEvaluator(run_date, config.ensemble_name, member, config.model_names, config.size_thresholds,
                                   config.start_hour, config.end_hour, window_size, config.time_skip,
                                   config.forecast_sample_path, config.mrms_path, config.mrms_variable,
                                   config.obs_mask, config.mask_variable)
+        print("Loading forecasts {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_forecasts()
+        print("Window forecasts {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.get_window_forecasts()
+        print("Load obs {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_obs()
-        print("Scoring {0} {1} {2:02d} hours Run: {3}".format(member, model_name,
-                                                               window_size, run_date.strftime("%Y%m%d")))
+        print("Scoring {0} {1} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
         roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
         rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
         output_scores = pd.DataFrame(columns=score_columns)
         for ml_model_name in roc_curves.keys():
-            for size_threshold in roc_curves[model_name].keys():
-                for hour_window in roc_curves[model_name][size_threshold].keys():
+            for size_threshold in roc_curves[ml_model_name].keys():
+                for hour_window in roc_curves[ml_model_name][size_threshold].keys():
                     row = [run_date, config.ensemble_name, member, ml_model_name, size_threshold, window_size,
                            hour_window[0], hour_window[1], roc_curves[ml_model_name][size_threshold][hour_window],
                            rel_curves[ml_model_name][size_threshold][hour_window]]
@@ -115,7 +115,7 @@ def evaluate_grid_run(run_date, member, model_name, window_size, config, score_c
                                                                              size_threshold,
                                                                              window_size,
                                                                              hour_window[0])
-                    output_scores.ix[index] = row
+                    output_scores.loc[index] = row
         return output_scores
     except Exception as e:
         print(traceback.format_exc())

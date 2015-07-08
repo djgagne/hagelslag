@@ -133,6 +133,7 @@ class TrackModeler(object):
             print group
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
+            print "Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0)
             self.condition_models[group] = {}
             for m, model_name in enumerate(model_names):
                 print model_name
