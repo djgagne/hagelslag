@@ -135,7 +135,7 @@ class GridEvaluator(object):
             for t in range(self.dilated_obs[s].shape[0]):
                 self.dilated_obs[s][t][binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
 
-    def roc_curves(self, prob_thresholds, dilation_radius=13):
+    def roc_curves(self, prob_thresholds):
         """
         Generate ROC Curve objects for each machine learning model, size threshold, and time window.
 
@@ -165,7 +165,7 @@ class GridEvaluator(object):
                         )
         return all_roc_curves
 
-    def reliability_curves(self, prob_thresholds, dilation_radius=13):
+    def reliability_curves(self, prob_thresholds):
         """
         Output reliability curves for each machine learning model, size threshold, and time window.
 

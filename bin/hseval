@@ -104,10 +104,11 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
         grid_eval.get_window_forecasts()
         print("Load obs {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_obs()
+        grid_eval.dilate_obs(config.dilation_radius)
         print("Scoring ROC {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
-        roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
+        roc_curves = grid_eval.roc_curves(config.forecast_thresholds)
         print("Scoring Rel {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
-        rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
+        rel_curves = grid_eval.reliability_curves(config.forecast_thresholds)
         output_scores = pd.DataFrame(columns=score_columns)
         for ml_model_name in roc_curves.keys():
             for size_threshold in roc_curves[ml_model_name].keys():
