@@ -87,18 +87,18 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
     :return:
     """
     try:
-        print("Starting {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Starting {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval = GridEvaluator(run_date, config.ensemble_name, member, config.model_names, config.size_thresholds,
                                   config.start_hour, config.end_hour, window_size, config.time_skip,
                                   config.forecast_sample_path, config.mrms_path, config.mrms_variable,
                                   config.obs_mask, config.mask_variable)
-        print("Loading forecasts {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Loading forecasts {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_forecasts()
-        print("Window forecasts {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Window forecasts {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.get_window_forecasts()
-        print("Load obs {0} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Load obs {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_obs()
-        print("Scoring {0} {1} {2:02d} hours Run: {3}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Scoring {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
         rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
         output_scores = pd.DataFrame(columns=score_columns)

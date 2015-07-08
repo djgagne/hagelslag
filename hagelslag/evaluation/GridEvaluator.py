@@ -132,8 +132,9 @@ class GridEvaluator(object):
         dilated_obs = {}
         for s in self.size_thresholds:
             dilated_obs[s] = np.zeros(self.window_obs[self.mrms_variable].shape)
+            print dilated_obs[s].shape
             for t in range(dilated_obs[s].shape[0]):
-                dilated_obs[s][binary_dilation(self.window_obs[t] >= s, iterations=dilation_radius)] = 1
+                dilated_obs[s][t][binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
         return dilated_obs
 
     def roc_curves(self, prob_thresholds, dilation_radius=13):
@@ -157,13 +158,13 @@ class GridEvaluator(object):
                     if self.obs_mask:
                         all_roc_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h][
-                                self.window_obs[self.mask_variable] > 0],
-                            dilated_obs[h][self.window_obs[self.mask_variable > 0]]
+                                self.window_obs[self.mask_variable][h] > 0],
+                            dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
                         )
                     else:
                         all_roc_curves[model_name][size_threshold][hour_range].update(
-                            self.window_size[model_name][size_threshold][h],
-                            dilated_obs[h]
+                            self.window_forecasts[model_name][size_threshold][h],
+                            dilated_obs[size_threshold][h]
                         )
         return all_roc_curves
 
@@ -188,13 +189,13 @@ class GridEvaluator(object):
                     if self.obs_mask:
                         all_rel_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h][
-                                self.window_obs[self.mask_variable] > 0],
-                            dilated_obs[h][self.window_obs[self.mask_variable > 0]]
+                                self.window_obs[self.mask_variable][h] > 0],
+                            dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
                         )
                     else:
                         all_rel_curves[model_name][size_threshold][hour_range].update(
-                            self.window_size[model_name][size_threshold][h],
-                            dilated_obs[h]
+                            self.window_forecasts[model_name][size_threshold][h],
+                            dilated_obs[size_threshold][h]
                         )
         return all_rel_curves
 
