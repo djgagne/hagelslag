@@ -69,6 +69,7 @@ class GridEvaluator(object):
         self.raw_obs = {}
         self.window_forecasts = {}
         self.window_obs = {}
+        self.dilated_obs = {}
         self.obs_mask = obs_mask
         self.mask_variable = mask_variable
 
@@ -129,13 +130,10 @@ class GridEvaluator(object):
         :param dilation_radius: Number of times to dilate the grid.
         :return:
         """
-        dilated_obs = {}
         for s in self.size_thresholds:
-            dilated_obs[s] = np.zeros(self.window_obs[self.mrms_variable].shape)
-            print dilated_obs[s].shape
-            for t in range(dilated_obs[s].shape[0]):
-                dilated_obs[s][t][binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
-        return dilated_obs
+            self.dilated_obs[s] = np.zeros(self.window_obs[self.mrms_variable].shape)
+            for t in range(self.dilated_obs[s].shape[0]):
+                self.dilated_obs[s][t][binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
 
     def roc_curves(self, prob_thresholds, dilation_radius=13):
         """
@@ -146,7 +144,6 @@ class GridEvaluator(object):
         :return: a dictionary of DistributedROC objects.
         """
         all_roc_curves = {}
-        dilated_obs = self.dilate_obs(dilation_radius)
         for model_name in self.model_names:
             all_roc_curves[model_name] = {}
             for size_threshold in self.size_thresholds:
@@ -159,12 +156,12 @@ class GridEvaluator(object):
                         all_roc_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h][
                                 self.window_obs[self.mask_variable][h] > 0],
-                            dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
+                            self.dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
                         )
                     else:
                         all_roc_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h],
-                            dilated_obs[size_threshold][h]
+                            self.dilated_obs[size_threshold][h]
                         )
         return all_roc_curves
 
@@ -177,7 +174,6 @@ class GridEvaluator(object):
         :return:
         """
         all_rel_curves = {}
-        dilated_obs = self.dilate_obs(dilation_radius)
         for model_name in self.model_names:
             all_rel_curves[model_name] = {}
             for size_threshold in self.size_thresholds:
@@ -190,12 +186,12 @@ class GridEvaluator(object):
                         all_rel_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h][
                                 self.window_obs[self.mask_variable][h] > 0],
-                            dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
+                            self.dilated_obs[size_threshold][h][self.window_obs[self.mask_variable][h] > 0]
                         )
                     else:
                         all_rel_curves[model_name][size_threshold][hour_range].update(
                             self.window_forecasts[model_name][size_threshold][h],
-                            dilated_obs[size_threshold][h]
+                            self.dilated_obs[size_threshold][h]
                         )
         return all_rel_curves
 

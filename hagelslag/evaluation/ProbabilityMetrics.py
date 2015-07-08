@@ -197,8 +197,10 @@ class DistributedReliability(object):
         return (resolution - reliability) / uncertainty
 
     def __str__(self):
+        bs = self.brier_score()
+        rel, res, unc = self.brier_score_components()
         return "Brier Score: {0:0.3f}, Reliability: {1:0.3f}, Resolution: {2:0.3f}, Uncertainty: {3:0.3f}".format(
-            tuple([self.brier_score()] + list(self.brier_score_components())))
+            bs, rel, res, unc)
 
 
 class DistributedCRPS(object):

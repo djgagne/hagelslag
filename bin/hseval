@@ -104,8 +104,9 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
         grid_eval.get_window_forecasts()
         print("Load obs {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         grid_eval.load_obs()
-        print("Scoring {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
+        print("Scoring ROC {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         roc_curves = grid_eval.roc_curves(config.forecast_thresholds, config.dilation_radius)
+        print("Scoring Rel {0} {1:02d} hours Run: {2}".format(member, window_size, run_date.strftime("%Y%m%d")))
         rel_curves = grid_eval.reliability_curves(config.forecast_thresholds, config.dilation_radius)
         output_scores = pd.DataFrame(columns=score_columns)
         for ml_model_name in roc_curves.keys():
@@ -121,6 +122,7 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
                                                                              size_threshold,
                                                                              window_size,
                                                                              hour_window[0])
+                    print(index)
                     output_scores.loc[index] = row
         return output_scores
     except Exception as e:
