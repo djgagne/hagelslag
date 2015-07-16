@@ -18,7 +18,8 @@ def main():
     config = Config(args.config, )
     num_procs = args.proc
     if args.obj:
-        evaluate_objects(config, num_procs)
+        all_scores = evaluate_objects(config, num_procs)
+        all_scores.to_csv(config.out_path + "object_scores.csv", index_label="Index")
     if args.grid:
         grid_scores = evaluate_grids(config, num_procs)
         pickle_file = open(config.out_path + "grid_scores.pkl", "w")
@@ -32,7 +33,8 @@ def evaluate_objects(config, num_procs):
     run_dates = pd.DatetimeIndex(start=config.start_date,
                                  end=config.end_date, freq="1D")
     ensemble_members = config.ensemble_members
-    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "CRPS"]
+    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "CRPS", "ROC_25",
+                     "ROC_50", "Rel_25", "Rel_50"]
     score_list = []
     for run_date in run_dates:
         for member in ensemble_members:
@@ -50,8 +52,20 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
     object_eval.load_forecasts()
     object_eval.load_obs()
     object_eval.merge_obs()
-
-    return
+    scores = pd.DataFrame(columns=score_columns)
+    for model_type in config.model_types:
+        for model_name in config.model_names:
+            crps = object_eval.crps(model_type, model_name)
+            roc_25 = object_eval.roc(model_type, model_name, 25.0, config.forecast_thresholds)
+            roc_50 = object_eval.roc(model_type, model_name, 50.0, config.forecast_thresholds)
+            rel_25 = object_eval.reliability(model_type, model_name, 25.0, config.forecast_thresholds)
+            rel_50 = object_eval.reliability(model_type, model_name, 50.0, config.forecast_thresholds)
+            row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, crps, roc_25, roc_50,
+                   rel_25, rel_50]
+            index = "{0}_{1}_{2}_{3}_{4}".format(run_date.strftime("%Y%m%d"), config.ensemble_name,
+                                                 ensemble_member, model_name, model_type)
+            scores.loc[index] = row
+    return scores
 
 
 def evaluate_grids(config, num_procs):
@@ -62,6 +76,7 @@ def evaluate_grids(config, num_procs):
     score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Size_Threshold", "Window_Size",
                      "Window_Start", "Window_End", "ROC", "Reliability"]
     score_list = []
+
     def append_scores(score_set):
         score_list.append(score_set)
         temp_scores = pd.concat(score_list)

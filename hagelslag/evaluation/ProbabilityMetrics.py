@@ -36,11 +36,16 @@ class ROC(object):
 
 
 class DistributedROC(object):
-    def __init__(self, thresholds, obs_threshold):
+    def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
-        self.contingency_tables = pd.DataFrame(np.zeros((thresholds.size, 4), dtype=int),
-                                               columns=["TP", "FP", "FN", "TN"])
+        if self.thresholds is not None:
+            self.contingency_tables = pd.DataFrame(np.zeros((thresholds.size, 4), dtype=int),
+                                                   columns=["TP", "FP", "FN", "TN"])
+        else:
+            self.contingency_tables = pd.DataFrame(columns=["TP", "FP", "FN", "TN"])
+        if input_str is not None:
+            self.from_str(input_str)
 
     def update(self, forecasts, observations):
         for t, threshold in enumerate(self.thresholds):
@@ -84,8 +89,23 @@ class DistributedROC(object):
         return np.abs(np.trapz(roc_curve['POD'], x=roc_curve['POFD']))
 
     def __str__(self):
-        return "ROC AUC: {0:0.3f}, Total: {1:03d}".format(self.auc(), self.contingency_tables.sum(axis=1)[0])
+        out_str = "Obs_Threshold:{0:0.2f}".format(self.obs_threshold) + ";"
+        out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
+        for col in self.contingency_tables.columns:
+            out_str += col + ":" + " ".join(["{0:d}".format(t) for t in self.contingency_tables[col]]) + ";"
+        out_str = out_str.rstrip(";")
+        return out_str
 
+    def from_str(self, in_str):
+        parts = in_str.split(";")
+        for part in parts:
+            var_name, value = part.split(":")
+            if var_name == "Obs_Threshold":
+                self.obs_threshold = float(value)
+            elif var_name == "Thresholds":
+                self.thresholds = np.array(value.split(), dtype=float)
+            elif var_name in ["TP", "FP", "FN", "TN"]:
+                self.contingency_tables[var_name] = np.array(value.split(), dtype=int)
 
 class Reliability(object):
     def __init__(self, forecasts, observations, thresholds, obs_threshold):
@@ -141,11 +161,16 @@ class Reliability(object):
 
 
 class DistributedReliability(object):
-    def __init__(self, thresholds, obs_threshold):
+    def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
-        self.frequencies = pd.DataFrame(np.zeros((self.thresholds.size, 2), dtype=int),
-                                        columns=["Total_Freq", "Positive_Freq"])
+        if self.thresholds is None:
+            self.frequencies = pd.DataFrame(columns=["Total_Freq", "Positive_Freq"])
+        else:
+            self.frequencies = pd.DataFrame(np.zeros((self.thresholds.size, 2), dtype=int),
+                                            columns=["Total_Freq", "Positive_Freq"])
+        if input_str is not None:
+            self.from_str(input_str)
 
     def update(self, forecasts, observations):
         for t, threshold in enumerate(self.thresholds[:-1]):
@@ -197,17 +222,34 @@ class DistributedReliability(object):
         return (resolution - reliability) / uncertainty
 
     def __str__(self):
-        bs = self.brier_score()
-        rel, res, unc = self.brier_score_components()
-        return "Brier Score: {0:0.3f}, Reliability: {1:0.3f}, Resolution: {2:0.3f}, Uncertainty: {3:0.3f}".format(
-            bs, rel, res, unc)
+        out_str = "Obs_Threshold:{0:0.2f}".format(self.obs_threshold) + ";"
+        out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
+        for col in self.frequencies.columns:
+            out_str += col + ":" + " ".join(["{0:d}".format(t) for t in self.frequencies[col]]) + ";"
+        out_str = out_str.rstrip(";")
+        return out_str
 
+    def from_str(self, in_str):
+        parts = in_str.split(";")
+        for part in parts:
+            var_name, value = part.split(":")
+            if var_name == "Obs_Threshold":
+                self.obs_threshold = float(value)
+            elif var_name == "Thresholds":
+                self.thresholds = np.array(value.split(), dtype=float)
+            elif var_name in ["Positive_Freq", "Total_Freq"]:
+                self.frequencies[var_name] = np.array(value.split(), dtype=int)
 
 class DistributedCRPS(object):
-    def __init__(self, thresholds):
+    def __init__(self, thresholds=None, input_str=None):
         self.thresholds = thresholds
-        self.errors = pd.DataFrame(np.zeros((self.thresholds, 2)), columns=["Errors", "Pos_Counts"])
+        if self.thresholds is None:
+            self.errors = pd.DataFrame(columns=["Errors", "Pos_Counts"])
+        else:
+            self.errors = pd.DataFrame(np.zeros((self.thresholds, 2)), columns=["Errors", "Pos_Counts"])
         self.num_forecasts = 0
+        if input_str is not None:
+            self.from_str(input_str)
 
     def update(self, forecasts, observations):
         forecast_cdfs = np.cumsum(forecasts, axis=1)
@@ -233,3 +275,28 @@ class DistributedCRPS(object):
 
     def crps(self):
         return self.errors["Errors"].sum() / (self.thresholds.size * self.num_forecasts)
+
+    def from_str(self, in_str):
+        str_parts = in_str.split(";")
+        for part in str_parts:
+            var_name, value = part.split(":")
+            if var_name == "Thresholds":
+                self.thresholds = np.array(value.split(), dtype=float)
+            elif var_name == "Errors":
+                self.errors["Errors"] = np.array(value.split(), dtype=float)
+            elif var_name == "Pos_Counts":
+                self.errors["Pos_Counts"] = np.array(value.split(), dtype=int)
+            elif var_name == "Num_Forecasts":
+                self.num_forecasts = int(value)
+
+
+    def __str__(self):
+        out_str = ""
+        out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
+        out_str += "Errors:" + " ".join(["{0:0.3f}".format(e) for e in self.errors["Errors"]]) + ";"
+        out_str += "Pos_Counts:" + " ".join("{0:d}".format(e) for e in self.errors["Pos_Counts"]) + ";"
+        out_str += "Num_Forecasts:{0:d}".format(self.num_forecasts)
+        return out_str
+
+    def __repr__(self):
+        return self.__str__()
