@@ -96,6 +96,9 @@ class DistributedROC(object):
         out_str = out_str.rstrip(";")
         return out_str
 
+    def __repr__(self):
+        return self.__str__()
+
     def from_str(self, in_str):
         parts = in_str.split(";")
         for part in parts:
@@ -229,6 +232,9 @@ class DistributedReliability(object):
         out_str = out_str.rstrip(";")
         return out_str
 
+    def __repr__(self):
+        return self.__str__()
+
     def from_str(self, in_str):
         parts = in_str.split(";")
         for part in parts:
@@ -246,7 +252,9 @@ class DistributedCRPS(object):
         if self.thresholds is None:
             self.errors = pd.DataFrame(columns=["Errors", "Pos_Counts"])
         else:
-            self.errors = pd.DataFrame(np.zeros((self.thresholds, 2)), columns=["Errors", "Pos_Counts"])
+            self.errors = pd.DataFrame({"Errors":np.zeros(self.thresholds.size), 
+                                        "Pos_Counts":np.zeros(self.thresholds.size, dtype=int)}, 
+                                       columns=["Errors", "Pos_Counts"])
         self.num_forecasts = 0
         if input_str is not None:
             self.from_str(input_str)
@@ -294,7 +302,7 @@ class DistributedCRPS(object):
         out_str = ""
         out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
         out_str += "Errors:" + " ".join(["{0:0.3f}".format(e) for e in self.errors["Errors"]]) + ";"
-        out_str += "Pos_Counts:" + " ".join("{0:d}".format(e) for e in self.errors["Pos_Counts"]) + ";"
+        out_str += "Pos_Counts:" + " ".join("{0:d}".format(int(e)) for e in self.errors["Pos_Counts"]) + ";"
         out_str += "Num_Forecasts:{0:d}".format(self.num_forecasts)
         return out_str
 

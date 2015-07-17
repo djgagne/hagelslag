@@ -17,7 +17,8 @@ class ObjectEvaluator(object):
         self.track_data_csv_path = track_data_csv_path
         self.metadata_columns = ["Track_ID", "Obs_Track_ID", "Ensemble_Name", "Ensemble_Member", "Forecast_Hour",
                                  "Step_Duration", "Total_Duration", "Area"]
-        self.type_cols = {"translation-x": "Translation_Error_X",
+        self.type_cols = {"size": "Hail_Size",
+                          "translation-x": "Translation_Error_X",
                           "translation-y": "Translation_Error_Y",
                           "start-time": "Start_Time_Error"}
         self.forecasts = {}
@@ -51,7 +52,7 @@ class ObjectEvaluator(object):
                             prediction = [prediction]
                         row = [track_id, obs_track_id, self.ensemble_name, self.ensemble_member, forecast_hours[f],
                                f + 1, duration, area] + prediction
-                        self.forecasts[model_type][model_name].ix[step_id] = row
+                        self.forecasts[model_type][model_name].loc[step_id] = row
 
     def load_obs(self):
         track_total_file = self.track_data_csv_path + \
@@ -59,7 +60,7 @@ class ObjectEvaluator(object):
                                                  self.ensemble_member,
                                                  self.run_date.strftime("%Y%m%d"))
         track_step_file = self.track_data_csv_path + \
-            "track_step__{0}_{1}_{2}.csv".format(self.ensemble_name,
+            "track_step_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                  self.ensemble_member,
                                                  self.run_date.strftime("%Y%m%d"))
         track_total_cols = ["Track_ID", "Translation_Error_X", "Translation_Error_Y", "Start_Time_Error"]
@@ -73,8 +74,9 @@ class ObjectEvaluator(object):
         for model_type in self.model_types:
             self.matched_forecasts[model_type] = {}
             for model_name in self.model_names:
-                self.matched_forecasts[model_type][model_name] = pd.merge(self.forecasts[model_type][model_name],
-                                                                          self.obs, right_on="Step_ID", how="left")
+               self.matched_forecasts[model_type][model_name] = pd.merge(self.forecasts[model_type][model_name],
+                                                                         self.obs, right_on="Step_ID", how="left",
+                                                                         left_index=True)
 
     def crps(self, model_type, model_name, query=None):
         crps_obj = DistributedCRPS(self.forecast_bins[model_type])
@@ -83,7 +85,7 @@ class ObjectEvaluator(object):
             crps_obj.update(sub_forecasts[self.forecast_bins[model_type]].values,
                             sub_forecasts[self.type_cols[model_type]].values)
         else:
-            crps_obj.update(self.matched_forecasts[model_type][model_name][self.forecast_bins[model_type]].values,
+            crps_obj.update(self.matched_forecasts[model_type][model_name][list(self.forecast_bins[model_type])].values,
                             self.matched_forecasts[model_type][model_name][self.type_cols[model_type]].values)
         return crps_obj
 
