@@ -4,7 +4,11 @@ import json
 from glob import glob
 from ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
 
+
 class ObjectEvaluator(object):
+    """
+
+    """
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
                  forecast_json_path, track_data_csv_path):
         self.run_date = run_date
@@ -28,7 +32,7 @@ class ObjectEvaluator(object):
             self.forecasts[model_type] = {}
             for model_name in self.model_names:
                 self.forecasts[model_type][model_name] = pd.DataFrame(columns=self.metadata_columns +
-                                                                      list(self.forecast_bins[model_type]))
+                                                                      list(self.forecast_bins[model_type].astype(str)))
 
     def load_forecasts(self):
         forecast_path = self.forecast_json_path + "/{0}/{1}/".format(self.run_date.strftime("%Y%m%d"),
@@ -82,10 +86,11 @@ class ObjectEvaluator(object):
         crps_obj = DistributedCRPS(self.forecast_bins[model_type])
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
-            crps_obj.update(sub_forecasts[self.forecast_bins[model_type]].values,
+            crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
                             sub_forecasts[self.type_cols[model_type]].values)
         else:
-            crps_obj.update(self.matched_forecasts[model_type][model_name][list(self.forecast_bins[model_type])].values,
+            crps_obj.update(self.matched_forecasts[model_type][model_name][
+                                self.forecast_bins[model_type].astype(str)].values,
                             self.matched_forecasts[model_type][model_name][self.type_cols[model_type]].values)
         return crps_obj
 
@@ -97,9 +102,9 @@ class ObjectEvaluator(object):
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         if len(self.forecast_bins[model_type]) > 1:
             bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values.cumsum(axis=1)[:, bin]
+            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:, bin]
         else:
-            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values
+            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         roc_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
         return roc_obj
 
@@ -111,8 +116,9 @@ class ObjectEvaluator(object):
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         if len(self.forecast_bins[model_type]) > 1:
             bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values.cumsum(axis=1)[:, bin]
+            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
+                                                                                                                  bin]
         else:
-            forecast_values = sub_forecasts[self.forecast_bins[model_type]].values
+            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         rel_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
         return rel_obj

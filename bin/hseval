@@ -8,6 +8,7 @@ from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
 from hagelslag.evaluation.GridEvaluator import GridEvaluator
 import cPickle
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", help="Config file")
@@ -58,15 +59,16 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
         print("Merging obs")
         object_eval.merge_obs()
         scores = pd.DataFrame(columns=score_columns)
+        query = "Hail_Size>0"
         for model_type in config.model_types:
             print(model_type)
             for model_name in config.model_names:
                 print(model_name)
-                crps = object_eval.crps(model_type, model_name)
-                roc_25 = object_eval.roc(model_type, model_name, 25.0, config.forecast_thresholds)
-                roc_50 = object_eval.roc(model_type, model_name, 50.0, config.forecast_thresholds)
-                rel_25 = object_eval.reliability(model_type, model_name, 25.0, config.forecast_thresholds)
-                rel_50 = object_eval.reliability(model_type, model_name, 50.0, config.forecast_thresholds)
+                crps = object_eval.crps(model_type, model_name, query=query)
+                roc_25 = object_eval.roc(model_type, model_name, 25.0, config.forecast_thresholds, query=query)
+                roc_50 = object_eval.roc(model_type, model_name, 50.0, config.forecast_thresholds, query=query)
+                rel_25 = object_eval.reliability(model_type, model_name, 25.0, config.forecast_thresholds, query=query)
+                rel_50 = object_eval.reliability(model_type, model_name, 50.0, config.forecast_thresholds, query=query)
                 row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, crps, roc_25, roc_50,
                     rel_25, rel_50]
                 print(row)
@@ -77,6 +79,7 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
     except Exception as e:
         print(traceback.format_exc())
         raise e
+
 
 def evaluate_grids(config, num_procs):
     pool = Pool(num_procs)
