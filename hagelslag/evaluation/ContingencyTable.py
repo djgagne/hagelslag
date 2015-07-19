@@ -2,19 +2,43 @@ import numpy as np
 
 
 class ContingencyTable:
-    def __init__(self, a, b, c, d):
-        """Initializes a contingency table of the following form:
+    """Initializes a contingency table of the following form:
                        Event
                        Yes No
         Forecast    Yes  a  b
                     No   c  d
-        """
+
+    Parameters
+    ----------
+    a : int
+        Number of true positives or hits.
+    b : int
+        Number of false positives.
+    c : int
+        Number of false negatives or misses.
+    d : int
+        Number of true negatives.
+    """
+    def __init__(self, a, b, c, d):
         self.table = np.array([[a, b], [c, d]], dtype=float)
         self.N = self.table.sum()
 
     def update(self, a, b, c, d):
+        """
+        Update contingency table with new values without creating a new object.
+        """
         self.table.ravel()[:] = [a, b, c, d]
         self.N = self.table.sum()
+
+    def __add__(self, other):
+        """
+        Add two contingency tables together and return a combined one.
+
+        :param other:
+        :return:
+        """
+        sum_ct = ContingencyTable(*(self.table + other.table).tolist())
+        return sum_ct
 
     def pod(self):
         """Returns Probability of Detection (POD) or Hit Rate.

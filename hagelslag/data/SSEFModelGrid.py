@@ -4,9 +4,26 @@ import pandas as pd
 import numpy as np
 import os
 
+
 class SSEFModelGrid(ModelGrid):
     """
+    Extension of ModelGrid to the CAPS Storm-Scale Ensemble Forecast system.
 
+    Parameters
+    ----------
+    member : str
+        Name of the ensemble member
+    run_date : datetime.datetime object
+        Date of the initial step of the ensemble run
+    start_date : datetime.datetime object
+        First time step extracted.
+    end_date : datetime.datetime object
+        Last time step extracted.
+    path : str
+        Path to model output files.
+    single_step : boolean (default=False)
+        Whether variable information is stored with each time step in a separate file or one file containing all
+        timesteps.
     """
     def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=False):
         self.path = path

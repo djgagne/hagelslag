@@ -36,6 +36,20 @@ class ROC(object):
 
 
 class DistributedROC(object):
+    """
+    Store statistics for calculating receiver operating characteristic (ROC) curves and performance diagrams and permit
+    easy aggregation of ROC curves from many small datasets.
+
+    Parameters
+    ----------
+    thresholds : numpy.ndarray of floats
+        List of probability thresholds in increasing order.
+    obs_threshold : float
+        Observation value used as the split point for determining positives.
+    input_str : str
+        String in the format output by the __str__ method so that initialization of the object can be done
+        from items in a text file.
+    """
     def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
@@ -48,6 +62,13 @@ class DistributedROC(object):
             self.from_str(input_str)
 
     def update(self, forecasts, observations):
+        """
+        Update the ROC curve with a set of forecasts and observations
+
+        :param forecasts: 1D array of forecast values
+        :param observations: 1D array of observation values.
+        :return:
+        """
         for t, threshold in enumerate(self.thresholds):
             tp = np.count_nonzero((forecasts >= threshold)
                                   & (observations >= self.obs_threshold))
@@ -60,17 +81,35 @@ class DistributedROC(object):
             self.contingency_tables.ix[t] += [tp, fp, fn, tn]
 
     def __add__(self, other):
+        """
+        Add two DistributedROC objects together and combine their contingency table values.
+
+        :param other: Another DistributedROC object.
+        :return:
+        """
         sum_roc = DistributedROC(self.thresholds, self.obs_threshold)
         sum_roc.contingency_tables = self.contingency_tables + other.contingency_tables
         return sum_roc
 
     def merge(self, other_roc):
+        """
+        Ingest the values of another DistributedROC object into this one and update the statistics inplace.
+
+        :param other_roc: another DistributedROC object.
+        :return:
+        """
         if other_roc.thresholds.size == self.thresholds.size and np.all(other_roc.thresholds == self.thresholds):
             self.contingency_tables += other_roc.contingency_tables
         else:
             print("Input table thresholds do not match.")
 
     def roc_curve(self):
+        """
+        Generate a ROC curve from the contingency table by calculating the probability of detection (TP/(TP+FN)) and the
+        probability of false detection (FP/(FP+TN)).
+
+        :return: A pandas.DataFrame containing the POD, POFD, and the corresponding probability thresholds.
+        """
         pod = self.contingency_tables["TP"].astype(float) / (self.contingency_tables["TP"] +
                                                              self.contingency_tables["FN"])
         pofd = self.contingency_tables["FP"].astype(float) / (self.contingency_tables["FP"] +
@@ -79,16 +118,31 @@ class DistributedROC(object):
                             columns=["POD", "POFD", "Thresholds"])
 
     def performance_curve(self):
+        """
+        Calculate the Probability of Detection and False Alarm Ratio in order to output a performance diagram.
+
+        :return: pandas.DataFrame containing POD, FAR, and probability thresholds.
+        """
         pod = self.contingency_tables["TP"] / (self.contingency_tables["TP"] + self.contingency_tables["FN"])
         far = self.contingency_tables["FP"] / (self.contingency_tables["FP"] + self.contingency_tables["TP"])
         return pd.DataFrame({"POD": pod, "FAR": far, "Thresholds": self.thresholds},
                             columns=["POD", "FAR", "Thresholds"])
 
     def auc(self):
+        """
+        Calculate the Area Under the ROC Curve (AUC).
+
+        :return:
+        """
         roc_curve = self.roc_curve()
         return np.abs(np.trapz(roc_curve['POD'], x=roc_curve['POFD']))
 
     def __str__(self):
+        """
+        Output the information within the DistributedROC object to a string.
+
+        :return:
+        """
         out_str = "Obs_Threshold:{0:0.2f}".format(self.obs_threshold) + ";"
         out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
         for col in self.contingency_tables.columns:
@@ -100,6 +154,11 @@ class DistributedROC(object):
         return self.__str__()
 
     def from_str(self, in_str):
+        """
+        Read the object string and parse the contingency table values from it.
+        :param in_str:
+        :return:
+        """
         parts = in_str.split(";")
         for part in parts:
             var_name, value = part.split(":")
@@ -109,6 +168,7 @@ class DistributedROC(object):
                 self.thresholds = np.array(value.split(), dtype=float)
             elif var_name in ["TP", "FP", "FN", "TN"]:
                 self.contingency_tables[var_name] = np.array(value.split(), dtype=int)
+
 
 class Reliability(object):
     def __init__(self, forecasts, observations, thresholds, obs_threshold):
@@ -164,6 +224,18 @@ class Reliability(object):
 
 
 class DistributedReliability(object):
+    """
+    A container for the statistics required to generate reliability diagrams and calculate the Brier Score.
+
+    Parameters
+    ----------
+    thresholds : numpy.ndarray
+        Array of probability thresholds
+    obs_threshold : float
+        Split value for the observations
+    input_str : str
+        String containing information to initialize the object from a text representation.
+    """
     def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
@@ -176,6 +248,13 @@ class DistributedReliability(object):
             self.from_str(input_str)
 
     def update(self, forecasts, observations):
+        """
+        Update the statistics with a set of forecasts and observations.
+
+        :param forecasts:
+        :param observations:
+        :return:
+        """
         for t, threshold in enumerate(self.thresholds[:-1]):
             self.frequencies.loc[t, "Positive_Freq"] += np.count_nonzero((threshold <= forecasts) &
                                                                          (forecasts < self.thresholds[t+1]) &
@@ -184,6 +263,12 @@ class DistributedReliability(object):
                                                                       (forecasts < self.thresholds[t+1]))
 
     def __add__(self, other):
+        """
+        Add two DistributedReliability objects together and combine their values.
+
+        :param other: a DistributedReliability object
+        :return: a DistributedReliability Object
+        """
         sum_rel = DistributedReliability(self.thresholds, self.obs_threshold)
         sum_rel.frequencies = self.frequencies + other.frequencies
         return sum_rel
@@ -195,6 +280,11 @@ class DistributedReliability(object):
             print("Input table thresholds do not match.")
 
     def reliability_curve(self):
+        """
+        Calculate the reliability diagram statistics.
+
+        :return:
+        """
         total = self.frequencies["Total_Freq"].sum()
         curve = pd.DataFrame(columns=["Bin_Start", "Bin_End", "Bin_Center",
                                       "Positive_Relative_Freq", "Total_Relative_Freq"])
@@ -206,6 +296,11 @@ class DistributedReliability(object):
         return curve
 
     def brier_score_components(self):
+        """
+        Calculate the components of the Brier score decomposition: reliability, resolution, and uncertainty.
+
+        :return:
+        """
         rel_curve = self.reliability_curve()
         total = self.frequencies["Total_Freq"].sum()
         climo_freq = float(self.frequencies["Positive_Freq"].sum()) / self.frequencies["Total_Freq"].sum()
@@ -217,10 +312,20 @@ class DistributedReliability(object):
         return reliability, resolution, uncertainty
 
     def brier_score(self):
+        """
+        Calculate the Brier Score
+
+        :return:
+        """
         reliability, resolution, uncertainty = self.brier_score_components()
         return reliability - resolution + uncertainty
 
     def brier_skill_score(self):
+        """
+        Calculate the Brier Skill Score
+
+        :return:
+        """
         reliability, resolution, uncertainty = self.brier_score_components()
         return (resolution - reliability) / uncertainty
 
@@ -246,7 +351,18 @@ class DistributedReliability(object):
             elif var_name in ["Positive_Freq", "Total_Freq"]:
                 self.frequencies[var_name] = np.array(value.split(), dtype=int)
 
+
 class DistributedCRPS(object):
+    """
+    A container for the statistics used to calculate the Continuous Ranked Probability Score
+
+    Parameters
+    ----------
+    thresholds : numpy.ndarray
+        Array of the intensity threshold bins
+    input_str : str
+        String containing the information for initializing the object from a storable text format.
+    """
     def __init__(self, thresholds=None, input_str=None):
         self.thresholds = thresholds
         if self.thresholds is None:
@@ -260,6 +376,13 @@ class DistributedCRPS(object):
             self.from_str(input_str)
 
     def update(self, forecasts, observations):
+        """
+        Update the statistics with forecasts and observations.
+
+        :param forecasts:
+        :param observations:
+        :return:
+        """
         forecast_cdfs = np.cumsum(forecasts, axis=1)
         obs_cdfs = np.zeros((observations.size, self.thresholds.size))
         for o, observation in enumerate(observations):
@@ -282,6 +405,11 @@ class DistributedCRPS(object):
             print("Input table thresholds do not match.")
 
     def crps(self):
+        """
+        Calculates the continuous ranked probability score.
+
+        :return:
+        """
         return self.errors["Errors"].sum() / (self.thresholds.size * self.num_forecasts)
 
     def from_str(self, in_str):
@@ -296,7 +424,6 @@ class DistributedCRPS(object):
                 self.errors["Pos_Counts"] = np.array(value.split(), dtype=int)
             elif var_name == "Num_Forecasts":
                 self.num_forecasts = int(value)
-
 
     def __str__(self):
         out_str = ""

@@ -10,6 +10,14 @@ class ObjectMatcher(object):
     multiple cost functions to determine the distance between objects. Upper limits to each distance component are used
     to exclude the matching of objects that are too far apart.
 
+    Parameters
+    ----------
+    cost_function_components : list
+        List of distance functions for matching
+    weights : list
+        List of weights for each distance function
+    max_values : list
+        List of the maximum allowable distance for each distance function component.
     """
 
     def __init__(self, cost_function_components, weights, max_values):
@@ -46,6 +54,14 @@ class ObjectMatcher(object):
         return assignments
 
     def cost_matrix(self, set_a, set_b, time_a, time_b):
+        """
+        Calculates the costs (distances) between the items in set a and set b at the specified times.
+
+        :param set_a: List of STObjects
+        :param set_b: List of STObjects
+        :param time_a: time at which objects in set_a are evaluated
+        :param time_b: time at whcih object in set_b are evaluated
+        """
         costs = np.zeros((len(set_a), len(set_b)))
         for a, item_a in enumerate(set_a):
             for b, item_b in enumerate(set_b):
@@ -53,6 +69,9 @@ class ObjectMatcher(object):
         return costs
 
     def total_cost_function(self, item_a, item_b, time_a, time_b):
+        """
+        Calculate total cost function between two items.
+        """
         distances = np.zeros(len(self.weights))
         for c, component in enumerate(self.cost_function_components):
             distances[c] = component(item_a, time_a, item_b, time_b, self.max_values[c])
@@ -62,7 +81,7 @@ class ObjectMatcher(object):
 
 class TrackMatcher(object):
     """
-    TrackMatcher
+    Find the optimal pairings among two sets of STObject tracks.
 
     """
 
@@ -106,8 +125,8 @@ def centroid_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Euclidean distance between the centroids of item_a and item_b.
 
-    :param item_a:
-    :param time_a:
+    :param item_a: STObject
+    :param time_a: STObject
     :param item_b:
     :param time_b:
     :param max_value:
@@ -119,6 +138,16 @@ def centroid_distance(item_a, time_a, item_b, time_b, max_value):
 
 
 def shifted_centroid_distance(item_a, time_a, item_b, time_b, max_value):
+    """
+    Centroid distance with motion corrections.
+
+    :param item_a:
+    :param time_a:
+    :param item_b:
+    :param time_b:
+    :param max_value:
+    :return:
+    """
     ax, ay = item_a.center_of_mass(time_a)
     bx, by = item_b.center_of_mass(time_b)
     if time_a < time_b:
@@ -193,13 +222,30 @@ def mean_minimum_centroid_distance(item_a, item_b, max_value):
 
 
 def mean_min_time_distance(item_a, item_b, max_value):
+    """
+    Calculate the mean time difference among the time steps in each object.
+
+    :param item_a: STObject
+    :param item_b: STObject
+    :param max_value: maximum value of the distance
+    :return:
+    """
     times_a = item_a.times.reshape((item_a.times.size, 1))
     times_b = item_b.times.reshape((1, item_b.times.size))
     distance_matrix = (times_a - times_b) ** 2
     mean_min_distances = np.sqrt(distance_matrix.min(axis=0).mean() + distance_matrix.min(axis=1).mean())
     return mean_min_distances / float(max_value)
 
+
 def duration_distance(item_a, item_b, max_value):
+    """
+    Absolute difference in the duration of two items
+
+    :param item_a: STObject
+    :param item_b: STObject
+    :param max_value: maximum value of the distance
+    :return:
+    """
     duration_a = item_a.times.size
     duration_b = item_b.times.size
     return np.abs(duration_a - duration_b) / float(max_value)

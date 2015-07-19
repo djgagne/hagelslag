@@ -7,6 +7,31 @@ from ProbabilityMetrics import DistributedCRPS, DistributedReliability, Distribu
 
 class ObjectEvaluator(object):
     """
+    ObjectEvaluator performs a statistical evaluation of object-based severe weather forecasts.
+
+    ObjectEvaluator loads forecast and observation files for a particular ensemble member and model run and then matches
+    the forecasts with their assigned observations. Verification statistics can be calculated on the full dataset
+    or on subsets selected based on filter queries.
+
+    Parameters
+    ----------
+    run_date : datetime.datetime object
+        The date marking the start of the model run.
+    ensemble_name : str
+        The name of the ensemble or NWP model being used.
+    enemble_member : str
+        The name of the ensemble member being evaluated.
+    model_names : list of str
+        The names of the machine learning models being evaluated
+    model_types : list of str
+        The types of machine learning models being evaluated. size, translation-x, translation-y, and start-time are
+        currently supported.
+    forecast_bins : dict of str and numpy.ndarray pairs
+        For machine learning models forecasting a discrete pdf, this specifies the bin labels used.
+    forecast_json_path : str
+        Full path to the directory containing all json files with the forecast values.
+    track_data_csv_path : str
+        Full path to the directory containing the csv data files used for training.
 
     """
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
@@ -35,6 +60,11 @@ class ObjectEvaluator(object):
                                                                       list(self.forecast_bins[model_type].astype(str)))
 
     def load_forecasts(self):
+        """
+        Loads the forecast files and gathers the forecast information into pandas DataFrames.
+
+        :return:
+        """
         forecast_path = self.forecast_json_path + "/{0}/{1}/".format(self.run_date.strftime("%Y%m%d"),
                                                                      self.ensemble_member)
         forecast_files = sorted(glob(forecast_path + "*.json"))
@@ -59,6 +89,11 @@ class ObjectEvaluator(object):
                         self.forecasts[model_type][model_name].loc[step_id] = row
 
     def load_obs(self):
+        """
+        Loads the track total and step files and merges the information into a single data frame.
+
+        :return:
+        """
         track_total_file = self.track_data_csv_path + \
             "track_total_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                  self.ensemble_member,
@@ -75,6 +110,11 @@ class ObjectEvaluator(object):
         self.obs = obs_data
 
     def merge_obs(self):
+        """
+        Match forecasts and observations.
+
+        :return:
+        """
         for model_type in self.model_types:
             self.matched_forecasts[model_type] = {}
             for model_name in self.model_names:
@@ -83,6 +123,14 @@ class ObjectEvaluator(object):
                                                                          left_index=True)
 
     def crps(self, model_type, model_name, query=None):
+        """
+        Calculates the cumulative ranked probability score (CRPS) on the forecast data.
+
+        :param model_type: model type being evaluated.
+        :param model_name: machine learning model being evaluated.
+        :param query: pandas query string to filter the forecasts based on the metadata
+        :return: a DistributedCRPS object
+        """
         crps_obj = DistributedCRPS(self.forecast_bins[model_type])
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
@@ -95,6 +143,16 @@ class ObjectEvaluator(object):
         return crps_obj
 
     def roc(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
+        """
+        Calculates a ROC curve at a specified intensity threshold.
+
+        :param model_type: type of model being evaluated (e.g. size).
+        :param model_name: machine learning model being evaluated
+        :param intensity_threshold: forecast bin used as the split point for evaluation
+        :param prob_thresholds: Array of probability thresholds being evaluated.
+        :param query: str to filter forecasts based on values of forecasts, obs, and metadata.
+        :return: a DistributedROC object
+        """
         roc_obj = DistributedROC(prob_thresholds, intensity_threshold)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
@@ -104,11 +162,21 @@ class ObjectEvaluator(object):
             bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
             forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:, bin]
         else:
-            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+            forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         roc_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
         return roc_obj
 
     def reliability(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
+        """
+        Calculate reliability statistics based on the probability of exceeding a specified threshold.
+
+        :param model_type: type of model being evaluated.
+        :param model_name: Name of the machine learning model being evaluated.
+        :param intensity_threshold: forecast bin used as the split point for evaluation.
+        :param prob_thresholds: Array of probability thresholds being evaluated.
+        :param query: str to filter forecasts based on values of forecasts, obs, and metadata.
+        :return: a DistributedReliability object.
+        """
         rel_obj = DistributedReliability(prob_thresholds, intensity_threshold)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
@@ -119,6 +187,6 @@ class ObjectEvaluator(object):
             forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
                                                                                                                   bin]
         else:
-            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+            forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         rel_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
         return rel_obj

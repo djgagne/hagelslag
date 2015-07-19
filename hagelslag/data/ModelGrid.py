@@ -2,9 +2,26 @@ from netCDF4 import Dataset
 import numpy as np
 from pandas import DatetimeIndex, Timestamp
 
+
 class ModelGrid(object):
     """
     Base class for reading 2D model output grids from netCDF files.
+
+    Given a list of file names, loads the values of a single variable from a model run. Supports model output in
+    netCDF format.
+
+    Parameters
+    ----------
+    filenames : list of str
+        List of netCDF files containing model output
+    run_date : ISO date string or datetime.datetime object
+        Date of the initialization time of the model run.
+    start_date : ISO date string or datetime.datetime object
+        Date of the first timestep extracted.
+    end_date : ISO date string or datetime.datetime object
+        Date of the last timestep extracted.
+    freqency : str (default="1H")
+        spacing between model time steps.
     """
     def __init__(self, 
                  filenames, 
@@ -43,8 +60,6 @@ class ModelGrid(object):
         Loads time series of 2D data grids from each opened file. The code 
         handles loading a full time series from one file or individual time steps
         from multiple files. Missing files are supported.
-
-        :param variable: Name of the variable being loaded
         """
         if len(self.file_objects) == 1 and self.file_objects[0] is not None:
             data = self.file_objects[0].variables[self.variable][self.forecast_hours]

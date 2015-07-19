@@ -5,6 +5,28 @@ import numpy as np
 
 
 class ModelOutput(object):
+    """
+    Container for the model output values and spatial coordinate information.
+
+    Parameters
+    ----------
+    ensemble_name : str
+        Name of the ensemble being loaded. Currently supports 'NCAR' and 'SSEF'.
+    member_name : str
+        Ensemble member being loaded.
+    run_date : datetime.datetime object
+        Date of the initial timestep of the model run.
+    variable : str
+        Variable being loaded.
+    start_date : datetime.datetime object
+        Date of the first timestep loaded.
+    end_date : datetime.datetime object
+        Date of the last timestep loaded.
+    path : str
+        Path to model output
+    single_step : boolean (default=True)
+        If true, each model timestep is in a separate file. If false, all timesteps are together in the same file.
+    """
     def __init__(self, 
                  ensemble_name, 
                  member_name, 
@@ -36,6 +58,9 @@ class ModelOutput(object):
         self.single_step = single_step
 
     def load_data(self):
+        """
+        Load the specified variable from the ensemble files, then close the files.
+        """
         if self.ensemble_name.upper() == "SSEF":
             mg = SSEFModelGrid(self.member_name,
                                self.run_date,
@@ -60,6 +85,12 @@ class ModelOutput(object):
             print(self.ensemble_name + " not supported.")
 
     def load_map_info(self, map_file):
+        """
+        Load map projection information and create latitude, longitude, x, y, i, and j grids for the projection.
+
+        :param map_file: File specifying the projection information.
+        :return:
+        """
         if self.ensemble_name.upper() == "SSEF":
             proj_dict, grid_dict = read_arps_map_file(map_file)
             self.dx = int(grid_dict["dx"])

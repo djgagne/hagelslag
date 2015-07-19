@@ -129,6 +129,10 @@ def sample_member_run_tracks(member,
 
 
 class TrackSampler(object):
+    """
+    Monte Carlo sampler of forecast storm tracks.
+
+    """
     def __init__(self, member, group, run_date, model_names, start_hour,
                  end_hour, grid_shape, dx, track_path, num_samples, copula_file=None):
         self.member = member

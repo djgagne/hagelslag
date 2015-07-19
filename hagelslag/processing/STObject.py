@@ -218,6 +218,15 @@ class STObject(object):
         return ordered_coords
 
     def estimate_motion(self, time, intensity_grid, max_u, max_v):
+        """
+        Estimate the motion of the object with cross-correlation on the intensity values from the previous time step.
+
+        :param time: time being evaluated.
+        :param intensity_grid: 2D array of intensities used in cross correlation.
+        :param max_u: Maximum x-component of motion. Used to limit search area.
+        :param max_v: Maximum y-component of motion. Used to limit search area
+        :return: u, v, and the minimum error.
+        """
         ti = np.where(time == self.times)[0]
         i_vals = self.i[ti][self.masks[ti] == 1]
         j_vals = self.j[ti][self.masks[ti] == 1]
@@ -296,6 +305,14 @@ class STObject(object):
         return stats
 
     def calc_attribute_statistic(self, attribute, statistic, time):
+        """
+        Calculate statistics based on the values of an attribute.
+
+        :param attribute:
+        :param statistic:
+        :param time:
+        :return:
+        """
         ti = np.where(self.times == time)[0]
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
             stat_val = getattr(self.attributes[attribute][ti][self.masks[ti] == 1], statistic)()
@@ -316,6 +333,13 @@ class STObject(object):
         return stat_val
 
     def calc_timestep_statistic(self, statistic, time):
+        """
+        Calculate statistics from the primary attribute of the StObject.
+
+        :param statistic:
+        :param time:
+        :return:
+        """
         ti = np.where(self.times == time)[0]
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
             stat_val = getattr(self.timesteps[ti][self.masks[ti] == 1], statistic)()
@@ -352,6 +376,14 @@ class STObject(object):
         return stats
 
     def to_geojson(self, filename, proj, metadata=dict()):
+        """
+        Output the data in the STObject to a geoJSON file.
+
+        :param filename: Name of the file
+        :param proj: PyProj object for converting the x and y coordinates back to latitude and longitue values.
+        :param metadata: Metadata describing the object to be included in the top-level properties.
+        :return:
+        """
         json_obj = {"type": "FeatureCollection", "features": [], "properties": {}}
         json_obj['properties']['times'] = self.times.tolist()
         for k, v in metadata.iteritems():
