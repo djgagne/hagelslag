@@ -5,7 +5,12 @@ from hagelslag.processing.TrackModeler import TrackModeler
 from hagelslag.processing.TrackSampler import sample_member_run_tracks
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
 from multiprocessing import Pool
+from hagelslag.processing.EnsembleProducts import EnsembleProducts, MachineLearningEnsembleProducts
 import pandas as pd
+import numpy as np
+import traceback
+from datetime import timedelta
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -14,6 +19,7 @@ def main():
     parser.add_argument("-c", "--cop", action="store_true", help="Calculate copulas.")
     parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
     parser.add_argument("-s", "--samp", action="store_true", help="Sample tracks.")
+    parser.add_argument("-e", "--ens", action="store_true", help="Generate ensemble products.")
     args = parser.parse_args()
     required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
                 "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
@@ -38,6 +44,8 @@ def main():
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
             output_forecasts(forecasts, track_modeler, config)
+    if args.ens:
+            generate_all_ensemble_products(config, mode="forecast")
     if args.samp:
         sample_all_tracks(config)
     return
@@ -74,7 +82,6 @@ def sample_all_tracks(config, mode="forecast"):
                                                         config.track_output_ranges))
     pool.close()
     pool.join()
-
 
 
 def train_models(track_modeler, config):
@@ -134,6 +141,68 @@ def output_forecasts(forecasts, track_modeler, config):
                                         config.forecast_json_path)
     return
 
+
+def generate_all_ensemble_products(config, mode="forecast"):
+    pool = Pool(config.num_procs)
+    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
+                                 end=config.end_dates[mode],
+                                 freq='1D')
+    size_bins = np.arange(config.size_range_params[0], config.size_range_params[1] + config.size_range_params[2],
+                          config.size_range_params[2])
+    for run_date in run_dates:
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        for variable in config.ensemble_variables:
+            args = (config.ensemble_name, config.ensemble_members, run_date, variable, start_date, end_date,
+                    config.model_path, config.single_step, config.ensemble_variable_thresholds[variable],
+                    config.neighbor_radius, config.neighbor_sigma, config.ensemble_consensus_path)
+            pool.apply_async(generate_ensemble_run_product, args)
+        for ml_model in config.size_model_names:
+            args = (ml_model, config.ensemble_members, run_date, "size", start_date, end_date,
+                    config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
+                    config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
+                    config.ensemble_consensus_path)
+            pool.apply_async(generate_ml_run_product, args)
+    pool.close()
+    pool.join()
+    return
+
+
+def generate_ensemble_run_product(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step,
+                                  thresholds, neighbor_radius, neighbor_sigma, out_path):
+    try:
+        ep = EnsembleProducts(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step)
+        ep.load_data()
+        filename = out_path + ensemble_name + "_{0}_consensus_{1}.nc".format(variable, run_date.strftime("%Y%m%d%H"))
+        for threshold in thresholds:
+            ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+            ec.to_file(filename)
+            ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+            ecp.to_file(filename)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+
+    return
+
+
+def generate_ml_run_product(model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
+                            forecast_json_path, grid_method, thresholds, neighbor_radius, neighbor_sigma, out_path):
+    try:
+        ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
+                                             forecast_bins, forecast_json_path)
+        ep.load_data(grid_method=grid_method)
+        filename = out_path + model_name + "_{0}_consensus_{1}.nc".format(variable, run_date.strftime("%Y%m%d%H"))
+        for threshold in thresholds:
+            ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+            ec.to_file(filename)
+            ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+            ecp.to_file(filename)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+
+    return
 
 if __name__ == "__main__":
     main()
