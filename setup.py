@@ -14,4 +14,5 @@ if __name__ == "__main__":
                             "matplotlib", 
                             "netCDF4", 
                             "scikit-learn>=0.16",
-                            "basemap"])
+                            "basemap",
+                            "scikit-image"])

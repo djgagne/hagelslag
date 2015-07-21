@@ -55,6 +55,7 @@ class ModelOutput(object):
         self.j = None
         self.proj = None
         self.dx = None
+        self.units = ""
         self.single_step = single_step
 
     def load_data(self):
@@ -69,7 +70,7 @@ class ModelOutput(object):
                                self.end_date,
                                self.path,
                                single_step=self.single_step)
-            self.data = mg.load_data()
+            self.data, self.units = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "NCAR":
             mg = NCARModelGrid(self.member_name,
@@ -79,7 +80,7 @@ class ModelOutput(object):
                                self.end_date,
                                self.path,
                                single_step=self.single_step)
-            self.data = mg.load_data()
+            self.data, self.units = mg.load_data()
             mg.close()
         else:
             print(self.ensemble_name + " not supported.")
