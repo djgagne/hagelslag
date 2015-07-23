@@ -65,11 +65,13 @@ class EnsembleProducts(object):
     def neighborhood_probability(self, threshold, radius, sigma=0):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[1:])
+        thresh_data = np.where(self.data >= threshold, 1, 0).astype(np.uint8)
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
-                maximized = maximum_filter(np.where(self.data[m, t] >= threshold, 1, 0), weights)
-                neighborhood_prob[t] += convolve(maximized, weights / float(weights.sum()), mode="constant")
-            neighborhood_prob[t] /= self.data.shape[0]
+                print t, m
+                maximized = maximum_filter(thresh_data[m, t], footprint=weights, mode="constant")
+                neighborhood_prob[t] += convolve(maximized, weights, mode="constant")
+            neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
             if sigma > 0:
                 neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
         return EnsembleConsensus(neighborhood_prob, "neighborhood_probability_r={0:d}_s={1:d}".format(radius, sigma),
@@ -81,9 +83,9 @@ class EnsembleProducts(object):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[2:])
         for m in range(self.data.shape[0]):
-            maximized = maximum_filter(np.where(self.data[m] >= threshold, 1, 0), weights).max(axis=0)
-            neighborhood_prob += convolve(maximized, weights / float(weights.sum()), mode="constant")
-        neighborhood_prob /= self.data.shape[0]
+            maximized = maximum_filter(np.where(self.data[m] >= threshold, 1, 0), footprint=weights).max(axis=0)
+            neighborhood_prob += convolve(maximized, weights, mode="constant")
+        neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
         if sigma > 0:
             neighborhood_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
         return EnsembleConsensus(neighborhood_prob,
@@ -171,9 +173,9 @@ class EnsembleConsensus(object):
             out_data = Dataset(filename, "w")
             for d, dim in enumerate(["time", "y", "x"]):
                 out_data.createDimension(dim, self.data.shape[d])
-            out_data.createVariable("time", "i8", ("time",))
-            out_data[:] = date2num(self.times.to_pydatetime(), time_units)
-            out_data.units = time_units
+            time_var = out_data.createVariable("time", "i8", ("time",))
+            time_var[:] = date2num(self.times.to_pydatetime(), time_units)
+            time_var.units = time_units
         if "-hour" in self.consensus_type:
             var = out_data.createVariable(self.consensus_type + "_" + self.variable, "f4", ("y", "x"))
             var.coordinates = "y x"

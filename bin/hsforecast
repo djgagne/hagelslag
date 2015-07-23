@@ -151,7 +151,7 @@ def generate_all_ensemble_products(config, mode="forecast"):
                                  freq='1D')
     size_bins = np.arange(config.size_range_params[0], config.size_range_params[1] + config.size_range_params[2],
                           config.size_range_params[2])
-    for run_date in run_dates:
+    for run_date in run_dates.to_pydatetime():
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
         for variable in config.ensemble_variables:
@@ -173,7 +173,8 @@ def generate_all_ensemble_products(config, mode="forecast"):
 def generate_ensemble_run_product(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step,
                                   thresholds, neighbor_radii, neighbor_sigmas, out_path):
     try:
-        print(run_date + " " + variable + " started")
+        r_date = run_date.strftime("%Y%m%d")
+        print(r_date + " " + variable + " started")
         ep = EnsembleProducts(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step)
         ep.load_data()
         if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
@@ -184,10 +185,10 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
         filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(ensemble_name, variable,
                                                                     run_date.strftime("%Y%m%d"))
         for threshold in thresholds:
-            print(run_date + " " + variable + "{0:d}".format(int(threshold)))
+            print(r_date + " " + variable + "{0:d}".format(int(threshold)))
             for neighbor_radius in neighbor_radii:
                 for neighbor_sigma in neighbor_sigmas:
-                    print(run_date + " " + variable + "r={0:d} s={1:d}".format(int(neighbor_radius),
+                    print(r_date + " " + variable + "r={0:d} s={1:d}".format(int(neighbor_radius),
                                                                                int(neighbor_sigma)))
                     ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
                     ec.to_file(filename)
@@ -203,7 +204,8 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
 def generate_ml_run_product(model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
                             forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path):
     try:
-        print(run_date + " " + model_name + " started")
+        r_date = run_date.strftime("%Y%m%d")
+        print(r_date + " " + model_name + " started")
 
         ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
                                              forecast_bins, forecast_json_path)
@@ -217,7 +219,7 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
         for threshold in thresholds:
             for neighbor_radius in neighbor_radii:
                 for neighbor_sigma in neighbor_sigmas:
-                    print(run_date + " " + model_name + "r={0:d} s={1:d}".format(int(neighbor_radius),
+                    print(r_date + " " + model_name + "r={0:d} s={1:d}".format(int(neighbor_radius),
                                                                                  int(neighbor_sigma)))
                     ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
                     ec.to_file(filename)
