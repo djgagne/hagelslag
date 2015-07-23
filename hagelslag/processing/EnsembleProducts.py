@@ -72,7 +72,8 @@ class EnsembleProducts(object):
             neighborhood_prob[t] /= self.data.shape[0]
             if sigma > 0:
                 neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
-        return EnsembleConsensus(neighborhood_prob, "neighborhood_probability", self.ensemble_name,
+        return EnsembleConsensus(neighborhood_prob, "neighborhood_probability_r={0:d}_s={1:d}".format(radius, sigma),
+                                 self.ensemble_name,
                                  self.run_date, self.variable + ">={0:0.2f}_{1}".format(threshold, self.units),
                                  self.start_date, self.end_date, "")
 
@@ -86,7 +87,9 @@ class EnsembleProducts(object):
         if sigma > 0:
             neighborhood_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
         return EnsembleConsensus(neighborhood_prob,
-                                 "neighborhood_probability_{0:02d}-hour".format(self.data.shape[1]),
+                                 "neighborhood_probability_{0:02d}-hour_r={1:d}_s={2:d}".format(self.data.shape[1],
+                                                                                                radius,
+                                                                                                sigma),
                                  self.ensemble_name,
                                  self.run_date, self.variable + ">={0.02f}_{1}".format(threshold, self.units),
                                  self.start_date, self.end_date, "")
