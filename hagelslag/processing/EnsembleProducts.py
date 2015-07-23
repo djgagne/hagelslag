@@ -31,7 +31,11 @@ class EnsembleProducts(object):
             mo = ModelOutput(self.ensemble_name, member, self.run_date, self.variable,
                              self.start_date, self.end_date, self.path, self.single_step)
             mo.load_data()
-            data.append(mo.data)
+            if mo.units == "m":
+                data.append(mo.data * 1000)
+                self.units = "mm"
+            else:
+                data.append(mo.data)
             if self.units == "":
                 self.units = mo.units
             del mo
@@ -60,7 +64,7 @@ class EnsembleProducts(object):
         for t in range(self.data.shape[1]):
             point_prob[t] = np.where(self.data[:, t] >= threshold, 1.0, 0.0).mean(axis=0)
         return EnsembleConsensus(point_prob, "point_probability", self.ensemble_name,
-                                 self.run_date, self.variable + ">={0:0.2f}_{1}".format(threshold, self.units),
+                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold, self.units.replace(" ", "_")),
                                  self.start_date, self.end_date, "")
 
     def neighborhood_probability(self, threshold, radius, sigma=0):
@@ -76,26 +80,27 @@ class EnsembleProducts(object):
             neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
             if sigma > 0:
                 neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
-        return EnsembleConsensus(neighborhood_prob, "neighborhood_probability_r={0:d}_s={1:d}".format(radius, sigma),
+        return EnsembleConsensus(neighborhood_prob, "neighborhood_probability_r_{0:d}_s_{1:d}".format(radius, sigma),
                                  self.ensemble_name,
-                                 self.run_date, self.variable + ">={0:0.2f}_{1}".format(threshold, self.units),
+                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold, self.units.replace(" ", "_")),
                                  self.start_date, self.end_date, "")
 
     def period_max_neighborhood_probability(self, threshold, radius, sigma=0):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[2:])
         for m in range(self.data.shape[0]):
-            maximized = maximum_filter(np.where(self.data[m] >= threshold, 1, 0), footprint=weights).max(axis=0)
-            neighborhood_prob += convolve(maximized, weights, mode="constant")
+            maximized = fftconvolve(np.where(self.data[m] >= threshold, 1, 0).max(axis=0), weights, mode="same")
+            maximized[maximized > 1] = 1
+            neighborhood_prob += fftconvolve(maximized, weights, mode="same")
         neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
         if sigma > 0:
             neighborhood_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
         return EnsembleConsensus(neighborhood_prob,
-                                 "neighborhood_probability_{0:02d}-hour_r={1:d}_s={2:d}".format(self.data.shape[1],
+                                 "neighborhood_probability_{0:02d}-hour_r_{1:d}_s_{2:d}".format(self.data.shape[1],
                                                                                                 radius,
                                                                                                 sigma),
                                  self.ensemble_name,
-                                 self.run_date, self.variable + ">={0.02f}_{1}".format(threshold, self.units),
+                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(float(threshold), self.units.replace(" ", "_")),
                                  self.start_date, self.end_date, "")
 
 
@@ -115,9 +120,11 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
             self.track_forecasts[member] = []
             track_files = sorted(glob(self.path + "/".join([run_date_str, member]) + "/*.json"))
             for track_file in track_files:
+                print(track_file)
                 tfo = open(track_file)
                 self.track_forecasts[member].append(json.load(tfo))
                 tfo.close()
+                del tfo
         return
 
     def load_data(self, grid_method="mean"):
@@ -129,14 +136,14 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                 for track_forecast in self.track_forecasts[member]:
                     times = track_forecast["properties"]["times"]
                     for s, step in enumerate(track_forecast["features"]):
-                        forecast_pdf = np.array(track_forecast[self.variable + "_" +
-                                                               self.ensemble_name.replace(" ", "-")])
+                        forecast_pdf = np.array(step['properties'][self.variable + "_" +
+                                                                   self.ensemble_name.replace(" ", "-")])
                         forecast_time = self.run_date + timedelta(hours=times[s])
                         t = np.where(self.times == forecast_time)[0][0]
-                        mask = np.array(step["mask"], dtype=int)
-                        i = np.array(step["i"])
+                        mask = np.array(step['properties']["masks"], dtype=int)
+                        i = np.array(step['properties']["i"])
                         i = i[mask == 1]
-                        j = np.array(step["j"])
+                        j = np.array(step['properties']["j"])
                         j = j[mask == 1]
                         if grid_method == "mean":
                             forecast_value = np.sum(forecast_pdf * self.forecast_bins)
@@ -169,6 +176,7 @@ class EnsembleConsensus(object):
         :param time_units: Units for the time variable in format "<time> since <date string>"
         :return:
         """
+        full_var_name = self.consensus_type + "_" + self.variable 
         if os.access(filename, os.R_OK):
             out_data = Dataset(filename, "r+")
         else:
@@ -179,11 +187,16 @@ class EnsembleConsensus(object):
             time_var[:] = date2num(self.times.to_pydatetime(), time_units)
             time_var.units = time_units
         if "-hour" in self.consensus_type:
-            var = out_data.createVariable(self.consensus_type + "_" + self.variable, "f4", ("y", "x"))
+            if full_var_name not in out_data.variables.keys():
+                var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True)
+            else:
+                var = out_data.variables[full_var_name]
             var.coordinates = "y x"
         else:
-            var = out_data.createVariable(self.consensus_type + "_" + self.variable, "f4", ("time", "y", "x"),
-                                          zlib=True)
+            if full_var_name not in out_data.variables.keys():
+                var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True)
+            else:
+                var = out_data.variables[full_var_name]
             var.coordinates = "time y x"
         var[:] = self.data
         var.units = self.units
