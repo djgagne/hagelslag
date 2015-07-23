@@ -2,6 +2,7 @@ from hagelslag.data.ModelOutput import ModelOutput
 import numpy as np
 import pandas as pd
 from scipy.ndimage import convolve, maximum_filter, gaussian_filter
+from scipy.signal import fftconvolve
 from skimage.morphology import disk
 from netCDF4 import Dataset, date2num
 import os
@@ -65,12 +66,13 @@ class EnsembleProducts(object):
     def neighborhood_probability(self, threshold, radius, sigma=0):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[1:])
-        thresh_data = np.where(self.data >= threshold, 1, 0).astype(np.uint8)
+        thresh_data = np.where(self.data >= threshold, 1, 0)
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
                 print t, m
-                maximized = maximum_filter(thresh_data[m, t], footprint=weights, mode="constant")
-                neighborhood_prob[t] += convolve(maximized, weights, mode="constant")
+                maximized = fftconvolve(thresh_data[m, t], weights, mode="same")
+                maximized[maximized > 1] = 1
+                neighborhood_prob[t] += fftconvolve(maximized, weights, mode="same")
             neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
             if sigma > 0:
                 neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
