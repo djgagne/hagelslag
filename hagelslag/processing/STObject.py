@@ -394,7 +394,10 @@ class STObject(object):
                        "properties": {}}
             boundary_coords = self.boundary_polygon(time)
             lonlat = np.vstack(proj(boundary_coords[0], boundary_coords[1], inverse=True))
-            feature["geometry"]["coordinates"] = lonlat.T.tolist()
+            lonlat_list = lonlat.T.tolist()
+            if len(lonlat_list) > 0:
+                lonlat_list.append(lonlat_list[0])
+            feature["geometry"]["coordinates"] = [lonlat_list]
             for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
                 feature["properties"][attr] = getattr(self, attr)[t].tolist()
             feature["properties"]["attributes"] = {}
