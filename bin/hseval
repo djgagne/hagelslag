@@ -3,10 +3,10 @@ import argparse
 import traceback
 from hagelslag.util.Config import Config
 import pandas as pd
+import numpy as np
 from multiprocessing import Pool
 from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
 from hagelslag.evaluation.GridEvaluator import GridEvaluator
-import cPickle
 
 
 def main():
@@ -16,16 +16,19 @@ def main():
     parser.add_argument("-g", "--grid", action="store_true", help="Perform grid-based evaluation.")
     parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors.")
     args = parser.parse_args()
-    config = Config(args.config, )
+    required = ["ensemble_name", "ensemble_members", "start_date", "end_date", "start_hour", "end_hour", "window_size",
+                "time_skip", "model_names", "model_types", "size_thresholds", "forecast_json_path",
+                "track_data_csv_path", "forecast_sample_path", "mrms_path", "mrms_variable", "obs_mask",
+                "mask_variable", "forecast_thresholds", "forecast_bins", "out_path", "obj_scores_file",
+                "grid_scores_file"]
+    config = Config(args.config, required_attributes=required)
     num_procs = args.proc
     if args.obj:
         all_scores = evaluate_objects(config, num_procs)
-        all_scores.to_csv(config.out_path + "object_scores.csv", index_label="Index")
+        #all_scores.to_csv(config.out_path + config.obj_scores_file, index_label="Index")
     if args.grid:
         grid_scores = evaluate_grids(config, num_procs)
-        pickle_file = open(config.out_path + "grid_scores.pkl", "w")
-        cPickle.dump(grid_scores, pickle_file, cPickle.HIGHEST_PROTOCOL)
-        pickle_file.close()
+        #grid_scores.to_csv(config.out_path + config.grid_scores_file, index_label="Index")
     return
 
 
@@ -34,13 +37,22 @@ def evaluate_objects(config, num_procs):
     run_dates = pd.DatetimeIndex(start=config.start_date,
                                  end=config.end_date, freq="1D")
     ensemble_members = config.ensemble_members
-    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "CRPS", "ROC_25",
-                     "ROC_50", "Rel_25", "Rel_50"]
+    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "CRPS"]
+    score_columns += ["ROC_{0:d}".format(int(t)) for t in config.object_thresholds]
+    score_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
     score_list = []
+
+    def append_scores(score_set):
+        score_list.append(score_set)
+        if len(score_list) == 1:
+            score_set.to_csv(config.out_path + config.obj_scores_file, index_label="Index")
+        else:
+            score_set.to_csv(config.out_path + config.obj_scores_file, mode="a", index_label="Index", header=False)
+
     for run_date in run_dates:
         for member in ensemble_members:
             pool.apply_async(evaluate_object_run, (run_date, member, config, score_columns),
-                             callback=score_list.append)
+                             callback=append_scores)
     pool.close()
     pool.join()
     return pd.concat(score_list)
@@ -59,22 +71,26 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
         print("Merging obs")
         object_eval.merge_obs()
         scores = pd.DataFrame(columns=score_columns)
-        query = "Hail_Size>0"
+        query_start = "(Hail_Size>0)"
+        forecast_hours = np.arange(config.start_hour, config.end_hour + 1)
         for model_type in config.model_types:
-            print(model_type)
             for model_name in config.model_names:
-                print(model_name)
-                crps = object_eval.crps(model_type, model_name, query=query)
-                roc_25 = object_eval.roc(model_type, model_name, 25.0, config.forecast_thresholds, query=query)
-                roc_50 = object_eval.roc(model_type, model_name, 50.0, config.forecast_thresholds, query=query)
-                rel_25 = object_eval.reliability(model_type, model_name, 25.0, config.forecast_thresholds, query=query)
-                rel_50 = object_eval.reliability(model_type, model_name, 50.0, config.forecast_thresholds, query=query)
-                row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, crps, roc_25, roc_50,
-                    rel_25, rel_50]
-                print(row)
-                index = "{0}_{1}_{2}_{3}_{4}".format(run_date.strftime("%Y%m%d"), config.ensemble_name,
-                                                    ensemble_member, model_name, model_type)
-                scores.loc[index] = row
+                for forecast_hour in forecast_hours:
+                    print("{0} {1} {2:d}".format(model_type, model_name, forecast_hour))
+                    query = query_start + " & " + "(Forecast_Hour == {0:d})".format(forecast_hour)
+                    crps = object_eval.crps(model_type, model_name, query=query)
+                    rocs = []
+                    rels = []
+                    for threshold in config.object_thresholds:
+                        rocs.append(object_eval.roc(model_type, model_name, threshold,
+                                                    config.forecast_thresholds, query=query))
+                        rels.append(object_eval.reliability(model_type, model_name, threshold,
+                                                            config.forecast_thresholds, query=query))
+                    row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, forecast_hour, crps]
+                    row += rocs + rels
+                    index = "{0}_{1}_{2}_{3}_{4}".format(run_date.strftime("%Y%m%d"), config.ensemble_name,
+                                                        ensemble_member, model_name, model_type)
+                    scores.loc[index] = row
         return scores
     except Exception as e:
         print(traceback.format_exc())
@@ -92,10 +108,10 @@ def evaluate_grids(config, num_procs):
 
     def append_scores(score_set):
         score_list.append(score_set)
-        temp_scores = pd.concat(score_list)
-        pickle_file = open(config.out_path + "grid_scores_temp.pkl", "w")
-        cPickle.dump(temp_scores, pickle_file, cPickle.HIGHEST_PROTOCOL)
-        pickle_file.close()
+        if len(score_list) == 1:
+            score_set.to_csv(config.out_path + config.grid_scores_file, index_label="Index")
+        else:
+            score_set.to_csv(config.out_path + config.grid_scores_file, mode="a", index_label="Index", header=False)
     for window_size in config.window_sizes:
         for run_date in run_dates:
             for member in ensemble_members:
@@ -114,7 +130,6 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
 
     :param run_date:
     :param member:
-    :param model_name:
     :param window_size:
     :param config:
     :param score_columns:
