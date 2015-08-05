@@ -102,7 +102,7 @@ class TrackModeler(object):
             print group
             group_data = self.data["train"]["total_group"].loc[
                 self.data["train"]["total_group"][self.group_col] == group]
-            print group_data.columns
+            print(group_data.columns)
             group_data.dropna(inplace=True)
             group_data.reset_index(drop=True, inplace=True)
             copulas[group] = {}
@@ -127,7 +127,7 @@ class TrackModeler(object):
         :param output_threshold: Size threshold used to determine if hail is occurring or not.
         :return:
         """
-        print "Fitting condition models"
+        print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
             print group
@@ -184,13 +184,12 @@ class TrackModeler(object):
         :param output_stop:
         :return:
         """
-        print "Fitting size models"
+        print("Fitting size models")
         groups = self.data["train"]["member"][self.group_col].unique()
         output_start = int(output_start)
         output_step = int(output_step)
         output_stop = int(output_stop)
         for group in groups:
-            print group
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data.dropna(inplace=True)
             group_data = group_data[group_data[output_column] >= output_start]
@@ -200,10 +199,8 @@ class TrackModeler(object):
             self.size_models[group] = {}
             self.size_models[group]["outputvalues"] = np.arange(output_start, output_stop + output_step, output_step,
                                                                 dtype=int)
-            print "Discrete values", np.unique(discrete_data)
-            print "Output", self.size_models[group]["outputvalues"]
             for m, model_name in enumerate(model_names):
-                print model_name
+                print("{0} {1}".format(group, model_name))
                 self.size_models[group][model_name] = deepcopy(model_objs[m])
                 self.size_models[group][model_name].fit(group_data[input_columns], discrete_data)
 
@@ -228,7 +225,7 @@ class TrackModeler(object):
                 predictions[group] = {}
                 output_values = self.size_models[group]["outputvalues"].astype(int)
                 for m, model_name in enumerate(model_names):
-                    print model_name
+                    print("{0} {1}".format(group, model_name))
                     pred_col_names = [model_name.replace(" ", "-") + "_{0:02d}".format(p) for p in output_values]
                     predictions[group][model_name] = group_data[metadata_cols]
                     pred_vals = self.size_models[group][model_name].predict_proba(group_data[input_columns])
@@ -237,11 +234,6 @@ class TrackModeler(object):
                     for pcv, pc in enumerate(pred_classes):
                         idx = np.where(output_values == pc)[0][0]
                         pred_pdf[:, idx] = pred_vals[:, pcv]
-                    print "Pred classes", pred_classes
-                    print "Output values", output_values
-                    print "Pred Vals Sum", pred_vals.sum(axis=1).min(), pred_vals.sum(axis=1).max(), pred_vals.shape
-                    print "Pred PDF Sum", pred_pdf.sum(axis=1).min(), pred_pdf.sum(axis=1).max(), pred_pdf.shape
-
                     for pcn, pred_col_name in enumerate(pred_col_names):
                         predictions[group][model_name][pred_col_name] = pred_pdf[:, pcn]
         return predictions
@@ -263,15 +255,13 @@ class TrackModeler(object):
         :param output_ranges:
         :return:
         """
-        print "Fitting track models"
+        print("Fitting track models")
         groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
-            print group
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data["Duration_Step"] == 1]
             for model_type, model_dict in self.track_models.iteritems():
-                print model_type
                 model_dict[group] = {}
                 output_data = group_data[output_columns[model_type]].values.astype(int)
                 output_data[output_data < output_ranges[model_type][0]] = output_ranges[model_type][0]
@@ -282,9 +272,8 @@ class TrackModeler(object):
                                                               output_ranges[model_type][1] +
                                                               output_ranges[model_type][2],
                                                               output_ranges[model_type][2])
-                print "Discrete values", np.unique(discrete_data)
                 for m, model_name in enumerate(model_names):
-                    print model_name
+                    print("{0} {1} {2}".format(group, model_type, model_name))
                     model_dict[group][model_name] = deepcopy(model_objs[m])
                     model_dict[group][model_name].fit(group_data[input_columns], discrete_data)
 
@@ -312,6 +301,7 @@ class TrackModeler(object):
                     predictions[model_type][group] = {}
                     output_values = track_model_set[group]["outputvalues"].astype(int)
                     for m, model_name in enumerate(model_names):
+                        print("{0} {1} {2}".format(group, model_type, model_name))
                         pred_col_names = [model_name.replace(" ", "-") + "_{0:02d}".format(p) for p in output_values]
                         predictions[model_type][group][model_name] = group_data[metadata_cols]
                         pred_vals = track_model_set[group][model_name].predict_proba(group_data[input_columns])
@@ -322,11 +312,6 @@ class TrackModeler(object):
                             pred_pdf[:, idx] = pred_vals[:, pcv]
                         for pcn, pred_col_name in enumerate(pred_col_names):
                             predictions[model_type][group][model_name][pred_col_name] = pred_pdf[:, pcn]
-
-                        print "Pred classes", pred_classes
-                        print "Output values", output_values
-                        print "Pred Vals Sum", pred_vals.sum(axis=1).min(), pred_vals.sum(axis=1).max(), pred_vals.shape
-                        print "Pred PDF Sum", pred_pdf.sum(axis=1).min(), pred_pdf.sum(axis=1).max(), pred_pdf.shape
         return predictions
 
     def save_models(self, model_path):
@@ -427,7 +412,7 @@ class TrackModeler(object):
         total_tracks = self.data["forecast"]["total"]
         for r in np.arange(total_tracks.shape[0]):
             track_id = total_tracks.loc[r, "Track_ID"]
-            print track_id
+            print(track_id)
             track_num = track_id.split("_")[-1]
             ensemble_name = total_tracks.loc[r, "Ensemble_Name"]
             member = total_tracks.loc[r, "Ensemble_Member"]

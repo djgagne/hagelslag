@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class ContingencyTable:
+class ContingencyTable(object):
     """Initializes a contingency table of the following form:
                        Event
                        Yes No
