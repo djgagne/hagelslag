@@ -311,6 +311,9 @@ class DistributedReliability(object):
         uncertainty = climo_freq * (1 - climo_freq)
         return reliability, resolution, uncertainty
 
+    def climatology(self):
+        return float(self.frequencies["Positive_Freq"].sum()) / self.frequencies["Total_Freq"].sum()
+
     def brier_score(self):
         """
         Calculate the Brier Score
@@ -435,3 +438,8 @@ class DistributedCRPS(object):
 
     def __repr__(self):
         return self.__str__()
+
+
+def bootstrap(score_objs, n_boot=1000):
+    all_samples = np.random.choice(score_objs, size=(n_boot, len(score_objs)), replace=True)
+    return all_samples.sum(axis=1)
