@@ -106,8 +106,9 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
 
 
 def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Forecast Probability",
-                        ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size=1.5,
-                        legend_params=dict(loc=0, fontsize=10, framealpha=1, frameon=True)):
+                        ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size="20%",
+                        title="Attributes Diagram",
+                        legend_params=dict(loc=0, fontsize=8, framealpha=1, frameon=True)):
     fig, ax = plt.subplots(figsize=figsize)
     plt.plot(ticks, ticks, "k--")
     inset_hist = inset_axes(ax, width=inset_size, height=inset_size, loc=2)
@@ -119,17 +120,18 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
     plt.plot(ticks, np.ones(ticks.shape) * climo, "k--")
     for r, rel_obj in enumerate(rel_objs):
         rel_curve = rel_obj.reliability_curve()
-        plt.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r], marker=markers[r],
+        ax.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r], marker=markers[r],
                  label=obj_labels[r])
         inset_hist.semilogy(rel_curve["Bin_Start"], rel_curve["Total_Relative_Freq"], color=colors[r],
                             marker=markers[r])
-        inset_hist.set_xlabel("Forecast Probability")
-        inset_hist.set_ylabel("Forecast Relative Frequency")
-    plt.annotate("No Skill",(0.6,.3),rotation=22.5)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.xticks(ticks)
-    plt.yticks(ticks)
-    plt.legend(**legend_params)
+    inset_hist.set_xlabel("Forecast Probability")
+    inset_hist.set_ylabel("Forecast Relative Frequency")
+    ax.annotate("No Skill", (0.6, no_skill[6]), rotation=22.5)
+    ax.xlabel(xlabel)
+    ax.ylabel(ylabel)
+    ax.xticks(ticks)
+    ax.yticks(ticks)
+    ax.legend(**legend_params)
+    ax.set_title(title)
     plt.savefig(filename, dpi=dpi, bbox_inches="tight")
     plt.close()

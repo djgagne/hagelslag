@@ -23,7 +23,7 @@ def main():
                'mrms_path', 'mrms_watershed_params',
                'storm_variables', 'potential_variables', 
                'variable_statistics','model_map_file',
-               'csv_path', 'geojson_path', 'train', 'single_step']
+               'csv_path', 'geojson_path', 'train', 'single_step', "unique_matches"]
     config = Config(args.config, required_attributes=required)
     if args.proc > 1:
         pool = Pool(args.proc)
@@ -37,6 +37,7 @@ def main():
             for member in config.ensemble_members:
                 apply(process_ensemble_member, (run_date, member, config))
     return
+
 
 def process_ensemble_member(run_date, member, config):
     """
@@ -80,7 +81,8 @@ def process_ensemble_member(run_date, member, config):
             print "Find obs tracks", run_date, member
             mrms_tracks = track_proc.find_mrms_tracks()
             if len(mrms_tracks) > 0 and len(model_tracks) > 0:
-                track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks)
+                track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
+                                                         unique_matches=config.unique_matches)
                 track_proc.match_hail_sizes(model_tracks, mrms_tracks, track_pairings)
                 track_errors = track_proc.calc_track_errors(model_tracks,
                                                             mrms_tracks,
@@ -90,7 +92,8 @@ def process_ensemble_member(run_date, member, config):
                 print "Output data", run_date, member
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors)
-                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj, track_pairings, model_tracks)
+                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
+                                               track_pairings, model_tracks)
                 #if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
                 #    try:
                 #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
@@ -165,6 +168,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
         end_date = run_date + timedelta(seconds=3600 * forecast_track.end_time)
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
         ensemble_name = config.ensemble_name
+        obs_track_id = "None"
         if config.train and track_errors is not None:
             if not np.isnan(track_errors.ix[f,0]):
                 obs_track_num = track_errors.ix[f,0]
@@ -173,8 +177,6 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                                              observed_tracks[obs_track_num].start_time,
                                              observed_tracks[obs_track_num].end_time,
                                              obs_track_num)
-            else:
-                obs_track_id = "None"
             track_error_row = [obs_track_id] + track_errors.ix[f,1:].tolist()
         else:
             track_error_row = [np.nan] * 5

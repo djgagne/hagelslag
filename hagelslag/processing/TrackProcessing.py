@@ -188,7 +188,7 @@ class TrackProcessor(object):
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
         return tracked_obs_objects
 
-    def match_tracks(self, model_tracks, obs_tracks):
+    def match_tracks(self, model_tracks, obs_tracks, unique_matches=True):
         """
         Match forecast and observed tracks.
 
@@ -196,7 +196,7 @@ class TrackProcessor(object):
         :param obs_tracks: list of STObjects describing observed tracks
         :return:
         """
-        return self.track_matcher.match_tracks(model_tracks, obs_tracks)
+        return self.track_matcher.match_tracks(model_tracks, obs_tracks, unique_matches=unique_matches)
 
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables):
         """
