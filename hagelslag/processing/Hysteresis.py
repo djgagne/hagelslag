@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage import label, maximum, gaussian_filter, find_objects
+from scipy.ndimage import label, maximum, find_objects
 
 
 class Hysteresis(object):

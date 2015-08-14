@@ -8,6 +8,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 import pandas as pd
 from datetime import timedelta
+from scipy.stats import gamma
 
 
 class TrackProcessor(object):
@@ -247,13 +248,15 @@ class TrackProcessor(object):
             model_track = model_tracks[pair[0]]
             unpaired.remove(pair[0])
             obs_track = obs_tracks[pair[1]]
-            obs_hail_sizes = np.array([step[obs_track.masks[t]==1].max() for t, step in enumerate(obs_track.timesteps)])
+            obs_hail_sizes = np.array([step[obs_track.masks[t] == 1].max()
+                                       for t, step in enumerate(obs_track.timesteps)])
             if obs_track.times.size > 1 and model_track.times.size > 1:
                 normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min())\
                     * (obs_track.times - obs_track.times.min())
                 normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min())\
                     * (model_track.times - model_track.times.min())
-                hail_interp = interp1d(normalized_obs_times, obs_hail_sizes, kind="nearest", bounds_error=False, fill_value=0)
+                hail_interp = interp1d(normalized_obs_times, obs_hail_sizes, kind="nearest",
+                                       bounds_error=False, fill_value=0)
                 model_track.observations = hail_interp(normalized_model_times)
             elif obs_track.times.size == 1:
                 model_track.observations = np.ones(model_track.times.shape) * obs_hail_sizes[0]
@@ -263,6 +266,19 @@ class TrackProcessor(object):
             print pair[0], "model", model_track.observations
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
+        return
+
+    @staticmethod
+    def match_size_distributions(model_tracks, obs_tracks, track_pairings):
+        unpaired = range(len(model_tracks))
+        for p, pair in enumerate(track_pairings):
+            model_track = model_tracks[pair[0]]
+            unpaired.remove(pair[0])
+            obs_track = obs_tracks[pair[1]]
+            obs_hail_dists = []
+            for t, step in enumerate(obs_track.timesteps):
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.masks[t] > 0)]
+                obs_hail_dists.append(gamma.fit(step_vals, floc=0))
         return
 
     @staticmethod

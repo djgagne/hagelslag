@@ -112,6 +112,15 @@ class TrackMatcher(object):
                     assignments.append(a)
         return assignments
 
+    def neighbor_matches(self, set_a, set_b):
+        costs = self.track_cost_matrix(set_a, set_b)
+        all_neighbors = []
+        for i in range(len(set_a)):
+            neighbors = np.where(costs[i] < 1)[0].tolist()
+            if len(neighbors) > 0:
+                all_neighbors.append((i, neighbors))
+        return all_neighbors
+
     def track_cost_matrix(self, set_a, set_b):
         costs = np.zeros((len(set_a), len(set_b)))
         for a, item_a in enumerate(set_a):
@@ -123,7 +132,10 @@ class TrackMatcher(object):
         distances = np.zeros(len(self.weights))
         for c, component in enumerate(self.cost_function_components):
             distances[c] = component(item_a, item_b, self.max_values[c])
-        total_distance = np.sum(self.weights * distances)
+        if np.all(distances < 1):
+            total_distance = np.sum(self.weights * distances)
+        else:
+            total_distance = 1.0
         return total_distance
 
 

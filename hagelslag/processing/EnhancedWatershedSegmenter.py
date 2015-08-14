@@ -11,8 +11,9 @@
 
 import numpy as np
 from scipy.ndimage import label as splabel
-from scipy.ndimage import find_objects, gaussian_filter
+from scipy.ndimage import find_objects
 from collections import OrderedDict
+
 
 class EnhancedWatershed(object):
     """
@@ -22,8 +23,8 @@ class EnhancedWatershed(object):
 
     :param min_thresh: minimum pixel value for pixel to be part of a region
     :type min_thresh: int
-    :param data_incr: quantization interval. Use 1 if you don't want to quantize
-    :type data_incr: int
+    :param data_increment: quantization interval. Use 1 if you don't want to quantize
+    :type data_increment: int
     :param max_thresh: values greater than maxThresh are treated as the maximum threshold
     :type max_thresh: int
     :param size_threshold_pixels: clusters smaller than this threshold are ignored.
@@ -47,8 +48,8 @@ class EnhancedWatershed(object):
         """
         Labels input grid using enhanced watershed algorithm.
          
-        :param inputGrid: Grid to be labeled. 
-        :type inputGrid: numpy array
+        :param input_grid: Grid to be labeled.
+        :type input_grid: numpy array
         :rtype: labeled numpy array
         """
         marked = self.find_local_maxima(input_grid)
@@ -56,7 +57,8 @@ class EnhancedWatershed(object):
         markers = splabel(marked)[0]
         return markers
 
-    def size_filter(self, labeled_grid, min_size):
+    @staticmethod
+    def size_filter(labeled_grid, min_size):
         """
         Removes labeled objects that are smaller than minSize, and relabels the remaining objects.
 
@@ -65,11 +67,11 @@ class EnhancedWatershed(object):
         out_grid = np.zeros(labeled_grid.shape,dtype=int)
         slices = find_objects(labeled_grid)
         j = 1
-        for i,s in enumerate(slices):
+        for i, s in enumerate(slices):
             box = labeled_grid[s]
-            size = np.count_nonzero(box == i+1)
+            size = np.count_nonzero(box == i + 1)
             if size >= min_size and box.shape[0] > 1 and box.shape[1] > 1:
-                out_grid[np.nonzero(labeled_grid==i+1)] = j
+                out_grid[np.where(labeled_grid == i+1)] = j
                 j += 1
         return out_grid
 
@@ -211,12 +213,13 @@ class EnhancedWatershed(object):
                                 ((q_data[index] <= q_data[pt]) or self.is_closest(index, center, centers, bin_num)):
                             hills.append(index)
         del foothills[:] 
-    
-    def is_closest(self, point, center, centers, bin_num):
+
+    @staticmethod
+    def is_closest(point, center, centers, bin_num):
         bin_thresh = bin_num / 2
         p_arr = np.array(point)
         c_arr = np.array(center)
-        my_dist = np.sum(np.power(p_arr - c_arr ,2))
+        my_dist = np.sum(np.power(p_arr - c_arr, 2))
         for o_bin in range(bin_thresh, len(centers.keys())):
             for c in centers[o_bin]:
                 oc_arr = np.array(c)
@@ -229,20 +232,21 @@ class EnhancedWatershed(object):
         Quantize a grid into discrete steps based on input parameters.
 
         :param input_grid: 2-d array of values
+        :type input_grid: numpy.ndarray
         :return: Dictionary of value pointing to pixel locations, and quantized 2-d array of data
         """
         pixels = {}
         for i in range(self.max_bin+1):
             pixels[i] = []
 
-        data = (input_grid.astype(int) - self.min_thresh) / self.data_increment
+        data = (np.array(input_grid, dtype=int) - self.min_thresh) / self.data_increment
         data[data < 0] = -1
         data[data > self.max_bin] = self.max_bin
-        good_points = np.nonzero(data >= 0)
-        for g in range(good_points[0].shape[0]):
-            pixels[data[(good_points[0][g], good_points[1][g])]].append((good_points[0][g],good_points[1][g]))
+        good_points = np.where(data >= 0)
+        for g in np.arange(good_points[0].shape[0]):
+            pixels[data[(good_points[0][g], good_points[1][g])]].append((good_points[0][g], good_points[1][g]))
         return pixels, data
 
-    def is_valid(self, point, shape):
+    @staticmethod
+    def is_valid(point, shape):
         return np.all((np.array(point) >= 0) & (np.array(shape) - np.array(point) > 0))
-
