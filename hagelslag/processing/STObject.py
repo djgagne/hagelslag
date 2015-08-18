@@ -375,6 +375,19 @@ class STObject(object):
             stats[stat] = np.mean([p[0][stat] for p in all_props])
         return stats
 
+    def calc_shape_step(self, stat_names, time):
+        ti = np.where(self.times == time)[0]
+        props = regionprops(self.masks[ti], self.timesteps[ti])[0]
+        shape_stats = []
+        for stat_name in stat_names:
+            if "moments_hu" in stat_name:
+                hu_index = int(stat_name.split("_")[-1])
+                hu_name = "_".join(stat_name.split("_")[:-1])
+                shape_stats.append(np.log(props[hu_name][hu_index]))
+            else:
+                shape_stats.append(props[stat_name])
+        return shape_stats
+
     def to_geojson(self, filename, proj, metadata=dict()):
         """
         Output the data in the STObject to a geoJSON file.

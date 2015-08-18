@@ -5,6 +5,7 @@ import json
 import os
 from copy import deepcopy
 from glob import glob
+from sklearn.linear_model import LinearRegression
 
 
 class TrackModeler(object):
@@ -30,6 +31,7 @@ class TrackModeler(object):
         self.data = {"train": {}, "forecast": {}}
         self.condition_models = {}
         self.size_models = {}
+        self.size_distribution_models = {}
         self.track_models = {"translation-x": {},
                              "translation-y": {},
                              "start-time": {}}
@@ -164,6 +166,41 @@ class TrackModeler(object):
                     predictions[group][model_name] = self.condition_models[group][model_name].predict_proba(
                         group_data[input_columns])[:, 1]
         return predictions
+
+    def fit_size_distribution_models(self, model_names, model_objs, input_columns, shape_column="Shape",
+                                     scale_column="Scale"):
+        groups = self.data["train"]["member"][self.group_col].unique()
+        for group in groups:
+            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
+            group_data.dropna(inplace=True)
+            self.size_distribution_models[group] = {"shape":{}, "scale":{}}
+            for m, model_name in enumerate(model_names):
+                self.size_distribution_models[group]["scale"][model_name] = deepcopy(model_objs[m])
+                self.size_distribution_models[group]["scale"][model_name].fit(group_data[input_columns],
+                                                                              group_data[scale_column])
+                scale_values = self.size_distribution_models[group]["scale"][
+                    model_name].predict(group_data[input_columns])
+                self.size_distribution_models[group]["shape"][model_name] = deepcopy(LinearRegression())
+                self.size_distribution_models[group]["shape"][model_name].fit(
+                    np.log(scale_values.reshape((scale_values.size, 1))), np.log(group_data[shape_column]))
+
+    def predict_size_distribution_models(self, model_names, input_columns, metadata_cols, data_mode="forecast"):
+        groups = self.size_distribution_models.keys()
+        predictions = {}
+        for group in groups:
+            predictions[group] = {}
+            group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
+            if group_data.shape[0] > 0:
+                for m, model_name in enumerate(model_names):
+                    predictions[group][model_name] = group_data[metadata_cols]
+                    scale_predictions = self.size_distribution_models[group]["scale"][model_name].predict(
+                        group_data[input_columns])
+                    shape_predictions = np.exp(self.size_distribution_models[group]["shape"][model_name].predict(
+                        np.log(scale_predictions.reshape(scale_predictions.size, 1))))
+                    predictions[group][model_name][model_name.replace(" ", "-") + "_scale"] = scale_predictions
+                    predictions[group][model_name][model_name.replace(" ", "-") + "_shape"] = shape_predictions
+        return predictions
+
 
     def fit_size_models(self, model_names,
                         model_objs,

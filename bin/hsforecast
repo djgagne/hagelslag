@@ -101,6 +101,11 @@ def train_models(track_modeler, config):
                                   output_start=config.size_range_params[0],
                                   output_stop=config.size_range_params[1],
                                   output_step=config.size_range_params[2])
+    track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
+                                               config.size_distribution_model_objs,
+                                               config.size_distribution_input_columns,
+                                               shape_column=config.size_distribution_shape_column,
+                                               scale_column=config.size_distribution_scale_column)
     track_modeler.fit_track_models(config.track_model_names,
                                    config.track_model_objs,
                                    config.track_input_columns,
