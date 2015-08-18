@@ -35,7 +35,7 @@ def main():
     else:
         for run_date in config.dates:
             for member in config.ensemble_members:
-                apply(process_ensemble_member, (run_date, member, config))
+                process_ensemble_member(run_date, member, config)
     return
 
 
@@ -151,7 +151,17 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
     for var in config.storm_variables + config.potential_variables:
         for stat in config.variable_statistics:
             var_stats.append(var + "_" + stat)
-    forecast_step_track_columns = forecast_step_track_columns + var_stats + ["Hail_Size"]
+    if hasattr(config, "shape_variables"):
+        for var in config.shape_variables:
+            var_stats.append(var)
+    forecast_step_track_columns = forecast_step_track_columns + var_stats
+    if hasattr(config, "label_type"):
+        if config.label_type == "gamma":
+            forecast_step_track_columns += ["Hail_Size", "Shape", "Location", "Scale"]
+        else:
+            forecast_step_track_columns += ["Hail_Size"]
+    else:
+        forecast_step_track_columns += ["Hail_Size"]
     forecast_data = {}
     forecast_data['track_total'] = pd.DataFrame(columns=forecast_total_track_columns)
     forecast_data['track_step'] = pd.DataFrame(columns=forecast_step_track_columns)
@@ -193,12 +203,21 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
             for attribute in config.storm_variables + config.potential_variables:
                 for statistic in config.variable_statistics:
                     var_stat_vals.append(forecast_track.calc_attribute_statistic(attribute, statistic, step))
+            if hasattr(config, "shape_variables"):
+                for attribute in config.shape_variables:
+                    var_stat_vals.append(forecast_track.calc_shape_step(attribute, step))
             if forecast_track.observations is not None:
-                hail_size = forecast_track.observations[s]
+                if hasattr(config, "label_type"):
+                    if config.label_type == "gamma":
+                        hail_label = forecast_track.observations.loc[step].values.tolist()
+                    else:
+                        hail_label = [forecast_track.observations.loc[step, "Max_Hail_Size"]]
+                else:
+                    hail_label = [forecast_track.observations[s]]
             else:
-                hail_size = 0
+                hail_label = [0]
             record = [step_id, track_id, step_date, step, valid_hour_utc,
-                      step_duration, centroid_lon, centroid_lat] + var_stat_vals + [hail_size]
+                      step_duration, centroid_lon, centroid_lat] + var_stat_vals + hail_label
             forecast_data['track_step'].loc[track_step_count] = record
             track_step_count += 1
         path_parts = [run_date.strftime("%Y%m%d"), member]
