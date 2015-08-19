@@ -300,7 +300,7 @@ class TrackProcessor(object):
                 model_hail_dists.loc[model_track.times, "Max_Hail_Size"] = size_interp(normalized_model_times)
             else:
                 for param in obs_hail_dists.columns:
-                    model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[0, param]
+                    model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[obs_track.times[0], param]
             model_track.observations = model_hail_dists
         return
 
