@@ -205,8 +205,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                 for statistic in config.variable_statistics:
                     var_stat_vals.append(forecast_track.calc_attribute_statistic(attribute, statistic, step))
             if hasattr(config, "shape_variables"):
-                for attribute in config.shape_variables:
-                    var_stat_vals.append(forecast_track.calc_shape_step(attribute, step))
+                var_stat_vals.extend(forecast_track.calc_shape_step(config.shape_variables, step))
             if forecast_track.observations is not None:
                 if hasattr(config, "label_type"):
                     if config.label_type == "gamma":

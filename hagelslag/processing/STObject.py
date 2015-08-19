@@ -427,7 +427,7 @@ def read_geojson(filename):
     Reads a geojson file containing an STObject and initializes a new STObject from the information in the file.
 
     :param filename: Name of the geojson file
-    :return: STObject
+    :return: an STObject
     """
     json_file = open(filename)
     data = json.load(json_file)
