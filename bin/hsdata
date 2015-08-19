@@ -83,7 +83,8 @@ def process_ensemble_member(run_date, member, config):
             if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                 track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
                                                          unique_matches=config.unique_matches)
-                track_proc.match_hail_sizes(model_tracks, mrms_tracks, track_pairings)
+                #track_proc.match_hail_sizes(model_tracks, mrms_tracks, track_pairings)
+                track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
                 track_errors = track_proc.calc_track_errors(model_tracks,
                                                             mrms_tracks,
                                                             track_pairings)

@@ -197,8 +197,8 @@ class TrackModeler(object):
                         group_data[input_columns])
                     shape_predictions = np.exp(self.size_distribution_models[group]["shape"][model_name].predict(
                         np.log(scale_predictions.reshape(scale_predictions.size, 1))))
-                    predictions[group][model_name][model_name.replace(" ", "-") + "_scale"] = scale_predictions
                     predictions[group][model_name][model_name.replace(" ", "-") + "_shape"] = shape_predictions
+                    predictions[group][model_name][model_name.replace(" ", "-") + "_scale"] = scale_predictions
         return predictions
 
 
@@ -376,6 +376,17 @@ class TrackModeler(object):
                     cPickle.dump(model_obj,
                                  pickle_file,
                                  cPickle.HIGHEST_PROTOCOL)
+        for group, dist_model_set in self.size_distribution_models.iteritems():
+            for model_type, model_objs in dist_model_set.iteritems():
+                for model_name, model_obj in model_objs.iteritems():
+                    out_filename = model_path + \
+                        "{0}_{1}_{2}_sizedist.pkl".format(group,
+                                                          model_name.replace(" ", "-"),
+                                                          model_type)
+                    with open(out_filename, "w") as pickle_file:
+                        cPickle.dump(model_obj,
+                                     pickle_file,
+                                     cPickle.HIGHEST_PROTOCOL)
         for model_type, track_type_models in self.track_models.iteritems():
             for group, track_model_set in track_type_models.iteritems():
                 for model_name, model_obj in track_model_set.iteritems():
@@ -406,6 +417,7 @@ class TrackModeler(object):
                 model_name = model_comps[1].replace("-", " ")
                 with open(condition_model_file) as cmf:
                     self.condition_models[model_comps[0]][model_name] = cPickle.load(cmf)
+
         size_model_files = sorted(glob(model_path + "*_size.pkl"))
         if len(size_model_files) > 0:
             for size_model_file in size_model_files:
@@ -415,6 +427,19 @@ class TrackModeler(object):
                 model_name = model_comps[1].replace("-", " ")
                 with open(size_model_file) as smf:
                     self.size_models[model_comps[0]][model_name] = cPickle.load(smf)
+
+        size_dist_model_files = sorted(glob(model_path + "*_sizedist.pkl"))
+        if len(size_dist_model_files) > 0:
+            for dist_model_file in size_dist_model_files:
+                model_comps = dist_model_file.split("/")[-1][:-4].split("_")
+                if model_comps[0] not in self.size_distribution_models.keys():
+                    self.size_distribution_models[model_comps[0]] = {}
+                if model_comps[2] not in self.size_distribution_models[model_comps[0]].keys():
+                    self.size_distribution_models[model_comps[0]][model_comps[2]] = {}
+                model_name = model_comps[1].replace("-", " ")
+                with open(dist_model_file) as dmf:
+                    self.size_distribution_models[model_comps[0]][model_comps[2]][model_name] = cPickle.load(dmf)
+
         track_model_files = sorted(glob(model_path + "*_track.pkl"))
         if len(track_model_files) > 0:
             for track_model_file in track_model_files:
@@ -432,6 +457,7 @@ class TrackModeler(object):
     def output_forecasts_json(self, forecasts,
                               condition_model_names,
                               size_model_names,
+                              dist_model_names,
                               track_model_names,
                               json_data_path,
                               out_path):
@@ -457,16 +483,19 @@ class TrackModeler(object):
                                                         self.group_col].values[0]
             run_date = track_id.split("_")[-4][:8]
             step_forecasts = {}
-            for mlmodel in condition_model_names:
-                step_forecasts["condition_" + mlmodel.replace(" ", "-")] = forecasts["condition"][group].loc[
-                    forecasts["condition"][group]["Track_ID"] == track_id, mlmodel]
-            for mlmodel in size_model_names:
-                step_forecasts["size_" + mlmodel.replace(" ", "-")] = forecasts["size"][group][mlmodel].loc[
-                    forecasts["size"][group][mlmodel]["Track_ID"] == track_id]
+            for ml_model in condition_model_names:
+                step_forecasts["condition_" + ml_model.replace(" ", "-")] = forecasts["condition"][group].loc[
+                    forecasts["condition"][group]["Track_ID"] == track_id, ml_model]
+            for ml_model in size_model_names:
+                step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
+                    forecasts["size"][group][ml_model]["Track_ID"] == track_id]
+            for ml_model in dist_model_names:
+                step_forecasts["dist_" + ml_model.replace(" ", "-")] = forecasts["dist"][group][ml_model].loc[
+                    forecasts["dist"][group][ml_model]["Track_ID"] == track_id]
             for model_type in forecasts["track"].keys():
-                for mlmodel in track_model_names:
-                    mframe = forecasts["track"][model_type][group][mlmodel]
-                    step_forecasts[model_type + "_" + mlmodel.replace(" ", "-")] = mframe.loc[
+                for ml_model in track_model_names:
+                    mframe = forecasts["track"][model_type][group][ml_model]
+                    step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
                         mframe["Track_ID"] == track_id]
             json_file_name = "{0}_{1}_{2}_model_track_{3}.json".format(ensemble_name,
                                                                        run_date,
@@ -481,7 +510,6 @@ class TrackModeler(object):
                     continue
             for f, feature in enumerate(track_obj['features']):
                 del feature['properties']['attributes']
-                del feature['properties']['timesteps']
                 for model_name, fdata in step_forecasts.iteritems():
                     ml_model_name = model_name.split("_")[1]
                     if "condition" in model_name:
@@ -504,3 +532,5 @@ class TrackModeler(object):
             with open(out_json_filename, "w") as out_json_obj:
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
         return
+
+

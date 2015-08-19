@@ -1,8 +1,9 @@
 from hagelslag.data.ModelOutput import ModelOutput
 import numpy as np
 import pandas as pd
-from scipy.ndimage import convolve, maximum_filter, gaussian_filter
+from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
+from scipy.stats import gamma
 from skimage.morphology import disk
 from netCDF4 import Dataset, date2num
 import os
@@ -80,9 +81,9 @@ class EnsembleProducts(object):
             neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
             if sigma > 0:
                 neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
-        return EnsembleConsensus(neighborhood_prob, "neighborhood_probability_r_{0:d}_s_{1:d}".format(radius, sigma),
+        return EnsembleConsensus(neighborhood_prob, "neighbor_prob_r_{0:d}_s_{1:d}".format(radius, sigma),
                                  self.ensemble_name,
-                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold, self.units.replace(" ", "_")),
+                                 self.run_date, self.variable + "_{0:0.2f}".format(threshold),
                                  self.start_date, self.end_date, "")
 
     def period_max_neighborhood_probability(self, threshold, radius, sigma=0):
@@ -96,11 +97,11 @@ class EnsembleProducts(object):
         if sigma > 0:
             neighborhood_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
         return EnsembleConsensus(neighborhood_prob,
-                                 "neighborhood_probability_{0:02d}-hour_r_{1:d}_s_{2:d}".format(self.data.shape[1],
+                                 "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(self.data.shape[1],
                                                                                                 radius,
                                                                                                 sigma),
                                  self.ensemble_name,
-                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(float(threshold), self.units.replace(" ", "_")),
+                                 self.run_date, self.variable + "_{0:0.2f}".format(float(threshold)),
                                  self.start_date, self.end_date, "")
 
 
@@ -131,7 +132,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
         if self.track_forecasts == {}:
             self.load_track_forecasts()
         self.data = np.zeros((len(self.members), self.times.size, self.grid_shape[0], self.grid_shape[1]))
-        if grid_method in ["mean", "median"]:
+        if grid_method in ["mean", "median", "samples"]:
             for m, member in enumerate(self.members):
                 for track_forecast in self.track_forecasts[member]:
                     times = track_forecast["properties"]["times"]
@@ -141,21 +142,48 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                         forecast_time = self.run_date + timedelta(hours=times[s])
                         t = np.where(self.times == forecast_time)[0][0]
                         mask = np.array(step['properties']["masks"], dtype=int)
-                        i = np.array(step['properties']["i"])
+                        i = np.array(step['properties']["i"], dtype=int)
                         i = i[mask == 1]
-                        j = np.array(step['properties']["j"])
+                        j = np.array(step['properties']["j"], dtype=int)
                         j = j[mask == 1]
-                        if grid_method == "mean":
-                            forecast_value = np.sum(forecast_pdf * self.forecast_bins)
-                        elif grid_method == "median":
-                            forecast_cdf = np.cumsum(forecast_pdf)
-                            forecast_value = self.forecast_bins[np.argmin(np.abs(forecast_cdf - 0.5))]
+                        if grid_method == "samples":
+                            intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
+                            rankings = np.argsort(intensities)
+                            samples = np.random.choice(self.forecast_bins, size=intensities.size, replace=True,
+                                                       p=forecast_pdf)
+                            self.data[m, t, i[rankings], j[rankings]] = samples
                         else:
-                            forecast_value = 0
-                        self.data[m, t, i, j] = forecast_value
+                            if grid_method == "mean":
+                                forecast_value = np.sum(forecast_pdf * self.forecast_bins)
+                            elif grid_method == "median":
+                                forecast_cdf = np.cumsum(forecast_pdf)
+                                forecast_value = self.forecast_bins[np.argmin(np.abs(forecast_cdf - 0.5))]
+                            else:
+                                forecast_value = 0
+                            self.data[m, t, i, j] = forecast_value
+        if grid_method in ["gamma"]:
+            for m, member in enumerate(self.members):
+                for track_forecast in self.track_forecasts[member]:
+                    times = track_forecast["properties"]["times"]
+                    for s, step in enumerate(track_forecast["features"]):
+                        forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
+                        forecast_dist = gamma(forecast_params[0], loc=0, scale=forecast_params[1])
+                        forecast_time = self.run_date + timedelta(hours=times[s])
+                        t = np.where(self.times == forecast_time)[0][0]
+                        mask = np.array(step["properties"]["masks"], dtype=int)
+                        intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
+                        rankings = np.argsort(intensities)
+                        i = np.array(step["properties"]["i"], dtype=int)[mask == 1]
+                        j = np.array(step["properties"]["j"], dtype=int)[mask == 1]
+                        samples = np.sort(forecast_dist.rvs(size=rankings.size))
+                        self.data[m, t, i[rankings], j[rankings]] = samples
 
 
 class EnsembleConsensus(object):
+    """
+    Stores data and metadata for an ensemble consensus product such as a neighborhood probability or an ensemble
+    mean or max. Allows for the product to be output to a netCDF file.
+    """
     def __init__(self, data, consensus_type, ensemble_name, run_date, variable, start_date, end_date, units):
         self.data = data
         self.consensus_type = consensus_type
