@@ -275,12 +275,14 @@ class TrackProcessor(object):
             model_track = model_tracks[pair[0]]
             unpaired.remove(pair[0])
             obs_track = obs_tracks[pair[1]]
-            obs_hail_dists = pd.DataFrame(columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
-            model_hail_dists = pd.DataFrame(columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
+            obs_hail_dists = pd.DataFrame(index=obs_track.times,
+                                          columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
+            model_hail_dists = pd.DataFrame(index=model_track.times,
+                                            columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
             for t, step in enumerate(obs_track.timesteps):
                 step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 0)]
-                obs_hail_dists.loc[t, ["Shape", "Location", "Scale"]] = gamma.fit(step_vals, floc=0)
-                obs_hail_dists.loc[t, "Max_Hail_Size"] = step_vals.max()
+                obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals, floc=0)
+                obs_hail_dists.loc[obs_track.times[t], "Max_Hail_Size"] = step_vals.max()
             if obs_track.times.size > 1 and model_track.times.size > 1:
                 normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min())\
                     * (obs_track.times - obs_track.times.min())
@@ -288,9 +290,9 @@ class TrackProcessor(object):
                     * (model_track.times - model_track.times.min())
                 size_interp = interp1d(normalized_obs_times, obs_hail_dists["Max_Hail_Size"], kind="linear",
                                        bounds_error=False, fill_value=0)
-                shape_interp = interp1d(normalized_obs_times, obs_hail_dists["Shape"], kind="linear",
+                shape_interp = interp1d(normalized_obs_times, obs_hail_dists["Shape"].values, kind="linear",
                                         bounds_error=False, fill_value=0)
-                scale_interp = interp1d(normalized_obs_times, obs_hail_dists["Scale"], kine="linear",
+                scale_interp = interp1d(normalized_obs_times, obs_hail_dists["Scale"].values, kind="linear",
                                         bounds_error=False, fill_value=0)
                 model_hail_dists.loc[model_track.times, "Shape"] = shape_interp(normalized_model_times)
                 model_hail_dists.loc[model_track.times, "Scale"] = scale_interp(normalized_model_times)
