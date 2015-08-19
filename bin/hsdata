@@ -215,9 +215,16 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                 else:
                     hail_label = [forecast_track.observations[s]]
             else:
-                hail_label = [0]
+                if hasattr(config, "label_type"):
+                    if config.label_type == "gamma":
+                        hail_label = [0,0,0,0]
+                    else:
+                        hail_label = [0]
+                else:
+                    hail_label = [0]
             record = [step_id, track_id, step_date, step, valid_hour_utc,
                       step_duration, centroid_lon, centroid_lat] + var_stat_vals + hail_label
+            print len(record), forecast_data["track_step"].shape, hail_label
             forecast_data['track_step'].loc[track_step_count] = record
             track_step_count += 1
         path_parts = [run_date.strftime("%Y%m%d"), member]
