@@ -278,7 +278,7 @@ class TrackProcessor(object):
             obs_hail_dists = pd.DataFrame(columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
             model_hail_dists = pd.DataFrame(columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
             for t, step in enumerate(obs_track.timesteps):
-                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.masks[t] > 0)]
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 0)]
                 obs_hail_dists.loc[t, ["Shape", "Location", "Scale"]] = gamma.fit(step_vals, floc=0)
                 obs_hail_dists.loc[t, "Max_Hail_Size"] = step_vals.max()
             if obs_track.times.size > 1 and model_track.times.size > 1:
