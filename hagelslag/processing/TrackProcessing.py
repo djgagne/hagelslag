@@ -290,7 +290,7 @@ class TrackProcessor(object):
                                        bounds_error=False, fill_value=0)
                 shape_interp = interp1d(normalized_obs_times, obs_hail_dists["Shape"], kind="linear",
                                         bounds_error=False, fill_value=0)
-                scale_interp = interp1d(normalized_obs_times, obs_hail_dists["Scale"], kine="linear",
+                scale_interp = interp1d(normalized_obs_times, obs_hail_dists["Scale"], kind="linear",
                                         bounds_error=False, fill_value=0)
                 model_hail_dists.loc[model_track.times, "Shape"] = shape_interp(normalized_model_times)
                 model_hail_dists.loc[model_track.times, "Scale"] = scale_interp(normalized_model_times)
