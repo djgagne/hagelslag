@@ -2,7 +2,7 @@ from setuptools import setup
 
 if __name__ == "__main__":
     setup(name="Hagelslag",
-          version="0.1",
+          version="0.2",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
           author_email="djgagne@ou.edu",

@@ -67,9 +67,9 @@ class TrackModeler(object):
                 if file_date in run_date_str:
                     step_track_files.append(step_file)            
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
-                                                 ignore_index=True)
+                                                 ignore_index=True).fillna(0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
-                                                ignore_index=True)
+                                                ignore_index=True).fillna(0)
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
@@ -81,6 +81,7 @@ class TrackModeler(object):
             self.data[mode]["total_group"] = pd.merge(self.data[mode]["total"],
                                                       self.data[mode]["member"],
                                                       on="Ensemble_Member")
+
 
     def calc_copulas(self,
                      output_file,
