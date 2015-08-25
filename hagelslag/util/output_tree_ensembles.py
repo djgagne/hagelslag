@@ -4,23 +4,52 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", help="Input scikit-learn tree ensemble model pickle file.")
-    parser.add_argument("-o", "--output", help="Output file.")
+    parser.add_argument("-i", "--input", required=True, help="Input scikit-learn tree ensemble model pickle file.")
+    parser.add_argument("-o", "--output", required=True, help="Output file.")
+    parser.add_argument("-a", "--attr", default="", help="Attribute list file.")
     args = parser.parse_args()
     tree_ensemble_obj = load_tree_object(args.input)
-    output_tree_ensemble(tree_ensemble_obj, args.output)
+    if args.attr != "":
+        with open(args.attr) as attr_obj:
+            attribute_names = attr_obj.readlines()
+    else:
+        attribute_names = None
+    output_tree_ensemble(tree_ensemble_obj, args.output, attribute_names)
     return
 
 
 def load_tree_object(filename):
+    """
+    Load scikit-learn decision tree ensemble object from file.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the pickle file containing the tree object.
+    
+    Returns
+    -------
+    tree ensemble object
+    """
     with open(filename) as file_obj:
         tree_ensemble_obj = cPickle.load(file_obj)
     return tree_ensemble_obj
 
 
 def output_tree_ensemble(tree_ensemble_obj, output_filename, attribute_names=None):
+    """
+    Write each decision tree in an ensemble to a file.
+
+    Parameters
+    ----------
+    tree_ensemble_obj : sklearn.ensemble object
+        Random Forest or Gradient Boosted Regression object
+    output_filename : str
+        File 
+    """
     out_file = open(output_filename, "w")
     for t, tree in enumerate(tree_ensemble_obj.estimators_):
+        print("Writing Tree {0:d}".format(t))
         out_file.write("Tree {0:d}\n".format(t))
         tree_str = print_tree_recursive(tree.tree_, 0, attribute_names)
         out_file.write(tree_str)
@@ -47,7 +76,7 @@ def print_tree_recursive(tree_obj, node_index, attribute_names=None):
         if tree_obj.max_n_classes > 1:
             leaf_value = "{0:d}".format(tree_obj.value[node_index].argmax())
         else:
-            leaf_value = "{0:0.4f}".format(tree_obj.value[node_index])
+            leaf_value = "{0}".format(tree_obj.value[node_index][0][0])
         tree_str += "l {0:d} {1} {2:0.4f} {3:d}\n".format(node_index,
                                                           leaf_value,
                                                           tree_obj.weighted_n_node_samples[node_index],
