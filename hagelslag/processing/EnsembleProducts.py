@@ -72,9 +72,9 @@ class EnsembleProducts(object):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[1:])
         thresh_data = np.where(self.data >= threshold, 1, 0)
+        print("Start neighborhood probability {0} {1}".format(self.ensemble_name, self.variable, self.start_date))
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
-                print t, m
                 maximized = fftconvolve(thresh_data[m, t], weights, mode="same")
                 maximized[maximized > 1] = 1
                 neighborhood_prob[t] += fftconvolve(maximized, weights, mode="same")
@@ -117,11 +117,11 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
 
     def load_track_forecasts(self):
         run_date_str = self.run_date.strftime("%Y%m%d")
+        print("Load track forecasts {0} {1}".format(self.ensemble_name, run_date_str))
         for member in self.members:
             self.track_forecasts[member] = []
             track_files = sorted(glob(self.path + "/".join([run_date_str, member]) + "/*.json"))
             for track_file in track_files:
-                print(track_file)
                 tfo = open(track_file)
                 self.track_forecasts[member].append(json.load(tfo))
                 tfo.close()
@@ -169,14 +169,16 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                         forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
                         forecast_dist = gamma(forecast_params[0], loc=0, scale=forecast_params[1])
                         forecast_time = self.run_date + timedelta(hours=times[s])
-                        t = np.where(self.times == forecast_time)[0][0]
-                        mask = np.array(step["properties"]["masks"], dtype=int)
-                        intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
-                        rankings = np.argsort(intensities)
-                        i = np.array(step["properties"]["i"], dtype=int)[mask == 1]
-                        j = np.array(step["properties"]["j"], dtype=int)[mask == 1]
-                        samples = np.sort(forecast_dist.rvs(size=rankings.size))
-                        self.data[m, t, i[rankings], j[rankings]] = samples
+                        if forecast_time in self.times:
+                            t = np.where(self.times == forecast_time)[0][0]
+                            mask = np.array(step["properties"]["masks"], dtype=int)
+                            intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
+                            rankings = np.argsort(intensities)
+                            i = np.array(step["properties"]["i"], dtype=int)[mask == 1]
+                            j = np.array(step["properties"]["j"], dtype=int)[mask == 1]
+                            if rankings.size > 0:
+                                samples = np.sort(forecast_dist.rvs(size=rankings.size))
+                                self.data[m, t, i[rankings], j[rankings]] = samples
 
 
 class EnsembleConsensus(object):
@@ -186,6 +188,7 @@ class EnsembleConsensus(object):
     """
     def __init__(self, data, consensus_type, ensemble_name, run_date, variable, start_date, end_date, units):
         self.data = data
+        self.data[self.data < 0.001] = 0
         self.consensus_type = consensus_type
         self.ensemble_name = ensemble_name
         self.run_date = run_date
@@ -216,13 +219,13 @@ class EnsembleConsensus(object):
             time_var.units = time_units
         if "-hour" in self.consensus_type:
             if full_var_name not in out_data.variables.keys():
-                var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True)
+                var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True, least_significant_digit=4)
             else:
                 var = out_data.variables[full_var_name]
             var.coordinates = "y x"
         else:
             if full_var_name not in out_data.variables.keys():
-                var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True)
+                var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True, least_significant_digit=4)
             else:
                 var = out_data.variables[full_var_name]
             var.coordinates = "time y x"

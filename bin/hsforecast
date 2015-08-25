@@ -170,11 +170,16 @@ def generate_all_ensemble_products(config, mode="forecast"):
                     config.ensemble_data_path, config.single_step, config.ensemble_variable_thresholds[variable],
                     config.neighbor_radius, config.neighbor_sigma, config.ensemble_consensus_path)
             pool.apply_async(generate_ensemble_run_product, args)
+    
+    if config.ml_grid_method == "gamma":
+        ml_var = "dist"
+    else:
+        ml_var = "size"
     for ml_model in config.size_model_names:
         for run_date in run_dates.to_pydatetime():
             start_date = run_date + timedelta(hours=config.start_hour)
             end_date = run_date + timedelta(hours=config.end_hour)
-            args = (ml_model, config.ensemble_members, run_date, "size", start_date, end_date,
+            args = (ml_model, config.ensemble_members, run_date, ml_var, start_date, end_date,
                     config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
                     config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
                     config.ensemble_consensus_path)
