@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+"""
+Read a scikit-learn tree ensemble object and output the object into a human-readable text format.
+"""
+__author__ = "David John Gagne <djgagne@ou.edu>"
+__copyright__ = "Copyright 2015, David John Gagne"
+__email__ = "djgagne@ou.edu"
+
 import cPickle
 import argparse
 
@@ -45,7 +53,9 @@ def output_tree_ensemble(tree_ensemble_obj, output_filename, attribute_names=Non
     tree_ensemble_obj : sklearn.ensemble object
         Random Forest or Gradient Boosted Regression object
     output_filename : str
-        File 
+        File where trees are written
+    attribute_names : list
+        List of attribute names to be used in place of indices if available.
     """
     out_file = open(output_filename, "w")
     for t, tree in enumerate(tree_ensemble_obj.estimators_):
@@ -59,6 +69,23 @@ def output_tree_ensemble(tree_ensemble_obj, output_filename, attribute_names=Non
 
 
 def print_tree_recursive(tree_obj, node_index, attribute_names=None):
+    """
+    Recursively writes a string representation of a decision tree object.
+
+    Parameters
+    ----------
+    tree_obj : sklearn.tree._tree.Tree object
+        A base decision tree object
+    node_index : int
+        Index of the node being printed
+    attribute_names : list
+        List of attribute names
+    
+    Returns
+    -------
+    tree_str : str
+        String representation of decision tree in the same format as the parf library.
+    """
     tree_str = ""
     if node_index == 0:
         tree_str += "{0:d}\n".format(tree_obj.node_count)
