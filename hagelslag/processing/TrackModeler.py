@@ -6,6 +6,7 @@ import os
 from copy import deepcopy
 from glob import glob
 from sklearn.linear_model import LinearRegression
+from multiprocessing import Pool
 
 
 class TrackModeler(object):
@@ -541,4 +542,81 @@ class TrackModeler(object):
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
         return
 
+    def output_forecast_json_parallel(self, forecasts,
+                                      condition_model_names,
+                                      size_model_names,
+                                      dist_model_names,
+                                      track_model_names,
+                                      json_data_path,
+                                      out_path,
+                                      num_procs):
+        pool = Pool(num_procs)
+        total_tracks = self.data["forecast"]["total_group"]
+        for r in total_tracks.index:
+            pool.apply_async(output_forecast, (total_tracks.loc[r], forecasts, condition_model_names, size_model_names,
+                                               dist_model_names, track_model_names, self.group_col, json_data_path,
+                                               out_path))
+        pool.close()
+        pool.join()
+        return
 
+
+def output_forecast(total_track_info, forecasts, condition_model_names, size_model_names, dist_model_names,
+                    track_model_names, group_col, json_data_path, out_path):
+    track_id = total_track_info["Track_ID"]
+    print(track_id)
+    track_num = track_id.split("_")[-1]
+    ensemble_name = total_track_info["Ensemble_Name"]
+    member = total_track_info["Ensemble_Member"]
+    group = total_track_info[group_col]
+    run_date = track_id.split("_")[-4][:8]
+    step_forecasts = {}
+    for ml_model in condition_model_names:
+        step_forecasts["condition_" + ml_model.replace(" ", "-")] = forecasts["condition"][group].loc[
+            forecasts["condition"][group]["Track_ID"] == track_id, ml_model]
+    for ml_model in size_model_names:
+        step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
+            forecasts["size"][group][ml_model]["Track_ID"] == track_id]
+    for ml_model in dist_model_names:
+        step_forecasts["dist_" + ml_model.replace(" ", "-")] = forecasts["dist"][group][ml_model].loc[
+            forecasts["dist"][group][ml_model]["Track_ID"] == track_id]
+    for model_type in forecasts["track"].keys():
+        for ml_model in track_model_names:
+            mframe = forecasts["track"][model_type][group][ml_model]
+            step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
+                mframe["Track_ID"] == track_id]
+    json_file_name = "{0}_{1}_{2}_model_track_{3}.json".format(ensemble_name,
+                                                               run_date,
+                                                               member,
+                                                               track_num)
+    full_json_path = json_data_path + "/".join([run_date, member]) + "/" + json_file_name
+    with open(full_json_path) as json_file_obj:
+        try:
+            track_obj = json.load(json_file_obj)
+        except IOError:
+            print(full_json_path + " not found")
+            return
+    for f, feature in enumerate(track_obj['features']):
+        del feature['properties']['attributes']
+        for model_name, fdata in step_forecasts.iteritems():
+            ml_model_name = model_name.split("_")[1]
+            if "condition" in model_name:
+                feature['properties'][model_name] = fdata.values[f]
+            else:
+                predcols = []
+                for col in fdata.columns:
+                    if ml_model_name in col:
+                        predcols.append(col)
+                feature['properties'][model_name] = fdata.loc[:, predcols].values[f].tolist()
+    full_path = []
+    for part in [run_date, member]:
+        full_path.append(part)
+        if not os.access(out_path + "/".join(full_path), os.R_OK):
+            try:
+                os.mkdir(out_path + "/".join(full_path))
+            except OSError:
+                print "directory already created"
+    out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
+    with open(out_json_filename, "w") as out_json_obj:
+        json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
+    return
