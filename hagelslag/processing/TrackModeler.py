@@ -542,14 +542,14 @@ class TrackModeler(object):
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
         return
 
-    def output_forecast_json_parallel(self, forecasts,
-                                      condition_model_names,
-                                      size_model_names,
-                                      dist_model_names,
-                                      track_model_names,
-                                      json_data_path,
-                                      out_path,
-                                      num_procs):
+    def output_forecasts_json_parallel(self, forecasts,
+                                       condition_model_names,
+                                       size_model_names,
+                                       dist_model_names,
+                                       track_model_names,
+                                       json_data_path,
+                                       out_path,
+                                       num_procs):
         pool = Pool(num_procs)
         total_tracks = self.data["forecast"]["total_group"]
         for r in total_tracks.index:

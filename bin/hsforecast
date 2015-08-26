@@ -145,13 +145,14 @@ def make_forecasts(track_modeler, config):
 
 
 def output_forecasts(forecasts, track_modeler, config):
-    track_modeler.output_forecasts_json(forecasts,
-                                        config.condition_model_names,
-                                        config.size_model_names,
-                                        config.size_distribution_model_names,
-                                        config.track_model_names,
-                                        config.data_json_path,
-                                        config.forecast_json_path)
+    track_modeler.output_forecasts_json_parallel(forecasts,
+                                                 config.condition_model_names,
+                                                 config.size_model_names,
+                                                 config.size_distribution_model_names,
+                                                 config.track_model_names,
+                                                 config.data_json_path,
+                                                 config.forecast_json_path,
+                                                 config.num_procs)
     return
 
 
