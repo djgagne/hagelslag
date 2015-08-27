@@ -174,5 +174,10 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
         print(traceback.format_exc())
         raise e
 
+
+def evaluate_neighborhood_probabilities(config, num_procs):
+    pool = Pool(num_procs)
+
+
 if __name__ == "__main__":
     main()
