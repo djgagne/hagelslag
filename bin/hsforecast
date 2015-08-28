@@ -163,20 +163,13 @@ def generate_all_ensemble_products(config, mode="forecast"):
                                  freq='1D')
     size_bins = np.arange(config.size_range_params[0], config.size_range_params[1] + config.size_range_params[2],
                           config.size_range_params[2])
-    for run_date in run_dates.to_pydatetime():
-        start_date = run_date + timedelta(hours=config.start_hour)
-        end_date = run_date + timedelta(hours=config.end_hour)
-        for variable in config.ensemble_variables:
-            args = (config.ensemble_name, config.ensemble_members, run_date, variable, start_date, end_date,
-                    config.ensemble_data_path, config.single_step, config.ensemble_variable_thresholds[variable],
-                    config.neighbor_radius, config.neighbor_sigma, config.ensemble_consensus_path)
-            pool.apply_async(generate_ensemble_run_product, args)
-    
     if config.ml_grid_method == "gamma":
         ml_var = "dist"
+        ml_model_list = config.size_distribution_model_names
     else:
         ml_var = "size"
-    for ml_model in config.size_model_names:
+        ml_model_list = config.size_model_names
+    for ml_model in ml_model_list:
         for run_date in run_dates.to_pydatetime():
             start_date = run_date + timedelta(hours=config.start_hour)
             end_date = run_date + timedelta(hours=config.end_hour)
@@ -185,6 +178,14 @@ def generate_all_ensemble_products(config, mode="forecast"):
                     config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
                     config.ensemble_consensus_path)
             pool.apply_async(generate_ml_run_product, args)
+    for run_date in run_dates.to_pydatetime():
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        for variable in config.ensemble_variables:
+            args = (config.ensemble_name, config.ensemble_members, run_date, variable, start_date, end_date,
+                    config.ensemble_data_path, config.single_step, config.ensemble_variable_thresholds[variable],
+                    config.neighbor_radius, config.neighbor_sigma, config.ensemble_consensus_path)
+            pool.apply_async(generate_ensemble_run_product, args)
     pool.close()
     pool.join()
     return
@@ -235,7 +236,8 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
                 os.mkdir(out_path + run_date.strftime("%Y%m%d"))
             except OSError:
                 print("Directory already created")
-        filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable, run_date.strftime("%Y%m%d"))
+        filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
+                                                                    run_date.strftime("%Y%m%d"))
         for threshold in thresholds:
             for neighbor_radius in neighbor_radii:
                 for neighbor_sigma in neighbor_sigmas:

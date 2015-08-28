@@ -4,9 +4,12 @@ import traceback
 from hagelslag.util.Config import Config
 import pandas as pd
 import numpy as np
+import os
+from glob import glob
 from multiprocessing import Pool
 from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
 from hagelslag.evaluation.GridEvaluator import GridEvaluator
+from hagelslag.evaluation.NeighborEvaluator import NeighborEvaluator
 
 
 def main():
@@ -14,6 +17,7 @@ def main():
     parser.add_argument("config", help="Config file")
     parser.add_argument("-o", "--obj", action="store_true", help="Perform object-based evaluation.")
     parser.add_argument("-g", "--grid", action="store_true", help="Perform grid-based evaluation.")
+    parser.add_argument("-n", "--neighbor", action="store_true", help="Perform neighborhood probability evaluation.")
     parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors.")
     args = parser.parse_args()
     required = ["ensemble_name", "ensemble_members", "start_date", "end_date", "start_hour", "end_hour", "window_sizes",
@@ -24,11 +28,13 @@ def main():
     config = Config(args.config, required_attributes=required)
     num_procs = args.proc
     if args.obj:
-        all_scores = evaluate_objects(config, num_procs)
+        evaluate_objects(config, num_procs)
         #all_scores.to_csv(config.out_path + config.obj_scores_file, index_label="Index")
     if args.grid:
-        grid_scores = evaluate_grids(config, num_procs)
+        evaluate_grids(config, num_procs)
         #grid_scores.to_csv(config.out_path + config.grid_scores_file, index_label="Index")
+    if args.neighbor:
+        evaluate_neighborhood_probabilities(config, num_procs)
     return
 
 
@@ -176,7 +182,82 @@ def evaluate_grid_run(run_date, member, window_size, config, score_columns):
 
 
 def evaluate_neighborhood_probabilities(config, num_procs):
+    """
+    Calculate evaluation statistics for a set of neighborhood probability forecasts.
+
+    Parameters
+    ----------
+    config : hagelslag.util.Config object
+        Object containing configuration parameters as attributes.
+    num_procs : int
+        Number of processors to use for the calculations
+
+    """
     pool = Pool(num_procs)
+    run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
+    score_count = 0
+
+    def save_scores(output):
+        hour_scores = output[0]
+        period_scores = output[1]
+        if score_count == 0:
+            hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index")
+            period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index")
+        else:
+            hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index", mode="a",
+                               header=False)
+            period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index", mode="a",
+                                 header=False)
+    for run_date in run_dates:
+        forecast_files = glob(config.neighbor_path + "/{0}/*.nc".format(run_date.strftime("%Y%m%d")))
+        for forecast_file in forecast_files:
+            model_name = forecast_file.split("_")[0]
+            forecast_variable = forecast_file.split("_")[1]
+            pool.apply_async(evaluate_single_neighborhood, (run_date, config.start_hour, config.end_hour,
+                                                            model_name, forecast_variable, config.mrms_variable,
+                                                            config.neighbor_radii, config.smoothing_radii,
+                                                            config.size_thresholds, config.forecast_thresholds,
+                                                            config.obs_mask, config.mask_variable,
+                                                            config.neighbor_path, config.mrms_path),
+                             callback=save_scores)
+    pool.close()
+    pool.join()
+
+
+def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
+                                 neighbor_radii, smoothing_radii, size_thresholds, probability_levels, obs_mask,
+                                 mask_variable, forecast_path, mrms_path):
+    """
+    Calculates verification statistics for a single set of model forecasts.
+
+    :param run_date:
+    :param start_hour:
+    :param end_hour:
+    :param model_name:
+    :param forecast_variable:
+    :param mrms_variable:
+    :param neighbor_radii:
+    :param smoothing_radii:
+    :param size_thresholds:
+    :param probability_levels:
+    :param obs_mask:
+    :param mask_variable:
+    :param forecast_path:
+    :param mrms_path:
+    :return:
+    """
+    try:
+        ne = NeighborEvaluator(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
+                               neighbor_radii, smoothing_radii, size_thresholds, probability_levels, obs_mask,
+                               mask_variable, forecast_path, mrms_path)
+        ne.load_forecasts()
+        ne.load_obs()
+        hourly_scores = ne.evaluate_hourly_forecasts()
+        period_scores = ne.evaluate_period_forecasts()
+        return hourly_scores, period_scores
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
 
 
 if __name__ == "__main__":
