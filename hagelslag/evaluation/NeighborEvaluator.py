@@ -65,8 +65,9 @@ class NeighborEvaluator(object):
 
     def load_forecasts(self):
         run_date_str = self.run_date.strftime("%Y%m%d")
-        forecast_file = self.forecast_path + "/{0}/{1}_{2}_consensus_{0}.nc".format(run_date_str, self.model_name,
-                                                                                    self.forecast_variable)
+        forecast_file = self.forecast_path + "{0}/{1}_{2}_consensus_{0}.nc".format(run_date_str, self.model_name,
+          self.forecast_variable)
+        print "forecast file", forecast_file
         forecast_data = Dataset(forecast_file)
         for size_threshold in self.size_thresholds:
             for smoothing_radius in self.smoothing_radii:
@@ -74,12 +75,15 @@ class NeighborEvaluator(object):
                     hour_var = "neighbor_prob_r_{0:d}_s_{1:d}_{2}_{3:0.2f}".format(neighbor_radius, smoothing_radius,
                                                                                    self.forecast_variable,
                                                                                    float(size_threshold))
-                    period_var = "neighbor_prob_{0:d}-hour_r_{1:d}_s_{2:d}_{4}_{4:0.2f}".format(self.end_hour -
+                    period_var = "neighbor_prob_{0:d}-hour_r_{1:d}_s_{2:d}_{3}_{4:0.2f}".format(self.end_hour -
                                                                                                 self.start_hour + 1,
                                                                                                 neighbor_radius,
                                                                                                 smoothing_radius,
                                                                                                 self.forecast_variable,
                                                                                                 float(size_threshold))
+                    
+                    print "Loading forecasts ", self.run_date, self.model_name, self.forecast_variable, size_threshold,
+                    print smoothing_radius
                     self.hourly_forecasts[hour_var] = forecast_data.variables[hour_var][:]
                     self.period_forecasts[period_var] = forecast_data.variables[period_var][:]
         forecast_data.close()
@@ -91,6 +95,7 @@ class NeighborEvaluator(object):
         :param mask_threshold: Values greater than the threshold are kept, others are masked.
         :return:
         """
+        print "Loading obs ", self.run_date, self.model_name, self.forecast_variable
         start_date = self.run_date + timedelta(hours=self.start_hour)
         end_date = self.run_date + timedelta(hours=self.end_hour)
         mrms_grid = MRMSGrid(start_date, end_date, self.mrms_variable, self.mrms_path)
@@ -112,6 +117,8 @@ class NeighborEvaluator(object):
             for neighbor_radius in self.neighbor_radii:
                 n_filter = disk(neighbor_radius)
                 for size_threshold in self.size_thresholds:
+                    print "Eval hour forecast ", hour, self.model_name, self.forecast_variable, self.run_date,
+                    print neighbor_radius, size_threshold
                     hour_obs = fftconvolve(self.raw_obs[self.mrms_variable][h] >= size_threshold, n_filter, mode="same")
                     hour_obs[hour_obs > 1] = 1
                     if self.obs_mask:
@@ -146,17 +153,21 @@ class NeighborEvaluator(object):
                 period_obs[period_obs > 1] = 1
                 if self.obs_mask:
                     period_obs = period_obs[self.period_obs[self.mask_variable] > 0]
+                else:
+                    period_obs = period_obs.ravel()
                 for smoothing_radius in self.smoothing_radii:
-                    period_var = "neighbor_prob_{0:d}-hour_r_{1:d}_s_{2:d}_{4}_{4:0.2f}".format(self.end_hour -
+                    print "Eval period forecast ", self.model_name, self.forecast_variable, self.run_date,
+                    print neighbor_radius, size_threshold, smoothing_radius
+                    period_var = "neighbor_prob_{0:d}-hour_r_{1:d}_s_{2:d}_{3}_{4:0.2f}".format(self.end_hour -
                                                                                                 self.start_hour + 1,
                                                                                                 neighbor_radius,
                                                                                                 smoothing_radius,
                                                                                                 self.forecast_variable,
                                                                                                 size_threshold)
                     if self.obs_mask:
-                        period_forecast = self.hourly_forecasts[period_var][self.period_obs[self.mask_variable] > 0]
+                        period_forecast = self.period_forecasts[period_var][self.period_obs[self.mask_variable] > 0]
                     else:
-                        period_forecast = self.hourly_forecasts[period_var]
+                        period_forecast = self.period_forecasts[period_var].ravel()
                     roc = DistributedROC(thresholds=self.probability_levels, obs_threshold=0.5)
                     roc.update(period_forecast, period_obs)
                     rel = DistributedReliability(thresholds=self.probability_levels, obs_threshold=0.5)

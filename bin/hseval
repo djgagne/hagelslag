@@ -208,15 +208,18 @@ def evaluate_neighborhood_probabilities(config, num_procs):
                                header=False)
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index", mode="a",
                                  header=False)
+        score_count += 1
     for run_date in run_dates:
         forecast_files = glob(config.neighbor_path + "/{0}/*.nc".format(run_date.strftime("%Y%m%d")))
         for forecast_file in forecast_files:
-            model_name = forecast_file.split("_")[0]
-            forecast_variable = forecast_file.split("_")[1]
+            file_comps = forecast_file.split("/")[-1].split("_")
+            model_name = file_comps[0]
+            forecast_variable = "_".join(file_comps[1:file_comps.index("consensus")])
             pool.apply_async(evaluate_single_neighborhood, (run_date, config.start_hour, config.end_hour,
                                                             model_name, forecast_variable, config.mrms_variable,
                                                             config.neighbor_radii, config.smoothing_radii,
-                                                            config.size_thresholds, config.forecast_thresholds,
+                                                            config.neighbor_thresholds[forecast_variable], 
+                                                            config.forecast_thresholds,
                                                             config.obs_mask, config.mask_variable,
                                                             config.neighbor_path, config.mrms_path),
                              callback=save_scores)
