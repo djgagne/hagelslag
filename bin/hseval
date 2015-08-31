@@ -195,12 +195,11 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     """
     pool = Pool(num_procs)
     run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
-    score_count = 0
-
+    
     def save_scores(output):
         hour_scores = output[0]
         period_scores = output[1]
-        if score_count == 0:
+        if not os.access(config.neighbor_score_path + "hour_scores.csv", os.R_OK):
             hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index")
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index")
         else:
@@ -208,7 +207,6 @@ def evaluate_neighborhood_probabilities(config, num_procs):
                                header=False)
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index", mode="a",
                                  header=False)
-        score_count += 1
     for run_date in run_dates:
         forecast_files = glob(config.neighbor_path + "/{0}/*.nc".format(run_date.strftime("%Y%m%d")))
         for forecast_file in forecast_files:
