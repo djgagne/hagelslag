@@ -216,6 +216,7 @@ def evaluate_neighborhood_probabilities(config, num_procs):
             pool.apply_async(evaluate_single_neighborhood, (run_date, config.start_hour, config.end_hour,
                                                             model_name, forecast_variable, config.mrms_variable,
                                                             config.neighbor_radii, config.smoothing_radii,
+                                                            config.obs_thresholds,
                                                             config.neighbor_thresholds[forecast_variable], 
                                                             config.forecast_thresholds,
                                                             config.obs_mask, config.mask_variable,
@@ -226,8 +227,8 @@ def evaluate_neighborhood_probabilities(config, num_procs):
 
 
 def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
-                                 neighbor_radii, smoothing_radii, size_thresholds, probability_levels, obs_mask,
-                                 mask_variable, forecast_path, mrms_path):
+                                 neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
+                                 obs_mask, mask_variable, forecast_path, mrms_path):
     """
     Calculates verification statistics for a single set of model forecasts.
 
@@ -249,8 +250,8 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
     """
     try:
         ne = NeighborEvaluator(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
-                               neighbor_radii, smoothing_radii, size_thresholds, probability_levels, obs_mask,
-                               mask_variable, forecast_path, mrms_path)
+                               neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
+                               obs_mask, mask_variable, forecast_path, mrms_path)
         ne.load_forecasts()
         ne.load_obs()
         hourly_scores = ne.evaluate_hourly_forecasts()

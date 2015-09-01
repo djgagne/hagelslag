@@ -230,23 +230,24 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
 
         ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
                                              forecast_bins, forecast_json_path)
-        ep.load_data(grid_method=grid_method)
-        if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
-            try:
-                os.mkdir(out_path + run_date.strftime("%Y%m%d"))
-            except OSError:
-                print("Directory already created")
-        filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
-                                                                    run_date.strftime("%Y%m%d"))
-        for threshold in thresholds:
-            for neighbor_radius in neighbor_radii:
-                for neighbor_sigma in neighbor_sigmas:
-                    print(r_date + " " + model_name + "r={0:d} s={1:d}".format(int(neighbor_radius),
-                                                                                 int(neighbor_sigma)))
-                    ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
-                    ec.to_file(filename)
-                    ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
-                    ecp.to_file(filename)
+        data_code = ep.load_data(grid_method=grid_method)
+        if data_code == 0:
+            if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
+                try:
+                    os.mkdir(out_path + run_date.strftime("%Y%m%d"))
+                except OSError:
+                    print("Directory already created")
+            filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
+                                                                        run_date.strftime("%Y%m%d"))
+            for threshold in thresholds:
+                for neighbor_radius in neighbor_radii:
+                    for neighbor_sigma in neighbor_sigmas:
+                        print(r_date + " " + model_name + "r={0:d} s={1:d}".format(int(neighbor_radius),
+                                                                                     int(neighbor_sigma)))
+                        ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                        ec.to_file(filename)
+                        ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                        ecp.to_file(filename)
     except Exception as e:
         print(traceback.format_exc())
         raise e

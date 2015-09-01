@@ -5,6 +5,7 @@ from ProbabilityMetrics import DistributedROC, DistributedReliability
 from datetime import timedelta
 from scipy.ndimage import binary_dilation
 
+
 class GridEvaluator(object):
     """
     An evaluation system for gridded forecasts.

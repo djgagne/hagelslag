@@ -121,16 +121,20 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
         for member in self.members:
             self.track_forecasts[member] = []
             track_files = sorted(glob(self.path + "/".join([run_date_str, member]) + "/*.json"))
-            for track_file in track_files:
-                tfo = open(track_file)
-                self.track_forecasts[member].append(json.load(tfo))
-                tfo.close()
-                del tfo
+            if len(track_files) > 0:
+                self.track_forecasts[member] = []
+                for track_file in track_files:
+                    tfo = open(track_file)
+                    self.track_forecasts[member].append(json.load(tfo))
+                    tfo.close()
+                    del tfo
         return
 
     def load_data(self, grid_method="mean"):
         if self.track_forecasts == {}:
             self.load_track_forecasts()
+        if self.track_forecasts == {}:
+            return -1
         self.data = np.zeros((len(self.members), self.times.size, self.grid_shape[0], self.grid_shape[1]))
         if grid_method in ["mean", "median", "samples"]:
             for m, member in enumerate(self.members):
@@ -179,7 +183,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                             if rankings.size > 0:
                                 samples = np.sort(forecast_dist.rvs(size=rankings.size))
                                 self.data[m, t, i[rankings], j[rankings]] = samples
-
+        return 0
 
 class EnsembleConsensus(object):
     """

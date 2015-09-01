@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from hagelslag.data.MRMSGrid import MRMSGrid
 from hagelslag.evaluation.ProbabilityMetrics import DistributedReliability, DistributedROC
-from netCDF4 import Dataset, num2date
+from netCDF4 import Dataset
 from datetime import timedelta
 from scipy.signal import fftconvolve
 from skimage.morphology import disk
@@ -30,6 +30,8 @@ class NeighborEvaluator(object):
         neighborhood radii in number of grid points
     smoothing_radii : list or array of ints
         radius of Gaussian filter used by the forecast
+    obs_thresholds : list or array of floats
+        Observed intensity threshold that corresponds with each element of size_thresholds
     size_thresholds : list or array of floats
         Intensity threshold for neighborhood probabilities
     obs_mask : boolean
@@ -42,8 +44,8 @@ class NeighborEvaluator(object):
         Path to MRMS data
     """
     def __init__(self, run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
-                 neighbor_radii, smoothing_radii, size_thresholds, probability_levels, obs_mask, mask_variable,
-                 forecast_path, mrms_path):
+                 neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels, obs_mask,
+                 mask_variable, forecast_path, mrms_path):
         self.run_date = run_date
         self.start_hour = start_hour
         self.end_hour = end_hour
@@ -54,6 +56,7 @@ class NeighborEvaluator(object):
         self.mask_variable = mask_variable
         self.neighbor_radii = neighbor_radii
         self.smoothing_radii = smoothing_radii
+        self.obs_thresholds = obs_thresholds
         self.size_thresholds = size_thresholds
         self.probability_levels = probability_levels
         self.forecast_path = forecast_path
@@ -66,7 +69,7 @@ class NeighborEvaluator(object):
     def load_forecasts(self):
         run_date_str = self.run_date.strftime("%Y%m%d")
         forecast_file = self.forecast_path + "{0}/{1}_{2}_consensus_{0}.nc".format(run_date_str, self.model_name,
-          self.forecast_variable)
+                                                                                   self.forecast_variable)
         print "forecast file", forecast_file
         forecast_data = Dataset(forecast_file)
         for size_threshold in self.size_thresholds:
@@ -116,10 +119,11 @@ class NeighborEvaluator(object):
         for h, hour in enumerate(range(self.start_hour, self.end_hour + 1)):
             for neighbor_radius in self.neighbor_radii:
                 n_filter = disk(neighbor_radius)
-                for size_threshold in self.size_thresholds:
+                for s, size_threshold in enumerate(self.size_thresholds):
                     print "Eval hour forecast ", hour, self.model_name, self.forecast_variable, self.run_date,
                     print neighbor_radius, size_threshold
-                    hour_obs = fftconvolve(self.raw_obs[self.mrms_variable][h] >= size_threshold, n_filter, mode="same")
+                    hour_obs = fftconvolve(self.raw_obs[self.mrms_variable][h] >= self.obs_thresholds[s],
+                                           n_filter, mode="same")
                     hour_obs[hour_obs > 1] = 1
                     if self.obs_mask:
                         hour_obs = hour_obs[self.raw_obs[self.mask_variable][h] > 0]
@@ -145,11 +149,11 @@ class NeighborEvaluator(object):
         score_columns = ["Run_Date", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
                          "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
         all_scores = pd.DataFrame(columns=score_columns)
-
         for neighbor_radius in self.neighbor_radii:
             n_filter = disk(neighbor_radius)
-            for size_threshold in self.size_thresholds:
-                period_obs = fftconvolve(self.period_obs[self.mrms_variable] >= size_threshold, n_filter, mode="same")
+            for s, size_threshold in enumerate(self.size_thresholds):
+                period_obs = fftconvolve(self.period_obs[self.mrms_variable] >= self.obs_thresholds[s],
+                                         n_filter, mode="same")
                 period_obs[period_obs > 1] = 1
                 if self.obs_mask:
                     period_obs = period_obs[self.period_obs[self.mask_variable] > 0]
@@ -176,5 +180,3 @@ class NeighborEvaluator(object):
                            smoothing_radius, size_threshold, roc, rel]
                     all_scores.loc[period_var] = row
         return all_scores
-
-
