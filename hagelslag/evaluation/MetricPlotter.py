@@ -105,19 +105,19 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
     plt.close()
 
 
-def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Forecast Probability",
-                        ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size="20%",
+def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(6, 6), xlabel="Forecast Probability",
+                        ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size="30%",
                         title="Attributes Diagram",
                         legend_params=dict(loc=0, fontsize=8, framealpha=1, frameon=True)):
     fig, ax = plt.subplots(figsize=figsize)
     plt.plot(ticks, ticks, "k--")
-    inset_hist = inset_axes(ax, width=inset_size, height=inset_size, loc=2)
+    inset_hist = inset_axes(ax, width=inset_size, height=inset_size, loc=1, axes_kwargs=dict(axisbg='white'))
     climo = rel_objs[0].climatology()
     no_skill = 0.5 * ticks + 0.5 * climo
     skill_x = [climo, climo, 1, 1, climo, climo, 0, 0, climo]
     skill_y = [climo, 1, 1, no_skill[-1], climo, 0, 0, no_skill[0], climo]
-    plt.fill(skill_x, skill_y, "0.8")
-    plt.plot(ticks, np.ones(ticks.shape) * climo, "k--")
+    ax.fill(skill_x, skill_y, "0.8")
+    ax.plot(ticks, np.ones(ticks.shape) * climo, "k--")
     for r, rel_obj in enumerate(rel_objs):
         rel_curve = rel_obj.reliability_curve()
         ax.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r], marker=markers[r],
@@ -125,12 +125,14 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
         inset_hist.semilogy(rel_curve["Bin_Start"], rel_curve["Total_Relative_Freq"], color=colors[r],
                             marker=markers[r])
     inset_hist.set_xlabel("Forecast Probability")
-    inset_hist.set_ylabel("Forecast Relative Frequency")
-    ax.annotate("No Skill", (0.6, no_skill[6]), rotation=22.5)
+    inset_hist.set_ylabel("Relative Frequency")
+    ax.annotate("No Skill", (0.6, no_skill[12]), rotation=22.5)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_xticks(ticks)
+    ax.set_xticklabels((ticks * 100).astype(int))
     ax.set_yticks(ticks)
+    ax.set_yticklabels((ticks * 100).astype(int))
     ax.legend(**legend_params)
     ax.set_title(title)
     plt.savefig(filename, dpi=dpi, bbox_inches="tight")
