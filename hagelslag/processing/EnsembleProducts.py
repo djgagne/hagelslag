@@ -177,12 +177,15 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                             t = np.where(self.times == forecast_time)[0][0]
                             mask = np.array(step["properties"]["masks"], dtype=int)
                             intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
-                            rankings = np.argsort(intensities)
+                            #rankings = np.argsort(intensities)
                             i = np.array(step["properties"]["i"], dtype=int)[mask == 1]
                             j = np.array(step["properties"]["j"], dtype=int)[mask == 1]
-                            if rankings.size > 0:
-                                samples = np.sort(forecast_dist.rvs(size=rankings.size))
-                                self.data[m, t, i[rankings], j[rankings]] = samples
+                            if intensities.size > 0:
+                                proxy_params = gamma.fit(intensities, floc=0)
+                                cdf_values = gamma.cdf(intensities, *proxy_params)
+                                samples = forecast_dist.ppf(cdf_values)
+                                #samples = np.sort(forecast_dist.rvs(size=rankings.size))
+                                self.data[m, t, i, j] = samples
         return 0
 
 class EnsembleConsensus(object):
