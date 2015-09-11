@@ -13,7 +13,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", required=True, help="Input scikit-learn tree ensemble model pickle file.")
-    parser.add_argument("-o", "--output", required=True, help="Output file.")
+    parser.add_argument("-o", "--output", required=True, help="Output file start.")
     parser.add_argument("-a", "--attr", default="", help="Attribute list file.")
     args = parser.parse_args()
     tree_ensemble_obj = load_tree_object(args.input)
@@ -57,14 +57,14 @@ def output_tree_ensemble(tree_ensemble_obj, output_filename, attribute_names=Non
     attribute_names : list
         List of attribute names to be used in place of indices if available.
     """
-    out_file = open(output_filename, "w")
     for t, tree in enumerate(tree_ensemble_obj.estimators_):
         print("Writing Tree {0:d}".format(t))
-        out_file.write("Tree {0:d}\n".format(t))
+        out_file = open(output_filename + ".{0:d}.tree", "w")
+        #out_file.write("Tree {0:d}\n".format(t))
         tree_str = print_tree_recursive(tree.tree_, 0, attribute_names)
         out_file.write(tree_str)
-        out_file.write("\n")
-    out_file.close()
+        #out_file.write("\n")
+        out_file.close()
     return
 
 
@@ -94,7 +94,7 @@ def print_tree_recursive(tree_obj, node_index, attribute_names=None):
             attr_val = "{0:d}".format(tree_obj.feature[node_index])
         else:
             attr_val = attribute_names[tree_obj.feature[node_index]]
-        tree_str += "b {0:d} {1} {2:0.4f} {3:d} {4:0.2f}\n".format(node_index,
+        tree_str += "b {0:d} {1} {2:0.4f} {3:d} {4:1.5e}\n".format(node_index,
                                                                    attr_val,
                                                                    tree_obj.weighted_n_node_samples[node_index],
                                                                    tree_obj.n_node_samples[node_index],
