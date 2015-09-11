@@ -180,17 +180,20 @@ class TrackModeler(object):
             group_data = group_data[group_data[scale_column] > 0]
             self.size_distribution_models[group] = {"shape":{}, "scale":{}}
             for m, model_name in enumerate(model_names):
-                print model_name
+                print group, model_name
                 self.size_distribution_models[group]["scale"][model_name] = deepcopy(model_objs[m])
                 self.size_distribution_models[group]["scale"][model_name].fit(group_data[input_columns],
                                                                               group_data[scale_column])
                 scale_values = self.size_distribution_models[group]["scale"][
                     model_name].predict(group_data[input_columns])
-                self.size_distribution_models[group]["shape"][model_name] = deepcopy(LinearRegression())
-                print scale_values.min(), scale_values.max()
-                scale_values[scale_values <=1] = 1
-                self.size_distribution_models[group]["shape"][model_name].fit(
-                    np.log(scale_values.reshape((scale_values.size, 1))), np.log(group_data[shape_column].values))
+                #self.size_distribution_models[group]["shape"][model_name] = deepcopy(LinearRegression())
+                self.size_distribution_models[group]["shape"][model_name] = deepcopy(model_objs[m])
+                print "Scale Range:", group, model_name, scale_values.min(), scale_values.max()
+                self.size_distribution_models[group]["shape"][model_name].fit(group_data[input_columns],
+                                                                              group_data[shape_column])
+                #scale_values[scale_values <=1] = 1
+                #self.size_distribution_models[group]["shape"][model_name].fit(
+                #    np.log(scale_values.reshape((scale_values.size, 1))), np.log(group_data[shape_column].values))
 
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols, data_mode="forecast"):
         groups = self.size_distribution_models.keys()
@@ -203,13 +206,14 @@ class TrackModeler(object):
                     predictions[group][model_name] = group_data[metadata_cols]
                     scale_predictions = self.size_distribution_models[group]["scale"][model_name].predict(
                         group_data[input_columns])
-                    scale_predictions[scale_predictions < 1] = 1
-                    shape_predictions = np.exp(self.size_distribution_models[group]["shape"][model_name].predict(
-                        np.log(scale_predictions.reshape(scale_predictions.size, 1))))
+                    scale_predictions[scale_predictions < 0.5] = 0.5
+                    shape_predictions = self.size_distribution_models[group]["shape"][model_name].predict(
+                        group_data[input_columns])
+                    #shape_predictions = np.exp(self.size_distribution_models[group]["shape"][model_name].predict(
+                    #    np.log(scale_predictions.reshape(scale_predictions.size, 1))))
                     predictions[group][model_name][model_name.replace(" ", "-") + "_shape"] = shape_predictions
                     predictions[group][model_name][model_name.replace(" ", "-") + "_scale"] = scale_predictions
         return predictions
-
 
     def fit_size_models(self, model_names,
                         model_objs,
