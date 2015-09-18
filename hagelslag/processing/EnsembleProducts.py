@@ -188,6 +188,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                                 self.data[m, t, i, j] = samples
         return 0
 
+
 class EnsembleConsensus(object):
     """
     Stores data and metadata for an ensemble consensus product such as a neighborhood probability or an ensemble
