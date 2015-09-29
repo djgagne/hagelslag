@@ -176,7 +176,7 @@ class NeighborEvaluator(object):
                 if self.obs_mask and self.coordinate_file is None:
                     period_obs = period_obs[self.period_obs[self.mask_variable] > 0]
                 elif self.obs_mask and self.coordinate_file is not None:
-                    period_obs = self.period_obs[coord_mask]
+                    period_obs = period_obs[coord_mask[0], coord_mask[1]]
                 else:
                     period_obs = period_obs.ravel()
                 for smoothing_radius in self.smoothing_radii:
@@ -188,10 +188,10 @@ class NeighborEvaluator(object):
                                                                                                 smoothing_radius,
                                                                                                 self.forecast_variable,
                                                                                                 size_threshold)
-                    if self.obs_mask:
+                    if self.obs_mask and self.coordinate_file is None:
                         period_forecast = self.period_forecasts[period_var][self.period_obs[self.mask_variable] > 0]
                     elif self.obs_mask and self.coordinate_file is not None:
-                        period_forecast = self.period_forecasts[period_var][coord_mask]
+                        period_forecast = self.period_forecasts[period_var][coord_mask[0], coord_mask[1]]
                     else:
                         period_forecast = self.period_forecasts[period_var].ravel()
                     roc = DistributedROC(thresholds=self.probability_levels, obs_threshold=0.5)
