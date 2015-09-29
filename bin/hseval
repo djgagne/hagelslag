@@ -24,7 +24,7 @@ def main():
                 "time_skip", "model_names", "model_types", "size_thresholds", "forecast_json_path",
                 "track_data_csv_path", "forecast_sample_path", "mrms_path", "mrms_variable", "obs_mask",
                 "mask_variable", "forecast_thresholds", "forecast_bins", "out_path", "obj_scores_file",
-                "grid_scores_file"]
+                "grid_scores_file", "coordinate_file", "lon_bounds", "lat_bounds"]
     config = Config(args.config, required_attributes=required)
     num_procs = args.proc
     if args.obj:
@@ -221,7 +221,9 @@ def evaluate_neighborhood_probabilities(config, num_procs):
                                                                 config.neighbor_thresholds[forecast_variable],
                                                                 config.forecast_thresholds,
                                                                 config.obs_mask, config.mask_variable,
-                                                                config.neighbor_path, config.mrms_path),
+                                                                config.neighbor_path, config.mrms_path,
+                                                                config.coordinate_file, config.lon_bounds,
+                                                                config.lat_bounds),
                                  callback=save_scores)
     pool.close()
     pool.join()
@@ -229,7 +231,8 @@ def evaluate_neighborhood_probabilities(config, num_procs):
 
 def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
                                  neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
-                                 obs_mask, mask_variable, forecast_path, mrms_path):
+                                 obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file, lon_bounds,
+                                 lat_bounds):
     """
     Calculates verification statistics for a single set of model forecasts.
 
@@ -252,9 +255,11 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
     try:
         ne = NeighborEvaluator(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
                                neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
-                               obs_mask, mask_variable, forecast_path, mrms_path)
+                               obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file, lon_bounds,
+                               lat_bounds)
         ne.load_forecasts()
         ne.load_obs()
+        ne.load_coordinates()
         hourly_scores = ne.evaluate_hourly_forecasts()
         period_scores = ne.evaluate_period_forecasts()
         return hourly_scores, period_scores

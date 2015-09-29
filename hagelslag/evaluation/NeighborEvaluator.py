@@ -45,7 +45,7 @@ class NeighborEvaluator(object):
     """
     def __init__(self, run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
                  neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels, obs_mask,
-                 mask_variable, forecast_path, mrms_path):
+                 mask_variable, forecast_path, mrms_path, coordinate_file=None, lon_bounds=None, lat_bounds=None):
         self.run_date = run_date
         self.start_hour = start_hour
         self.end_hour = end_hour
@@ -65,6 +65,10 @@ class NeighborEvaluator(object):
         self.period_forecasts = {}
         self.raw_obs = {}
         self.period_obs = {}
+        self.coordinate_file = coordinate_file
+        self.coordinates = {}
+        self.lon_bounds = lon_bounds
+        self.lat_bounds = lat_bounds
 
     def load_forecasts(self):
         run_date_str = self.run_date.strftime("%Y%m%d")
@@ -112,6 +116,12 @@ class NeighborEvaluator(object):
                 self.raw_obs[self.mask_variable] = np.where(mask_grid.data >= mask_threshold, 1, 0)
                 self.period_obs[self.mask_variable] = self.raw_obs[self.mask_variable].max(axis=0)
 
+    def load_coordinates(self):
+        coord_file = Dataset(self.coordinate_file)
+        self.coordinates["lon"] = coord_file.variables["lon"][:]
+        self.coordinates["lat"] = coord_file.variables["lat"][:]
+        coord_file.close()
+
     def evaluate_hourly_forecasts(self):
         score_columns = ["Run_Date", "Forecast_Hour", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
                          "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
@@ -149,14 +159,24 @@ class NeighborEvaluator(object):
         score_columns = ["Run_Date", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
                          "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
         all_scores = pd.DataFrame(columns=score_columns)
+        if self.coordinate_file is not None:
+            coord_mask = np.where((self.coordinates["lon"] >= self.lon_bounds[0]) &
+                      (self.coordinates["lon"] <= self.lon_bounds[1]) &
+                      (self.coordinates["lat"] >= self.lat_bounds[0]) &
+                      (self.coordinates["lat"] <= self.lat_bounds[1]) &
+                      (self.period_obs[self.mask_variable] > 0))
+        else:
+            coord_mask = None
         for neighbor_radius in self.neighbor_radii:
             n_filter = disk(neighbor_radius)
             for s, size_threshold in enumerate(self.size_thresholds):
                 period_obs = fftconvolve(self.period_obs[self.mrms_variable] >= self.obs_thresholds[s],
                                          n_filter, mode="same")
                 period_obs[period_obs > 1] = 1
-                if self.obs_mask:
+                if self.obs_mask and self.coordinate_file is None:
                     period_obs = period_obs[self.period_obs[self.mask_variable] > 0]
+                elif self.obs_mask and self.coordinate_file is not None:
+                    period_obs = self.period_obs[coord_mask]
                 else:
                     period_obs = period_obs.ravel()
                 for smoothing_radius in self.smoothing_radii:
@@ -170,6 +190,8 @@ class NeighborEvaluator(object):
                                                                                                 size_threshold)
                     if self.obs_mask:
                         period_forecast = self.period_forecasts[period_var][self.period_obs[self.mask_variable] > 0]
+                    elif self.obs_mask and self.coordinate_file is not None:
+                        period_forecast = self.period_forecasts[period_var][coord_mask]
                     else:
                         period_forecast = self.period_forecasts[period_var].ravel()
                     roc = DistributedROC(thresholds=self.probability_levels, obs_threshold=0.5)
