@@ -171,6 +171,12 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     times = track_forecast["properties"]["times"]
                     for s, step in enumerate(track_forecast["features"]):
                         forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
+                        step_keys = step["properties"].keys()
+                        cond_index = np.where(["condition" in x for x in step_keys])[0]
+                        if len(cond_index) > 0:
+                            condition = step["properties"][step_keys[cond_index]]
+                        else:
+                            condition = None
                         forecast_dist = gamma(forecast_params[0], loc=0, scale=forecast_params[1])
                         forecast_time = self.run_date + timedelta(hours=times[s])
                         if forecast_time in self.times:
@@ -185,7 +191,8 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                                 cdf_values = gamma.cdf(intensities, *proxy_params)
                                 samples = forecast_dist.ppf(cdf_values)
                                 #samples = np.sort(forecast_dist.rvs(size=rankings.size))
-                                self.data[m, t, i, j] = samples
+                                if condition is None or condition > 0.5:
+                                    self.data[m, t, i, j] = samples
         return 0
 
 
