@@ -11,7 +11,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-    data_processing
+   data_processing.rst
 
 
 Indices and tables
