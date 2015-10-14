@@ -2,12 +2,13 @@
 """
 Read a scikit-learn tree ensemble object and output the object into a human-readable text format.
 """
+import cPickle
+import argparse
+
+
 __author__ = "David John Gagne <djgagne@ou.edu>"
 __copyright__ = "Copyright 2015, David John Gagne"
 __email__ = "djgagne@ou.edu"
-
-import cPickle
-import argparse
 
 
 def main():
