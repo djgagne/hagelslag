@@ -286,7 +286,7 @@ class TrackProcessor(object):
                                             columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
                 step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_thresh)]
-                min_hail = np.maximum(np.floor(step_vals.min()), self.mrms_ew.min_thresh)
+                min_hail = step_vals.min() - 0.1
                 obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
                                                                                                    floc=min_hail)
                 obs_hail_dists.loc[obs_track.times[t], "Max_Hail_Size"] = step_vals.max()
