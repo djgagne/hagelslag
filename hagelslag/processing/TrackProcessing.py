@@ -168,7 +168,7 @@ class TrackProcessor(object):
                                                         hour,
                                                         dx=self.model_grid.dx))
                         if h > 0:
-                            dims = model_objects[-1][-1].timesteps[0].shape
+                            dims = obs_objects[-1][-1].timesteps[0].shape
                             obs_objects[-1][-1].estimate_motion(hour, self.mrms_grid.data[h-1], dims[1], dims[0])
         
             for h, hour in enumerate(self.hours):
@@ -220,6 +220,7 @@ class TrackProcessor(object):
             storm_grid.load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(storm_grid)
+            del storm_grid
 
         for potential_var in potential_variables:
             print("{0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
@@ -231,6 +232,7 @@ class TrackProcessor(object):
             potential_grid.load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(potential_grid, potential=True)
+            del potential_grid
 
     @staticmethod
     def match_hail_sizes(model_tracks, obs_tracks, track_pairings):
@@ -272,33 +274,30 @@ class TrackProcessor(object):
     @staticmethod
     def match_size_distributions(model_tracks, obs_tracks, track_pairings):
         unpaired = range(len(model_tracks))
+        label_columns = ["Max_Hail_Size", "Shape", "Location", "Scale"]
         for p, pair in enumerate(track_pairings):
             model_track = model_tracks[pair[0]]
             unpaired.remove(pair[0])
             obs_track = obs_tracks[pair[1]]
             obs_hail_dists = pd.DataFrame(index=obs_track.times,
-                                          columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
+                                          columns=label_columns)
             model_hail_dists = pd.DataFrame(index=model_track.times,
-                                            columns=["Max_Hail_Size", "Shape", "Location", "Scale"])
+                                            columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
                 step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 0)]
-                obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals, floc=0)
+                min_hail = np.maximum(np.floor(step_vals.min()), 1)
+                obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
+                                                                                                   floc=min_hail)
                 obs_hail_dists.loc[obs_track.times[t], "Max_Hail_Size"] = step_vals.max()
             if obs_track.times.size > 1 and model_track.times.size > 1:
                 normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min())\
                     * (obs_track.times - obs_track.times.min())
                 normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min())\
                     * (model_track.times - model_track.times.min())
-                size_interp = interp1d(normalized_obs_times, obs_hail_dists["Max_Hail_Size"], kind="linear",
-                                       bounds_error=False, fill_value=0)
-                shape_interp = interp1d(normalized_obs_times, obs_hail_dists["Shape"].values, kind="linear",
-                                        bounds_error=False, fill_value=0)
-                scale_interp = interp1d(normalized_obs_times, obs_hail_dists["Scale"].values, kind="linear",
-                                        bounds_error=False, fill_value=0)
-                model_hail_dists.loc[model_track.times, "Shape"] = shape_interp(normalized_model_times)
-                model_hail_dists.loc[model_track.times, "Scale"] = scale_interp(normalized_model_times)
-                model_hail_dists.loc[model_track.times, "Location"] = 0
-                model_hail_dists.loc[model_track.times, "Max_Hail_Size"] = size_interp(normalized_model_times)
+                for col in label_columns:
+                    interp_func = interp1d(normalized_obs_times, obs_hail_dists[col], kind="linear",
+                                           bounds_error=False, fill_value=0)
+                    model_hail_dists.loc[model_track.times, col] = interp_func(normalized_model_times)
             else:
                 for param in obs_hail_dists.columns:
                     model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[obs_track.times[0], param]
