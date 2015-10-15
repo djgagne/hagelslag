@@ -109,7 +109,7 @@ class TrackModeler(object):
             group_data = self.data["train"]["total_group"].loc[
                 self.data["train"]["total_group"][self.group_col] == group]
             print(group_data.columns)
-            group_data.dropna(inplace=True)
+            group_data = group_data.dropna()
             group_data.reset_index(drop=True, inplace=True)
             copulas[group] = {}
             copulas[group]["mean"] = group_data[label_columns].mean(axis=0).values
@@ -145,7 +145,9 @@ class TrackModeler(object):
                 print model_name
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
-
+                if hasattr(self.condition_models[group][model_name], "best_estimator_"):
+                    print(self.condition_models[group][model_name].best_estimator_) 
+                    print(self.condition_models[group][model_name].best_score_)
     def predict_condition_models(self, model_names,
                                  input_columns,
                                  metadata_cols,

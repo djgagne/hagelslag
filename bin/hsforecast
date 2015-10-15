@@ -91,14 +91,12 @@ def train_models(track_modeler, config):
     track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
                                                config.size_distribution_input_columns,
-                                               shape_column=config.size_distribution_shape_column,
-                                               scale_column=config.size_distribution_scale_column)
+                                               output_columns=config.size_distribution_output_columns)
     track_modeler.fit_condition_models(config.condition_model_names,
                                        config.condition_model_objs,
                                        config.condition_input_columns,
                                        config.condition_output_column,
-                                       config.output_threshold,
-                                      )
+                                       config.output_threshold)
     track_modeler.fit_size_models(config.size_model_names,
                                   config.size_model_objs,
                                   config.size_input_columns,
@@ -176,7 +174,7 @@ def generate_all_ensemble_products(config, mode="forecast"):
             args = (ml_model, config.ensemble_members, run_date, ml_var, start_date, end_date,
                     config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
                     config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
-                    config.ensemble_consensus_path)
+                    config.ensemble_consensus_path, config.neighbor_condition_model)
             pool.apply_async(generate_ml_run_product, args)
     for run_date in run_dates.to_pydatetime():
         start_date = run_date + timedelta(hours=config.start_hour)
@@ -223,13 +221,13 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
 
 
 def generate_ml_run_product(model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                            forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path):
+                            forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path, neighbor_condition_model):
     try:
         r_date = run_date.strftime("%Y%m%d")
         print(r_date + " " + model_name + " started")
 
         ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
-                                             forecast_bins, forecast_json_path)
+                                             forecast_bins, forecast_json_path, condition_model_name=neighbor_condition_model)
         data_code = ep.load_data(grid_method=grid_method)
         if data_code == 0:
             if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):

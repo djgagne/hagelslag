@@ -107,10 +107,11 @@ class EnsembleProducts(object):
 
 class MachineLearningEnsembleProducts(EnsembleProducts):
     def __init__(self, ml_model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                 forecast_json_path):
+                 forecast_json_path, condition_model_name=None):
         self.track_forecasts = {}
         self.grid_shape = grid_shape
         self.forecast_bins = forecast_bins
+        self.condition_model_name = condition_model_name
         super(MachineLearningEnsembleProducts, self).__init__(ml_model_name, members, run_date, variable,
                                                               start_date, end_date, forecast_json_path,
                                                               single_step=False)
@@ -172,26 +173,25 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     for s, step in enumerate(track_forecast["features"]):
                         forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
                         step_keys = step["properties"].keys()
-                        cond_index = np.where(["condition" in x for x in step_keys])[0]
-                        if len(cond_index) > 0:
-                            condition = step["properties"][step_keys[cond_index]]
+                        if self.condition_model_name is not None:
+                            condition = step["properties"]["condition_" + self.condition_model_name.replace(" ", "-")]
                         else:
                             condition = None
-                        forecast_dist = gamma(forecast_params[0], loc=0, scale=forecast_params[1])
+                        forecast_dist = gamma(forecast_params[0], loc=forecast_params[1], scale=forecast_params[2])
                         forecast_time = self.run_date + timedelta(hours=times[s])
                         if forecast_time in self.times:
                             t = np.where(self.times == forecast_time)[0][0]
                             mask = np.array(step["properties"]["masks"], dtype=int)
                             intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
-                            #rankings = np.argsort(intensities)
-                            i = np.array(step["properties"]["i"], dtype=int)[mask == 1]
-                            j = np.array(step["properties"]["j"], dtype=int)[mask == 1]
+                            rankings = np.argsort(intensities)
+                            i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
+                            j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
                             if intensities.size > 0:
-                                proxy_params = gamma.fit(intensities, floc=0)
-                                cdf_values = gamma.cdf(intensities, *proxy_params)
-                                samples = forecast_dist.ppf(cdf_values)
-                                #samples = np.sort(forecast_dist.rvs(size=rankings.size))
-                                if condition is None or condition > 0.5:
+                                #proxy_params = gamma.fit(intensities, floc=intensities.min()-0.1)
+                                #cdf_values = gamma.cdf(intensities, *proxy_params)
+                                #samples = forecast_dist.ppf(cdf_values)
+                                samples = np.sort(forecast_dist.rvs(size=rankings.size))
+                                if condition is None or condition >= 0.5:
                                     self.data[m, t, i, j] = samples
         return 0
 
