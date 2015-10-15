@@ -284,7 +284,7 @@ class TrackProcessor(object):
             model_hail_dists = pd.DataFrame(index=model_track.times,
                                             columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
-                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 0)]
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 1)]
                 min_hail = np.maximum(np.floor(step_vals.min()), 1)
                 obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
                                                                                                    floc=min_hail)
