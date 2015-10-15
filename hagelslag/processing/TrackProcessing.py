@@ -97,6 +97,7 @@ class TrackProcessor(object):
             hour_labels = self.model_ew.size_filter(self.model_ew.label(gaussian_filter(self.model_grid.data[h],
                                                                                         self.gaussian_window)), 
                                                     self.size_filter)
+            hour_labels[self.model_grid.data[h] < self.model_ew.min_thresh] = 0
             obj_slices = find_objects(hour_labels)
             num_slices = len(obj_slices)
             model_objects.append([])
@@ -153,6 +154,7 @@ class TrackProcessor(object):
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
                                                                                           self.gaussian_window)),
                                                        self.size_filter)
+                hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(obj_slices)
                 obs_objects.append([])
@@ -271,8 +273,7 @@ class TrackProcessor(object):
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
         return
 
-    @staticmethod
-    def match_size_distributions(model_tracks, obs_tracks, track_pairings):
+    def match_size_distributions(self, model_tracks, obs_tracks, track_pairings):
         unpaired = range(len(model_tracks))
         label_columns = ["Max_Hail_Size", "Shape", "Location", "Scale"]
         for p, pair in enumerate(track_pairings):
@@ -284,8 +285,8 @@ class TrackProcessor(object):
             model_hail_dists = pd.DataFrame(index=model_track.times,
                                             columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
-                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > 1)]
-                min_hail = np.maximum(np.floor(step_vals.min()), 1)
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_thresh)]
+                min_hail = np.maximum(np.floor(step_vals.min()), self.mrms_ew.min_thresh)
                 obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
                                                                                                    floc=min_hail)
                 obs_hail_dists.loc[obs_track.times[t], "Max_Hail_Size"] = step_vals.max()
