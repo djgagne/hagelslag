@@ -90,7 +90,7 @@ class EnsembleProducts(object):
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[2:])
         for m in range(self.data.shape[0]):
-            maximized = fftconvolve(np.where(self.data[m] >= threshold, 1, 0).max(axis=0), weights, mode="same")
+            maximized = fftconvolve(np.where(self.data[m].max(axis=0) >= threshold, 1, 0), weights, mode="same")
             maximized[maximized > 1] = 1
             neighborhood_prob += fftconvolve(maximized, weights, mode="same")
         neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
@@ -172,7 +172,6 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     times = track_forecast["properties"]["times"]
                     for s, step in enumerate(track_forecast["features"]):
                         forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
-                        step_keys = step["properties"].keys()
                         if self.condition_model_name is not None:
                             condition = step["properties"]["condition_" + self.condition_model_name.replace(" ", "-")]
                         else:
@@ -182,14 +181,10 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                         if forecast_time in self.times:
                             t = np.where(self.times == forecast_time)[0][0]
                             mask = np.array(step["properties"]["masks"], dtype=int)
-                            intensities = np.array(step["properties"]["timesteps"], dtype=float)[mask == 1]
-                            rankings = np.argsort(intensities)
+                            rankings = np.argsort(step["properties"]["timesteps"])[mask == 1]
                             i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                             j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
-                            if intensities.size > 0:
-                                #proxy_params = gamma.fit(intensities, floc=intensities.min()-0.1)
-                                #cdf_values = gamma.cdf(intensities, *proxy_params)
-                                #samples = forecast_dist.ppf(cdf_values)
+                            if rankings.size > 0:
                                 samples = np.sort(forecast_dist.rvs(size=rankings.size))
                                 if condition is None or condition >= 0.5:
                                     self.data[m, t, i, j] = samples
