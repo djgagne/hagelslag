@@ -68,25 +68,35 @@ class EnsembleProducts(object):
                                  self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold, self.units.replace(" ", "_")),
                                  self.start_date, self.end_date, "")
 
-    def neighborhood_probability(self, threshold, radius, sigma=0):
+    def neighborhood_probability(self, threshold, radius, sigmas=None):
+        if sigmas is None:
+            sigmas = [0]
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[1:])
+        filtered_prob = []
+        for sigma in sigmas:
+            filtered_prob.append(EnsembleConsensus(np.zeros(self.data.shape[1:]),
+                                                   "neighbor_prob_r_{0:d}_s_{1:d}".format(radius, sigma),
+                                                   self.ensemble_name,
+                                                   self.run_date, self.variable + "_{0:0.2f}".format(threshold),
+                                                   self.start_date, self.end_date, ""))
         thresh_data = np.where(self.data >= threshold, 1, 0)
-        print("Start neighborhood probability {0} {1}".format(self.ensemble_name, self.variable, self.start_date))
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
                 maximized = fftconvolve(thresh_data[m, t], weights, mode="same")
                 maximized[maximized > 1] = 1
                 neighborhood_prob[t] += fftconvolve(maximized, weights, mode="same")
             neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
-            if sigma > 0:
-                neighborhood_prob[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
-        return EnsembleConsensus(neighborhood_prob, "neighbor_prob_r_{0:d}_s_{1:d}".format(radius, sigma),
-                                 self.ensemble_name,
-                                 self.run_date, self.variable + "_{0:0.2f}".format(threshold),
-                                 self.start_date, self.end_date, "")
+            for s, sigma in enumerate(sigmas):
+                if sigma > 0:
+                    filtered_prob[s].data[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
+                else:
+                    filtered_prob[s].data[t] = neighborhood_prob[t]
+        return filtered_prob
 
-    def period_max_neighborhood_probability(self, threshold, radius, sigma=0):
+    def period_max_neighborhood_probability(self, threshold, radius, sigmas=None):
+        if sigmas is None:
+            sigmas = [0]
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[2:])
         for m in range(self.data.shape[0]):
@@ -94,15 +104,20 @@ class EnsembleProducts(object):
             maximized[maximized > 1] = 1
             neighborhood_prob += fftconvolve(maximized, weights, mode="same")
         neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
-        if sigma > 0:
-            neighborhood_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
-        return EnsembleConsensus(neighborhood_prob,
-                                 "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(self.data.shape[1],
-                                                                                                radius,
-                                                                                                sigma),
-                                 self.ensemble_name,
-                                 self.run_date, self.variable + "_{0:0.2f}".format(float(threshold)),
-                                 self.start_date, self.end_date, "")
+        consensus_probs = []
+        for sigma in sigmas:
+            if sigma > 0:
+                filtered_prob = gaussian_filter(neighborhood_prob, sigma=sigma)
+            else:
+                filtered_prob = neighborhood_prob
+            ec = EnsembleConsensus(filtered_prob,
+                                   "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(self.data.shape[1],
+                                                                                       radius, sigma),
+                                   self.ensemble_name,
+                                   self.run_date, self.variable + "_{0:0.2f}".format(float(threshold)),
+                                   self.start_date, self.end_date, "")
+            consensus_probs.append(ec)
+        return consensus_probs
 
 
 class MachineLearningEnsembleProducts(EnsembleProducts):

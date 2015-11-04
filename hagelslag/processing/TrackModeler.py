@@ -5,7 +5,6 @@ import json
 import os
 from copy import deepcopy
 from glob import glob
-from sklearn.linear_model import LinearRegression
 from multiprocessing import Pool
 
 
@@ -45,8 +44,11 @@ class TrackModeler(object):
         The two sets are combined using merge operations on the Track IDs. Additional member information is gathered
         from the appropriate member file.
 
-        :param mode: "train" or "forecast"
-        :param format: file format being used. Default is "csv"
+        Args
+            mode: str
+                "train" or "forecast"
+            format: str
+                file format being used. Default is "csv"
         """
         if mode in self.data.keys():
             run_dates = pd.DatetimeIndex(start=self.start_dates[mode],
@@ -68,7 +70,8 @@ class TrackModeler(object):
                 if file_date in run_date_str:
                     step_track_files.append(step_file)            
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
-                                                 ignore_index=True).fillna(0)
+                                                 ignore_index=True)
+            self.data[mode]["total"] = self.data[mode]["total"].fillna(0)
             self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
                                                 ignore_index=True).fillna(0)
@@ -85,7 +88,6 @@ class TrackModeler(object):
                                                       self.data[mode]["member"],
                                                       on="Ensemble_Member")
 
-
     def calc_copulas(self,
                      output_file,
                      model_names=("start-time", "translation-x", "translation-y"),
@@ -94,10 +96,16 @@ class TrackModeler(object):
         Calculate a copula multivariate normal distribution from the training data for each group of ensemble members.
         Distributions are written to a pickle file for later use.
 
-        :param output_file: pickle file copula distributions are written to.
-        :param model_names: Names of the output models being linked with the copula
-        :param label_columns: Columns in the training data files that correspond to the copulas
-        :return:
+        Args:
+            output_file: str
+                Pickle file
+            model_names:
+                Names of the tracking models
+            label_columns:
+                Names of the data columns used for labeling
+
+        Returns:
+
         """
         if len(self.data['train']) == 0:
             self.load_data()
@@ -126,28 +134,35 @@ class TrackModeler(object):
         """
         Fit machine learning models to predict whether or not hail will occur.
 
-        :param model_names: List of strings with the names for the particular machine learning models
-        :param model_objs: scikit-learn model objects that have already been initialized with tuning parameters.
-        :param input_columns: List of input columns for the models being trained.
-        :param output_column: Column being used as the predictive label.
-        :param output_threshold: Size threshold used to determine if hail is occurring or not.
-        :return:
+        Args:
+            model_names: list
+                List of strings with the names for the particular machine learning models
+            model_objs: list
+                scikit-learn style machine learning model objects.
+            input_columns: list
+                list of the names of the columns used as input for the machine learning model
+            output_column: str
+                name of the column used for labeling whether or not the event occurs
+            output_threshold: float
+                splitting threshold to determine if event has occurred. Default 0.0
+        Returns:
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
-            print group
+            print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
-            print "Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0)
+            print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
             for m, model_name in enumerate(model_names):
-                print model_name
+                print(model_name)
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
                 if hasattr(self.condition_models[group][model_name], "best_estimator_"):
                     print(self.condition_models[group][model_name].best_estimator_) 
                     print(self.condition_models[group][model_name].best_score_)
+
     def predict_condition_models(self, model_names,
                                  input_columns,
                                  metadata_cols,
@@ -174,7 +189,9 @@ class TrackModeler(object):
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
-                                     output_columns=["Shape", "Location", "Scale"]):
+                                     output_columns=None):
+        if output_columns is None:
+            output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
@@ -588,12 +605,13 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
                                                                member,
                                                                track_num)
     full_json_path = json_data_path + "/".join([run_date, member]) + "/" + json_file_name
-    with open(full_json_path) as json_file_obj:
-        try:
-            track_obj = json.load(json_file_obj)
-        except IOError:
-            print(full_json_path + " not found")
-            return
+    try:
+        json_file_obj = open(full_json_path)
+        track_obj = json.load(json_file_obj)
+        json_file_obj.close()
+    except IOError:
+        print(full_json_path + " not found")
+        return
     for f, feature in enumerate(track_obj['features']):
         del feature['properties']['attributes']
         for model_name, fdata in step_forecasts.iteritems():
@@ -615,6 +633,11 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
             except OSError:
                 print "directory already created"
     out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
-    with open(out_json_filename, "w") as out_json_obj:
+    try:
+        out_json_obj = open(out_json_filename, "w")
         json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
+        out_json_obj.close()
+    except IOError:
+        print(out_json_filename + " not found")
+        return
     return

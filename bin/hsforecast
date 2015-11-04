@@ -87,6 +87,18 @@ def sample_all_tracks(config, mode="forecast"):
 
 
 def train_models(track_modeler, config):
+    """
+    Trains machine learning models to predict size, whether or not the event occurred, and track errors.
+
+    Args:
+        track_modeler: hagelslag.TrackModeler object
+            an initialized TrackModeler object
+        config: Config
+            Config object containing
+
+    Returns:
+
+    """
     track_modeler.load_data(mode="train", format=config.data_format)
     track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
@@ -114,26 +126,37 @@ def train_models(track_modeler, config):
 
 
 def make_forecasts(track_modeler, config):
-    print "Load data"
+    """
+    Generate predictions from all machine learning models.
+
+    Args:
+        track_modeler: hagelslag.processing.TrackModeler object
+            TrackModeler object with configuration information
+        config: hagelslag.util.Config object
+            Configuration information
+    Returns:
+        dictionary containing forecast values.
+    """
+    print("Load data")
     track_modeler.load_data(mode="forecast", format=config.data_format)
     if config.load_models:
-        print "Load models"
+        print("Load models")
         track_modeler.load_models(config.model_path)
     forecasts = {}
-    print "Condition forecasts"
+    print("Condition forecasts")
     forecasts["condition"] = track_modeler.predict_condition_models(config.condition_model_names,
                                                                     config.condition_input_columns,
                                                                     config.metadata_columns)
-    print "Size forecasts"
+    print("Size forecasts")
     forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
                                                           config.size_input_columns,
                                                           config.metadata_columns)
-    print "Size Distribution Forecasts"
+    print("Size Distribution Forecasts")
     forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
                                                                        config.size_distribution_input_columns,
                                                                        config.metadata_columns,
                                                                        )
-    print "Track forecasts"
+    print("Track forecasts")
     forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
                                                             config.track_input_columns,
                                                             config.metadata_columns,
@@ -143,6 +166,19 @@ def make_forecasts(track_modeler, config):
 
 
 def output_forecasts(forecasts, track_modeler, config):
+    """
+    Write forecasts out to GeoJSON files in parallel.
+
+    Args:
+        forecasts: dict
+            dictionary containing forecast values organized by type
+        track_modeler: hagelslag.processing.TrackModeler
+            TrackModeler object
+        config:
+            Config object
+    Returns:
+
+    """
     track_modeler.output_forecasts_json_parallel(forecasts,
                                                  config.condition_model_names,
                                                  config.size_model_names,
@@ -155,6 +191,17 @@ def output_forecasts(forecasts, track_modeler, config):
 
 
 def generate_all_ensemble_products(config, mode="forecast"):
+    """
+    Create neighborhood probabilities from raw model forecasts and from machine learning model forecasts.
+
+    Args:
+        config:
+            Config object
+        mode: str
+            Used to determine which set of dates to pull from when making ensemble products
+    Returns:
+
+    """
     pool = Pool(config.num_procs)
     run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
                                  end=config.end_dates[mode],
@@ -206,13 +253,16 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
         for threshold in thresholds:
             print(r_date + " " + variable + "{0:d}".format(int(threshold)))
             for neighbor_radius in neighbor_radii:
-                for neighbor_sigma in neighbor_sigmas:
-                    print(r_date + " " + variable + "r={0:d} s={1:d}".format(int(neighbor_radius),
-                                                                               int(neighbor_sigma)))
-                    ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                print(r_date + " Hourly " + variable + " r={0:d}".format(int(neighbor_radius)))
+                ecs = ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
+                for ec in ecs:
                     ec.to_file(filename)
-                    ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                del ecs
+                print(r_date + " Max " + variable + " r={0:d}".format(int(neighbor_radius)))
+                ecps = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
+                for ecp in ecps:
                     ecp.to_file(filename)
+                del ecps
     except Exception as e:
         print(traceback.format_exc())
         raise e
@@ -221,7 +271,8 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
 
 
 def generate_ml_run_product(model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                            forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path, neighbor_condition_model):
+                            forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path,
+                            neighbor_condition_model):
     try:
         r_date = run_date.strftime("%Y%m%d")
         print(r_date + " " + model_name + " started")
@@ -239,12 +290,13 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
                                                                         run_date.strftime("%Y%m%d"))
             for threshold in thresholds:
                 for neighbor_radius in neighbor_radii:
-                    for neighbor_sigma in neighbor_sigmas:
-                        print(r_date + " " + model_name + "r={0:d} s={1:d}".format(int(neighbor_radius),
-                                                                                     int(neighbor_sigma)))
-                        ec = ep.neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                    print(r_date + " Hourly " + model_name + " r={0:d}".format(int(neighbor_radius)))
+                    ecs = ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
+                    for ec in ecs:
                         ec.to_file(filename)
-                        ecp = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigma=neighbor_sigma)
+                    print(r_date + " Max " + model_name + " r={0:d}".format(int(neighbor_radius)))
+                    ecps = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
+                    for ecp in ecps:
                         ecp.to_file(filename)
     except Exception as e:
         print(traceback.format_exc())
