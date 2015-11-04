@@ -64,7 +64,6 @@ class MRMSGrid(object):
         mrms_files = np.array(sorted(os.listdir(self.path + self.variable + "/")))
         mrms_file_dates = np.array([m_file.split("_")[-2].split("-")[0]
             for m_file in mrms_files])
-        mrms_file = None
         old_mrms_file = None
         file_obj = None
         for t in range(self.all_dates.shape[0]):
@@ -87,7 +86,8 @@ class MRMSGrid(object):
                 if len(time_index) > 0:
                     data.append(file_obj.variables[self.variable][time_index[0]])
                     valid_dates.append(self.all_dates[t])
-        file_obj.close()
+        if file_obj is not None:
+            file_obj.close()
         self.data = np.array(data)
         self.data[self.data < 0] = 0
         self.data[self.data > 100] = 100

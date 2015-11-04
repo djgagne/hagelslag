@@ -118,8 +118,12 @@ class NeighborEvaluator(object):
 
     def load_coordinates(self):
         coord_file = Dataset(self.coordinate_file)
-        self.coordinates["lon"] = coord_file.variables["lon"][:]
-        self.coordinates["lat"] = coord_file.variables["lat"][:]
+        if "lon" in coord_file.variables.keys():
+            self.coordinates["lon"] = coord_file.variables["lon"][:]
+            self.coordinates["lat"] = coord_file.variables["lat"][:]
+        else:
+            self.coordinates["lon"] = coord_file.variables["XLONG"][:]
+            self.coordinates["lat"] = coord_file.variables["XLAT"][:]
         coord_file.close()
 
     def evaluate_hourly_forecasts(self):
