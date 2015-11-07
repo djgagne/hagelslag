@@ -118,7 +118,7 @@ class TrackMatcher(object):
         for i in range(len(set_a)):
             neighbors = np.where(costs[i] < 1)[0].tolist()
             if len(neighbors) > 0:
-                all_neighbors.append((i, neighbors))
+                all_neighbors.append((i, tuple(neighbors)))
         return all_neighbors
 
     def track_cost_matrix(self, set_a, set_b):
