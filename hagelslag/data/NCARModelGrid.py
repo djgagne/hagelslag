@@ -1,7 +1,7 @@
 from ModelGrid import ModelGrid
 import numpy as np
 from pandas import DatetimeIndex
-
+from datetime import timedelta
 
 class NCARModelGrid(ModelGrid):
     """
@@ -27,7 +27,7 @@ class NCARModelGrid(ModelGrid):
         self.member = member
         self.path = path
         self.forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
-                                        (end_date - run_date).total_seconds() / 3600 + 1)
+                                        (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
         filenames = []
         if not single_step:
             filenames.append("{0}{1}/{2}_surrogate_{1}.nc".format(self.path,
@@ -35,10 +35,16 @@ class NCARModelGrid(ModelGrid):
                                                                   self.member))
         else:
             for hour in self.forecast_hours:
-                filenames.append("{0}{1}/post_rundir/{2}/fhr_{3:d}/WRFTWO{3:02d}.nc".format(self.path,
-                                                                                            run_date.strftime("%Y%m%d%H"),
-                                                                                            self.member,
-                                                                                            hour))
+                valid_time = run_date + timedelta(hours=hour)
+                filenames.append("{0}{1}/wrf_rundir/{2}/wrfout_d02_{3}:00:00".format(self.path,
+                                                                                             run_date.strftime("%Y%m%d%H"),
+                                                                                             self.member.replace("mem", "ens_"),
+                                                                                             valid_time.strftime("%Y-%m-%d_%H")
+                                                                                             ))
+                #filenames.append("{0}{1}/post_rundir/{2}/fhr_{3:d}/WRFTWO{3:02d}.nc".format(self.path,
+                #                                                                            run_date.strftime("%Y%m%d%H"),
+                #                                                                            self.member.replace("mem", "mem_"),
+                #                                                                            int(hour)))
         print filenames
         super(NCARModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
 
