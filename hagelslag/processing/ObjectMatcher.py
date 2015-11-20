@@ -205,7 +205,7 @@ def nonoverlap(item_a, time_a, item_b, time_b, max_value):
     """
     Percentage of pixels in each object that do not overlap with the other object
     """
-    return np.minimum(1 - item_a.count_overlap(time_a, item_b, time_b), max_value)
+    return np.minimum(1 - item_a.count_overlap(time_a, item_b, time_b), max_value) / float(max_value)
 
 
 def max_intensity(item_a, time_a, item_b, time_b, max_value):
