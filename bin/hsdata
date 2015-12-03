@@ -148,9 +148,9 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
     forecast_step_track_columns = ["Step_ID", "Track_ID", "Date",
                                    "Forecast_Hour", "Valid_Hour_UTC", "Duration",
                                    "Centroid_Lon", "Centroid_Lat", "Storm_Motion_U", "Storm_Motion_V"]
-    forecast_variables = config.storm_variables + config.potential_variables
+    forecast_variables = config.storm_variables + [v + "-potential" for v in config.potential_variables]
     if hasattr(config, "tendency_variables"):
-        forecast_variables.extend(config.tendency_variables)
+        forecast_variables.extend([v + "-tendency" for v in config.tendency_variables])
     var_stats = []
     for var in config.storm_variables + config.potential_variables:
         for stat in config.variable_statistics:
