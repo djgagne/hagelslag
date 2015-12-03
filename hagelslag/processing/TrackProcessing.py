@@ -362,7 +362,7 @@ class TrackProcessor(object):
                 obs_track = obs_tracks[pair[1][0]]
             model_com = model_track.center_of_mass(model_track.start_time)
             obs_com = obs_track.center_of_mass(obs_track.start_time)
-            track_errors.loc[pair[0], 'obs_track_id'] = pair[1]
+            track_errors.loc[pair[0], 'obs_track_id'] = pair[1] if type(pair[1]) == int else pair[1][0]
             track_errors.loc[pair[0], 'translation_error_x'] = model_com[0] - obs_com[0]
             track_errors.loc[pair[0], 'translation_error_y'] = model_com[1] - obs_com[1]
             track_errors.loc[pair[0], 'start_time_difference'] = model_track.start_time - obs_track.start_time
