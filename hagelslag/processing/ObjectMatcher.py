@@ -90,7 +90,7 @@ class TrackMatcher(object):
         self.weights = weights if weights.sum() == 1 else weights / weights.sum()
         self.max_values = max_values
 
-    def match_tracks(self, set_a, set_b, unique_matches=True):
+    def match_tracks(self, set_a, set_b):
         costs = self.track_cost_matrix(set_a, set_b) * 100
         min_row_costs = costs.min(axis=1)
         min_col_costs = costs.min(axis=0)
@@ -98,15 +98,9 @@ class TrackMatcher(object):
         good_cols = np.where(min_col_costs < 100)[0]
         assignments = []
         if len(good_rows) > 0 and len(good_cols) > 0:
-            if unique_matches:
-                munk = Munkres()
-                initial_assignments = munk.compute(costs[np.meshgrid(good_rows, good_cols, indexing='ij')].tolist())
-                initial_assignments = [(good_rows[x[0]], good_cols[x[1]]) for x in initial_assignments]
-            else:
-                b_matches = costs[np.meshgrid(good_rows, good_cols, indexing='ij')].argmin(axis=1)
-                a_matches = np.arange(b_matches.size)
-                initial_assignments = [(good_rows[a_matches[x]], good_cols[b_matches[x]])
-                                       for x in range(b_matches.size)]
+            munk = Munkres()
+            initial_assignments = munk.compute(costs[np.meshgrid(good_rows, good_cols, indexing='ij')].tolist())
+            initial_assignments = [(good_rows[x[0]], good_cols[x[1]]) for x in initial_assignments]
             for a in initial_assignments:
                 if costs[a[0], a[1]] < 100:
                     assignments.append(a)
@@ -116,9 +110,10 @@ class TrackMatcher(object):
         costs = self.track_cost_matrix(set_a, set_b)
         all_neighbors = []
         for i in range(len(set_a)):
-            neighbors = np.where(costs[i] < 1)[0].tolist()
+            neighbors = np.where(costs[i] < 1)[0]
+            sorted_neighbors = neighbors[costs[neighbors].argsort()]
             if len(neighbors) > 0:
-                all_neighbors.append((i, tuple(neighbors)))
+                all_neighbors.append((i, tuple(sorted_neighbors)))
         return all_neighbors
 
     def track_cost_matrix(self, set_a, set_b):
@@ -253,6 +248,18 @@ def mean_min_time_distance(item_a, item_b, max_value):
     distance_matrix = (times_a - times_b) ** 2
     mean_min_distances = np.sqrt(distance_matrix.min(axis=0).mean() + distance_matrix.min(axis=1).mean())
     return mean_min_distances / float(max_value)
+
+
+def start_centroid_distance(item_a, item_b, max_value):
+    start_a = item_a.center_of_mass(item_a.times[0])
+    start_b = item_b.center_of_mass(item_b.times[0])
+    start_distance = np.sqrt((start_a[0] - start_b[0]) ** 2 + (start_a[1] - start_b[1]) ** 2)
+    return start_distance / float(max_value)
+
+
+def start_time_distance(item_a, item_b, max_value):
+    start_time_diff = np.abs(item_a.times[0] - item_b.times[0])
+    return start_time_diff / float(max_value)
 
 
 def duration_distance(item_a, item_b, max_value):

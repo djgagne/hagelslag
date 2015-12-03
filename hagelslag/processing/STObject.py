@@ -416,6 +416,10 @@ class STObject(object):
         """
         json_obj = {"type": "FeatureCollection", "features": [], "properties": {}}
         json_obj['properties']['times'] = self.times.tolist()
+        json_obj['properties']['dx'] = self.dx
+        json_obj['properties']['step'] = self.step
+        json_obj['properties']['u'] = self.u.tolist()
+        json_obj['properties']['v'] = self.v.tolist()
         for k, v in metadata.iteritems():
             json_obj['properties'][k] = v
         for t, time in enumerate(self.times):
@@ -460,8 +464,12 @@ def read_geojson(filename):
                 attribute_data[k] = []
             else:
                 attribute_data[k].append(np.array(v))
+    kwargs = {}
+    for kw in ["dx", "step", "u", "v"]:
+        if kw in data["properties"].keys():
+            kwargs[kw] = data["properties"][kw]
     sto = STObject(main_data["timesteps"], main_data["masks"], main_data["x"], main_data["y"],
-                   main_data["i"], main_data["j"], times[0], times[-1])
+                   main_data["i"], main_data["j"], times[0], times[-1], **kwargs)
     for k, v in attribute_data.iteritems():
         sto.attributes[k] = v
     return sto

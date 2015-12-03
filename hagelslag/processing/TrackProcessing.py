@@ -200,7 +200,11 @@ class TrackProcessor(object):
         :param obs_tracks: list of STObjects describing observed tracks
         :return:
         """
-        return self.track_matcher.match_tracks(model_tracks, obs_tracks, unique_matches=unique_matches)
+        if unique_matches:
+            pairings = self.track_matcher.match_tracks(model_tracks, obs_tracks)
+        else:
+            pairings = self.track_matcher.neighbor_matches(model_tracks, obs_tracks)
+        return pairings
 
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
                                  tendency_variables=None):
@@ -293,12 +297,8 @@ class TrackProcessor(object):
         return
 
     def match_size_distributions(self, model_tracks, obs_tracks, track_pairings):
-        unpaired = range(len(model_tracks))
-        label_columns = ["Max_Hail_Size", "Shape", "Location", "Scale"]
-        for p, pair in enumerate(track_pairings):
-            model_track = model_tracks[pair[0]]
-            unpaired.remove(pair[0])
-            obs_track = obs_tracks[pair[1]]
+        def match_single_track_dist(model_track, obs_track):
+            label_columns = ["Max_Hail_Size", "Shape", "Location", "Scale"]
             obs_hail_dists = pd.DataFrame(index=obs_track.times,
                                           columns=label_columns)
             model_hail_dists = pd.DataFrame(index=model_track.times,
@@ -310,10 +310,10 @@ class TrackProcessor(object):
                                                                                                    floc=min_hail)
                 obs_hail_dists.loc[obs_track.times[t], "Max_Hail_Size"] = step_vals.max()
             if obs_track.times.size > 1 and model_track.times.size > 1:
-                normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min())\
-                    * (obs_track.times - obs_track.times.min())
-                normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min())\
-                    * (model_track.times - model_track.times.min())
+                normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min()) \
+                                       * (obs_track.times - obs_track.times.min())
+                normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min()) \
+                                         * (model_track.times - model_track.times.min())
                 for col in label_columns:
                     interp_func = interp1d(normalized_obs_times, obs_hail_dists[col], kind="linear",
                                            bounds_error=False, fill_value=0)
@@ -321,7 +321,18 @@ class TrackProcessor(object):
             else:
                 for param in obs_hail_dists.columns:
                     model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[obs_track.times[0], param]
-            model_track.observations = model_hail_dists
+            return model_hail_dists
+        unpaired = range(len(model_tracks))
+        for p, pair in enumerate(track_pairings):
+            unpaired.remove(pair[0])
+            if type(pair[1]) == int:
+                interp_hail_dists = match_single_track_dist(model_tracks[pair[0]], obs_tracks[pair[1]])
+                model_tracks[pair[0]].observations = interp_hail_dists
+            else:
+                model_tracks[pair[0]].observations = []
+                for op in pair[1]:
+                    interp_hail_dists = match_single_track_dist(model_tracks[pair[0]], obs_tracks[op])
+                    model_tracks[pair[0]].observations.append(interp_hail_dists)
         return
 
     @staticmethod
@@ -345,7 +356,10 @@ class TrackProcessor(object):
                                     columns=columns)
         for p, pair in enumerate(track_pairings):
             model_track = model_tracks[pair[0]]
-            obs_track = obs_tracks[pair[1]]
+            if type(pair[1]) == int:
+                obs_track = obs_tracks[pair[1]]
+            else:
+                obs_track = obs_tracks[pair[1][0]]
             model_com = model_track.center_of_mass(model_track.start_time)
             obs_com = obs_track.center_of_mass(obs_track.start_time)
             track_errors.loc[pair[0], 'obs_track_id'] = pair[1]
