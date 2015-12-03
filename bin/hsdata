@@ -288,7 +288,12 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
     obs_data['track_total'] = pd.DataFrame(columns=obs_total_track_columns)
     obs_data['track_step'] = pd.DataFrame(columns=obs_step_track_columns)
     track_step_count = 0
-    track_pairing_array = np.array(track_pairings)
+    if len(track_pairings) > 0 and type(track_pairings[0][1]) == tuple:
+        track_pairing_list = [(tp[0], tp[1][0]) for tp in track_pairings]
+        track_pairing_array = np.array(track_pairing_list)
+    else:
+        track_pairing_array = np.array(track_pairings)
+
     for o, obs_track in enumerate(obs_tracks):
         obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
                                                                     run_date.strftime("%Y%m%d-%H%M"),
