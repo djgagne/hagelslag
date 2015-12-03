@@ -202,7 +202,8 @@ class TrackProcessor(object):
         """
         return self.track_matcher.match_tracks(model_tracks, obs_tracks, unique_matches=unique_matches)
 
-    def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables):
+    def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
+                                 tendency_variables=None):
         """
         Extract model attribute data for each model track. Storm variables are those that describe the model storm
         directly, such as radar reflectivity or updraft helicity. Potential variables describe the surrounding
@@ -213,28 +214,46 @@ class TrackProcessor(object):
         :param tracked_model_objects: List of STObjects describing each forecasted storm
         :param storm_variables: List of storm variable names
         :param potential_variables: List of potential variable names.
+        :param tendency_variables: List of tendency variables
         """
+        model_grids = {}
         for storm_var in storm_variables:
-            print("{0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
-            storm_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
-                                     self.run_date, storm_var, self.start_date, self.end_date,
-                                     self.model_path, self.single_step)
-            storm_grid.load_data()
+            print("Storm {0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
+                                                 self.run_date, storm_var, self.start_date - timedelta(hours=1),
+                                                 self.end_date,
+                                                 self.model_path, self.single_step)
+            model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
-                model_obj.extract_attribute_grid(storm_grid)
-            del storm_grid
+                model_obj.extract_attribute_grid(model_grids[storm_var])
+            if storm_var not in potential_variables and storm_var not in tendency_variables:
+                del model_grids[storm_var]
 
         for potential_var in potential_variables:
-            print("{0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
-            potential_grid = ModelOutput(self.ensemble_name, self.ensemble_member,
-                                         self.run_date, potential_var,
-                                         self.start_date - timedelta(hours=1),
-                                         self.end_date - timedelta(hours=1),
-                                         self.model_path, self.single_step)
-            potential_grid.load_data()
+            print("Potential {0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            if potential_var not in model_grids.keys():
+                model_grids[potential_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
+                                                         self.run_date, potential_var,
+                                                         self.start_date - timedelta(hours=1),
+                                                         self.end_date,
+                                                         self.model_path, self.single_step)
+                model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
-                model_obj.extract_attribute_grid(potential_grid, potential=True)
-            del potential_grid
+                model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
+            if storm_var not in tendency_variables:
+                del model_grids[potential_var]
+        for tendency_var in tendency_variables:
+            print("Tendency {0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            if tendency_var not in model_grids.keys():
+                model_grids[tendency_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
+                                                        self.run_date, potential_var,
+                                                        self.start_date - timedelta(hours=1),
+                                                        self.end_date,
+                                                        self.model_path, self.single_step)
+            for model_obj in tracked_model_objects:
+                model_obj.extract_tendency_grid(model_grids[tendency_var])
+            del model_grids[tendency_var]
+
 
     @staticmethod
     def match_hail_sizes(model_tracks, obs_tracks, track_pairings):
