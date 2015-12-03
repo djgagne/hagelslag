@@ -111,7 +111,7 @@ class TrackMatcher(object):
         all_neighbors = []
         for i in range(len(set_a)):
             neighbors = np.where(costs[i] < 1)[0]
-            sorted_neighbors = neighbors[costs[neighbors].argsort()]
+            sorted_neighbors = neighbors[costs[i][neighbors].argsort()]
             if len(neighbors) > 0:
                 all_neighbors.append((i, tuple(sorted_neighbors)))
         return all_neighbors
