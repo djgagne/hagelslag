@@ -244,13 +244,13 @@ class TrackProcessor(object):
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
-            if storm_var not in tendency_variables:
+            if potential_var not in tendency_variables:
                 del model_grids[potential_var]
         for tendency_var in tendency_variables:
-            print("Tendency {0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            print("Tendency {0} {1} {2}".format(tendency_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             if tendency_var not in model_grids.keys():
                 model_grids[tendency_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
-                                                        self.run_date, potential_var,
+                                                        self.run_date, tendency_var,
                                                         self.start_date - timedelta(hours=1),
                                                         self.end_date,
                                                         self.model_path, self.single_step)
