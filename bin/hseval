@@ -197,15 +197,15 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
     
     def save_scores(output):
-        #hour_scores = output[0]
-        #period_scores = output[1]
-        period_scores = output
+        hour_scores = output[0]
+        period_scores = output[1]
+        #period_scores = output
         if not os.access(config.neighbor_score_path + "period_scores.csv", os.R_OK):
-            #hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index")
+            hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index")
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index")
         else:
-            #hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index", mode="a",
-            #                   header=False)
+            hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index", mode="a",
+                               header=False)
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index", mode="a",
                                  header=False)
     for run_date in run_dates:
@@ -261,10 +261,10 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
         ne.load_forecasts()
         ne.load_obs()
         ne.load_coordinates()
-        #hourly_scores = ne.evaluate_hourly_forecasts()
         period_scores = ne.evaluate_period_forecasts()
-        #return hourly_scores, period_scores
-        return period_scores
+        hourly_scores = ne.evaluate_hourly_forecasts()
+        return hourly_scores, period_scores
+        #return period_scores
     except Exception as e:
         print(traceback.format_exc())
         raise e

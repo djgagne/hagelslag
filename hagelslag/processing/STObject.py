@@ -438,8 +438,9 @@ class STObject(object):
             for attr_name, steps in self.attributes.iteritems():
                 feature["properties"]["attributes"][attr_name] = steps[t].tolist()
             json_obj['features'].append(feature)
-        with open(filename, "w") as file_obj:
-            json.dump(json_obj, file_obj, indent=1, sort_keys=True)
+        file_obj = open(filename, "w")
+        json.dump(json_obj, file_obj, indent=1, sort_keys=True)
+        file_obj.close()
         return
 
 
