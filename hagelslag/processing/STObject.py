@@ -331,6 +331,9 @@ class STObject(object):
             stat_val = getattr(self.attributes[attribute][ti][self.masks[ti] == 1], statistic)()
         elif statistic == 'median':
             stat_val = np.median(self.attributes[attribute][ti][self.masks[ti] == 1])
+        elif statistic == "skew":
+            stat_val = np.mean(self.attributes[attribute][ti][self.masks[ti] == 1]) - \
+                       np.median(self.attributes[attribute][ti][self.masks[ti] == 1])
         elif 'percentile' in statistic:
             per = int(statistic.split("_")[1])
             stat_val = np.percentile(self.attributes[attribute][ti][self.masks[ti] == 1], per)

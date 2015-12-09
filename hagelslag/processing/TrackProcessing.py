@@ -3,9 +3,10 @@ from hagelslag.data.MRMSGrid import MRMSGrid
 from EnhancedWatershedSegmenter import EnhancedWatershed
 from ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
-from STObject import STObject
+from STObject import STObject, read_geojson
 import numpy as np
 from scipy.interpolate import interp1d
+from glob import glob
 import pandas as pd
 from datetime import timedelta
 from scipy.stats import gamma
@@ -138,6 +139,24 @@ class TrackProcessor(object):
 
         return tracked_model_objects
 
+    def load_model_tracks(self, json_path):
+        model_track_files = sorted(glob(json_path + "{0}/{1}/{2}_*.json".format(self.run_date.strftime("%Y%m%d"),
+                                                                                self.ensemble_member,
+                                                                                self.ensemble_name)))
+        model_tracks = []
+        for model_track_file in model_track_files:
+            model_tracks.append(read_geojson(model_track_file))
+        return model_tracks
+
+    def load_mrms_tracks(self, json_path, mrms_name="mesh"):
+        mrms_track_files = sorted(glob(json_path + "{0}/{1}/{2}_*.json".format(self.run_date.strftime("%Y%m%d"),
+                                                                               self.ensemble_member,
+                                                                               mrms_name)))
+        mrms_tracks = []
+        for mrms_track_file in mrms_track_files:
+            mrms_tracks.append(read_geojson(mrms_track_file))
+        return mrms_tracks
+
     def find_mrms_tracks(self):
         """
         Identify objects from MRMS timesteps and link them together with object matching.
@@ -192,16 +211,21 @@ class TrackProcessor(object):
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
         return tracked_obs_objects
 
-    def match_tracks(self, model_tracks, obs_tracks, unique_matches=True):
+    def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
         """
         Match forecast and observed tracks.
 
-        :param model_tracks: list of STObjects describing forecast tracks
-        :param obs_tracks: list of STObjects describing observed tracks
-        :return:
+        Args:
+            model_tracks:
+            obs_tracks:
+            unique_matches:
+            closest_matches:
+
+        Returns:
+
         """
         if unique_matches:
-            pairings = self.track_matcher.match_tracks(model_tracks, obs_tracks)
+            pairings = self.track_matcher.match_tracks(model_tracks, obs_tracks, closest_matches=closest_matches)
         else:
             pairings = self.track_matcher.neighbor_matches(model_tracks, obs_tracks)
         return pairings
