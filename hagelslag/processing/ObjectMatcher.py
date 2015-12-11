@@ -90,7 +90,7 @@ class TrackMatcher(object):
         self.weights = weights if weights.sum() == 1 else weights / weights.sum()
         self.max_values = max_values
 
-    def match_tracks(self, set_a, set_b, closest_match=False):
+    def match_tracks(self, set_a, set_b, closest_matches=False):
         costs = self.track_cost_matrix(set_a, set_b) * 100
         min_row_costs = costs.min(axis=1)
         min_col_costs = costs.min(axis=0)
@@ -98,7 +98,7 @@ class TrackMatcher(object):
         good_cols = np.where(min_col_costs < 100)[0]
         assignments = []
         if len(good_rows) > 0 and len(good_cols) > 0:
-            if closest_match:
+            if closest_matches:
                 b_matches = costs[np.meshgrid(good_rows, good_cols, indexing='ij')].argmin(axis=1)
                 a_matches = np.arange(b_matches.size)
                 initial_assignments = [(good_rows[a_matches[x]], good_cols[b_matches[x]])

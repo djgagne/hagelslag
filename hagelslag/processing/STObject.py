@@ -326,7 +326,7 @@ class STObject(object):
         :param time:
         :return:
         """
-        ti = np.where(self.times == time)[0]
+        ti = np.where(self.times == time)[0][0]
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
             stat_val = getattr(self.attributes[attribute][ti][self.masks[ti] == 1], statistic)()
         elif statistic == 'median':
@@ -385,7 +385,7 @@ class STObject(object):
         try:
             all_props = [regionprops(m) for m in self.masks]
         except TypeError:
-            print self.masks
+            print(self.masks)
             exit()
         for stat in stat_names:
             stats[stat] = np.mean([p[0][stat] for p in all_props])
@@ -465,7 +465,7 @@ def read_geojson(filename):
             main_data[main_name].append(np.array(feature["properties"][main_name]))
         for k, v in feature["properties"]["attributes"].iteritems():
             if k not in attribute_data.keys():
-                attribute_data[k] = []
+                attribute_data[k] = [np.array(v)]
             else:
                 attribute_data[k].append(np.array(v))
     kwargs = {}

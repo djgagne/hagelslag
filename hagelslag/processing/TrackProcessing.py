@@ -349,7 +349,7 @@ class TrackProcessor(object):
         unpaired = range(len(model_tracks))
         for p, pair in enumerate(track_pairings):
             unpaired.remove(pair[0])
-            if type(pair[1]) == int:
+            if type(pair[1]) in [int, np.int64, np.int32]:
                 interp_hail_dists = match_single_track_dist(model_tracks[pair[0]], obs_tracks[pair[1]])
                 model_tracks[pair[0]].observations = interp_hail_dists
             else:
@@ -380,13 +380,13 @@ class TrackProcessor(object):
                                     columns=columns)
         for p, pair in enumerate(track_pairings):
             model_track = model_tracks[pair[0]]
-            if type(pair[1]) == int:
+            if type(pair[1]) in [int, np.int64]:
                 obs_track = obs_tracks[pair[1]]
             else:
                 obs_track = obs_tracks[pair[1][0]]
             model_com = model_track.center_of_mass(model_track.start_time)
             obs_com = obs_track.center_of_mass(obs_track.start_time)
-            track_errors.loc[pair[0], 'obs_track_id'] = pair[1] if type(pair[1]) == int else pair[1][0]
+            track_errors.loc[pair[0], 'obs_track_id'] = pair[1] if type(pair[1]) in [int, np.int64] else pair[1][0]
             track_errors.loc[pair[0], 'translation_error_x'] = model_com[0] - obs_com[0]
             track_errors.loc[pair[0], 'translation_error_y'] = model_com[1] - obs_com[1]
             track_errors.loc[pair[0], 'start_time_difference'] = model_track.start_time - obs_track.start_time
