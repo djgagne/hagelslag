@@ -37,27 +37,41 @@ class ROC(object):
 
 class DistributedROC(object):
     """
-    Store statistics for calculating receiver operating characteristic (ROC) curves and performance diagrams and permit
-    easy aggregation of ROC curves from many small datasets.
+    ROC sparse representation that can be aggregated and can generate ROC curves and performance diagrams.
 
-    Parameters
-    ----------
-    thresholds : numpy.ndarray of floats
-        List of probability thresholds in increasing order.
-    obs_threshold : float
-        Observation value used as the split point for determining positives.
-    input_str : str
-        String in the format output by the __str__ method so that initialization of the object can be done
-        from items in a text file.
+    A DistributedROC object is given a specified set of thresholds (could be probability or real-valued) and then
+    stores a pandas DataFrame of contingency tables for each threshold. The contingency tables are updated with a
+    set of forecasts and observations, but the original forecast and observation values are not kept. DistributedROC
+    objects can be combined by adding them together or by storing them in an iterable and summing the contents of the
+    iterable together. This is especially useful when verifying large numbers of cases in parallel.
+
+    Examples:
+        >>>import numpy as np
+        >>>forecasts = np.random.random(size=1000)
+        >>>obs = np.random.random_integers(0, 1, size=1000)
+        >>>roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1)
+        >>>roc.update(forecasts, obs)
+        >>>print(roc.auc())
+
+    Attributes:
+        thresholds (numpy.ndarray): List of probability thresholds in increasing order.
+        obs_threshold (float):  Observation values >= obs_threshold are positive events.
+        contingency_tables (pandas.DataFrame): Stores contingency table counts for each probability threshold
     """
-    def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
+    def __init__(self, thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1.0, input_str=None):
+        """
+        Initializes the DistributedROC object. If input_str is not None, then the DistributedROC object is
+         initialized with the contents of input_str. Otherwise an empty contingency table is created.
+
+        Args:
+            thresholds (numpy.array): Array of thresholds in increasing order.
+            obs_threshold (float): Split threshold (>= is positive event) (< is negative event)
+            input_str (None or str): String containing information for DistributedROC
+        """
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
-        if self.thresholds is not None:
-            self.contingency_tables = pd.DataFrame(np.zeros((thresholds.size, 4), dtype=int),
-                                                   columns=["TP", "FP", "FN", "TN"])
-        else:
-            self.contingency_tables = pd.DataFrame(columns=["TP", "FP", "FN", "TN"])
+        self.contingency_tables = pd.DataFrame(np.zeros((thresholds.size, 4), dtype=int),
+                                               columns=["TP", "FP", "FN", "TN"])
         if input_str is not None:
             self.from_str(input_str)
 
@@ -65,9 +79,9 @@ class DistributedROC(object):
         """
         Update the ROC curve with a set of forecasts and observations
 
-        :param forecasts: 1D array of forecast values
-        :param observations: 1D array of observation values.
-        :return:
+        Args:
+            forecasts: 1D array of forecast values
+            observations: 1D array of observation values.
         """
         for t, threshold in enumerate(self.thresholds):
             tp = np.count_nonzero((forecasts >= threshold)
@@ -84,8 +98,8 @@ class DistributedROC(object):
         """
         Add two DistributedROC objects together and combine their contingency table values.
 
-        :param other: Another DistributedROC object.
-        :return:
+        Args:
+            other: Another DistributedROC object.
         """
         sum_roc = DistributedROC(self.thresholds, self.obs_threshold)
         sum_roc.contingency_tables = self.contingency_tables + other.contingency_tables
@@ -95,8 +109,8 @@ class DistributedROC(object):
         """
         Ingest the values of another DistributedROC object into this one and update the statistics inplace.
 
-        :param other_roc: another DistributedROC object.
-        :return:
+        Args:
+            other_roc: another DistributedROC object.
         """
         if other_roc.thresholds.size == self.thresholds.size and np.all(other_roc.thresholds == self.thresholds):
             self.contingency_tables += other_roc.contingency_tables
@@ -108,7 +122,8 @@ class DistributedROC(object):
         Generate a ROC curve from the contingency table by calculating the probability of detection (TP/(TP+FN)) and the
         probability of false detection (FP/(FP+TN)).
 
-        :return: A pandas.DataFrame containing the POD, POFD, and the corresponding probability thresholds.
+        Returns:
+            A pandas.DataFrame containing the POD, POFD, and the corresponding probability thresholds.
         """
         pod = self.contingency_tables["TP"].astype(float) / (self.contingency_tables["TP"] +
                                                              self.contingency_tables["FN"])
@@ -121,7 +136,8 @@ class DistributedROC(object):
         """
         Calculate the Probability of Detection and False Alarm Ratio in order to output a performance diagram.
 
-        :return: pandas.DataFrame containing POD, FAR, and probability thresholds.
+        Returns:
+            pandas.DataFrame containing POD, FAR, and probability thresholds.
         """
         pod = self.contingency_tables["TP"] / (self.contingency_tables["TP"] + self.contingency_tables["FN"])
         far = self.contingency_tables["FP"] / (self.contingency_tables["FP"] + self.contingency_tables["TP"])
@@ -131,8 +147,6 @@ class DistributedROC(object):
     def auc(self):
         """
         Calculate the Area Under the ROC Curve (AUC).
-
-        :return:
         """
         roc_curve = self.roc_curve()
         return np.abs(np.trapz(roc_curve['POD'], x=roc_curve['POFD']))
@@ -140,8 +154,6 @@ class DistributedROC(object):
     def __str__(self):
         """
         Output the information within the DistributedROC object to a string.
-
-        :return:
         """
         out_str = "Obs_Threshold:{0:0.2f}".format(self.obs_threshold) + ";"
         out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
@@ -155,9 +167,10 @@ class DistributedROC(object):
 
     def from_str(self, in_str):
         """
-        Read the object string and parse the contingency table values from it.
-        :param in_str:
-        :return:
+        Read the DistributedROC string and parse the contingency table values from it.
+
+        Args:
+            in_str (str): The string output from the __str__ method
         """
         parts = in_str.split(";")
         for part in parts:
