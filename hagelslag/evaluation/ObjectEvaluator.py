@@ -13,25 +13,20 @@ class ObjectEvaluator(object):
     the forecasts with their assigned observations. Verification statistics can be calculated on the full dataset
     or on subsets selected based on filter queries.
 
-    Parameters
-    ----------
-    run_date : datetime.datetime object
-        The date marking the start of the model run.
-    ensemble_name : str
-        The name of the ensemble or NWP model being used.
-    enemble_member : str
-        The name of the ensemble member being evaluated.
-    model_names : list of str
-        The names of the machine learning models being evaluated
-    model_types : list of str
-        The types of machine learning models being evaluated. size, translation-x, translation-y, and start-time are
-        currently supported.
-    forecast_bins : dict of str and numpy.ndarray pairs
-        For machine learning models forecasting a discrete pdf, this specifies the bin labels used.
-    forecast_json_path : str
-        Full path to the directory containing all json files with the forecast values.
-    track_data_csv_path : str
-        Full path to the directory containing the csv data files used for training.
+    Attributes:
+        run_date (datetime.datetime): The date marking the start of the model run.
+        ensemble_name (str): The name of the ensemble or NWP model being used.
+        ensemble_member (str): The name of the ensemble member being evaluated.
+        model_names (list): The names of the machine learning models being evaluated
+        model_types (list): The types of machine learning models being evaluated.
+        forecast_bins (dict of str and numpy.ndarray pairs): For machine learning models forecasting a discrete pdf,
+            this specifies the bin labels used.
+        forecast_json_path (str): Full path to the directory containing all json files with the forecast values.
+        track_data_csv_path (str): Full path to the directory containing the csv data files used for training.
+        metadata_columns (list): Columns pulled from track data csv files.
+        type_cols (dict): Map between forecast type used in json files and observation column in csv files
+        forecasts (dict): Dictionary of DataFrames containing forecast information from csv files
+        matched_forecasts (dict): Forecasts merged with observation information.
 
     """
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
@@ -100,8 +95,8 @@ class ObjectEvaluator(object):
                                                  self.run_date.strftime("%Y%m%d"))
         track_step_file = self.track_data_csv_path + \
             "track_step_{0}_{1}_{2}.csv".format(self.ensemble_name,
-                                                 self.ensemble_member,
-                                                 self.run_date.strftime("%Y%m%d"))
+                                                self.ensemble_member,
+                                                self.run_date.strftime("%Y%m%d"))
         track_total_cols = ["Track_ID", "Translation_Error_X", "Translation_Error_Y", "Start_Time_Error"]
         track_step_cols = ["Step_ID", "Track_ID", "Hail_Size"]
         track_total_data = pd.read_csv(track_total_file, usecols=track_total_cols)
@@ -118,9 +113,9 @@ class ObjectEvaluator(object):
         for model_type in self.model_types:
             self.matched_forecasts[model_type] = {}
             for model_name in self.model_names:
-               self.matched_forecasts[model_type][model_name] = pd.merge(self.forecasts[model_type][model_name],
-                                                                         self.obs, right_on="Step_ID", how="left",
-                                                                         left_index=True)
+                self.matched_forecasts[model_type][model_name] = pd.merge(self.forecasts[model_type][model_name],
+                                                                          self.obs, right_on="Step_ID", how="left",
+                                                                          left_index=True)
 
     def crps(self, model_type, model_name, query=None):
         """
@@ -159,8 +154,9 @@ class ObjectEvaluator(object):
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         if len(self.forecast_bins[model_type]) > 1:
-            bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:, bin]
+            fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
+                                  fbin]
         else:
             forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         roc_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
@@ -183,9 +179,9 @@ class ObjectEvaluator(object):
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         if len(self.forecast_bins[model_type]) > 1:
-            bin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+            fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
             forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
-                                                                                                                  bin]
+                                  fbin]
         else:
             forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
         rel_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)

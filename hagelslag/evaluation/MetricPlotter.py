@@ -1,29 +1,47 @@
-import matplotlib
-matplotlib.use("agg")
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid.inset_locator import inset_axes
 
-def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Probability of False Detection",
-              ylabel="Probability of Detection", title="ROC Curve", ticks=np.arange(0, 1.1, 0.1), dpi=300,
-              legend_params=dict(loc=4, fontsize=10, framealpha=1, frameon=True)):
-    """
-    Draws ROC curves for a set of DistributedROC objects.
 
-    :param roc_objs: list or array of DistributedROC Objects.
-    :param obj_labels:
-    :param colors:
-    :param markers:
-    :param filename:
-    :param figsize:
-    :param xlabel:
-    :param ylabel:
-    :param ticks:
-    :param dpi:
-    :return:
+def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
+              xlabel="Probability of False Detection",
+              ylabel="Probability of Detection",
+              title="ROC Curve", ticks=np.arange(0, 1.1, 0.1), dpi=300,
+              legend_params=None):
     """
-    plt.figure(figsize=figsize)
+    Plots a set receiver/relative operating characteristic (ROC) curves from DistributedROC objects.
+
+    The ROC curve shows how well a forecast discriminates between two outcomes over a series of thresholds. It
+    features Probability of Detection (True Positive Rate) on the y-axis and Probability of False Detection
+    (False Alarm Rate) on the x-axis. This plotting function allows one to customize the colors and markers of the
+    ROC curves as well as the parameters of the legend and the title.
+
+    Args:
+        roc_objs (list): DistributedROC objects being plotted.
+        obj_labels (list): Label describing the forecast associated with a DistributedROC object.
+        colors (list): List of matplotlib-readable colors (names or hex-values) for each curve.
+        markers (list): Matplotlib marker (e.g. *, o, v, etc.) for each curve.
+        filename (str): Name of figure file being saved.
+        figsize (tuple): (Width, height) of the figure in inches.
+        xlabel (str): Label for the x-axis.
+        ylabel (str): Label for the y-axis.
+        title (str): The title of the figure.
+        ticks (numpy.ndarray): Values shown on the x and y axes.
+        dpi (int): Figure resolution in dots per inch.
+        legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
+
+    Examples:
+        >>>from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
+        >>>import numpy as np
+        >>>forecasts = np.random.random(1000)
+        >>>obs = np.random.random_integers(0, 1, 1000)
+        >>>roc = DistributedROC()
+        >>>roc.update(forecasts, obs)
+        >>>roc_curve([roc], ["Random"], ["orange"], ["o"], "random_roc.png")
+    """
+    if legend_params is None:
+        legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)
+    plt.figure(figsize=figsize, dpi=dpi)
     plt.plot(ticks, ticks, "k--")
     for r, roc_obj in enumerate(roc_objs):
         roc_data = roc_obj.roc_curve()
@@ -38,27 +56,51 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8), x
     plt.close()
 
 
-def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Success Ratio (1-FAR)",
-                        ylabel="Probability of Detection", ticks=np.arange(0, 1.1, 0.1), dpi=300, csi_cmap="Blues",
+def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
+                        xlabel="Success Ratio (1-FAR)",
+                        ylabel="Probability of Detection", ticks=np.arange(0, 1.1, 0.1),
+                        dpi=300, csi_cmap="Blues",
                         csi_label="Critical Success Index", title="Performance Diagram",
-                        legend_params=dict(loc=4, fontsize=10, framealpha=1, frameon=True)):
+                        legend_params=None):
     """
     Draws a performance diagram from a set of DistributedROC objects.
 
-    :param roc_objs: list or array of DistributedROC Objects.
-    :param obj_labels: list or array of labels describing each DistributedROC object.
-    :param colors: list of color strings
-    :param markers: list of markers.
-    :param filename: output filename.
-    :param figsize: tuple with size of the figure in inches.
-    :param xlabel: Label for the x-axis
-    :param ylabel: Label for the y-axis
-    :param ticks: Array of ticks used for x and y axes
-    :param dpi: DPI of the output image
-    :param csi_cmap: Colormap used for the CSI contours
-    :param csi_label: Label for the CSI colorbar
-    :return:
+    A performance diagram is a variation on the ROC curve in which the Probability of False Detection on the
+    x-axis has been replaced with the Success Ratio (1-False Alarm Ratio or Precision). The diagram also shows
+    the Critical Success Index (CSI or Threat Score) as a series of curved contours, and the frequency bias as
+    angled diagonal lines. Points along the 1:1 diagonal are unbiased, and better performing models should appear
+    in the upper right corner. The performance diagram is particularly useful for displaying verification for
+    severe weather warnings as it displays all three commonly used statistics (POD, FAR, and CSI) simultaneously
+    on the same chart.
+
+    Args:
+        roc_objs (list): DistributedROC objects being plotted.
+        obj_labels: list or array of labels describing each DistributedROC object.
+        obj_labels (list): Label describing the forecast associated with a DistributedROC object.
+        colors (list): List of matplotlib-readable colors (names or hex-values) for each curve.
+        markers (list): Matplotlib marker (e.g. *, o, v, etc.) for each curve.
+        filename (str): Name of figure file being saved.
+        figsize (tuple): (Width, height) of the figure in inches.
+        xlabel (str): Label for the x-axis.
+        ylabel (str): Label for the y-axis.
+        title (str): The title of the figure.
+        ticks (numpy.ndarray): Values shown on the x and y axes.
+        dpi (int): Figure resolution in dots per inch.
+        csi_cmap (str): Matplotlib colormap used to fill CSI contours.
+        csi_label (str): Label for CSI colormap.
+        legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
+
+    Examples:
+        >>>from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
+        >>>import numpy as np
+        >>>forecasts = np.random.random(1000)
+        >>>obs = np.random.random_integers(0, 1, 1000)
+        >>>roc = DistributedROC()
+        >>>roc.update(forecasts, obs)
+        >>>performance_diagram([roc], ["Random"], ["orange"], ["o"], "random_performance.png")
     """
+    if legend_params is None:
+        legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)
     plt.figure(figsize=figsize)
     grid_ticks = np.arange(0, 1.01, 0.01)
     sr_g, pod_g = np.meshgrid(grid_ticks, grid_ticks)

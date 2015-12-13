@@ -8,16 +8,9 @@ class ContingencyTable(object):
         Forecast    Yes  a  b
                     No   c  d
 
-    Parameters
-    ----------
-    a : int
-        Number of true positives or hits.
-    b : int
-        Number of false positives.
-    c : int
-        Number of false negatives or misses.
-    d : int
-        Number of true negatives.
+    Attributes:
+        table (numpy.ndarray): contingency table
+        N: total number of items in table
     """
     def __init__(self, a, b, c, d):
         self.table = np.array([[a, b], [c, d]], dtype=float)

@@ -45,6 +45,11 @@ class DistributedROC(object):
     objects can be combined by adding them together or by storing them in an iterable and summing the contents of the
     iterable together. This is especially useful when verifying large numbers of cases in parallel.
 
+    Attributes:
+        thresholds (numpy.ndarray): List of probability thresholds in increasing order.
+        obs_threshold (float):  Observation values >= obs_threshold are positive events.
+        contingency_tables (pandas.DataFrame): Stores contingency table counts for each probability threshold
+
     Examples:
         >>>import numpy as np
         >>>forecasts = np.random.random(size=1000)
@@ -52,11 +57,6 @@ class DistributedROC(object):
         >>>roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1)
         >>>roc.update(forecasts, obs)
         >>>print(roc.auc())
-
-    Attributes:
-        thresholds (numpy.ndarray): List of probability thresholds in increasing order.
-        obs_threshold (float):  Observation values >= obs_threshold are positive events.
-        contingency_tables (pandas.DataFrame): Stores contingency table counts for each probability threshold
     """
     def __init__(self, thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1.0, input_str=None):
         """
@@ -240,23 +240,38 @@ class DistributedReliability(object):
     """
     A container for the statistics required to generate reliability diagrams and calculate the Brier Score.
 
-    Parameters
-    ----------
-    thresholds : numpy.ndarray
-        Array of probability thresholds
-    obs_threshold : float
-        Split value for the observations
-    input_str : str
-        String containing information to initialize the object from a text representation.
+    DistributedReliabilty objects accept binary probabilistic forecasts and associated observations. The
+    forecasts are then discretized into the different probability bins. The total frequency and the frequency
+    of positive events for each probability bin are tracked. The Brier Score, Brier Skill Score, and
+    Brier score components can all be derived from this information. Like the DistributedROC object,
+    DistributedReliability objects can be summed together, and their contents can be output as a string.
+
+    Attributes:
+        thresholds (numpy.ndarray): Array of probability thresholds
+        obs_threshold (float): Split value (>=) for determining positive observation events
+        frequencies (pandas.DataFrame): Stores the total and positive frequencies for each bin
+
+    Examples:
+        >>>forecasts = np.random.random(1000)
+        >>>obs = np.random.random_integers(0, 1, 1000)
+        >>>rel = DistributedReliability()
+        >>>rel.update(forecasts, obs)
+        >>>print(rel.brier_score())
     """
-    def __init__(self, thresholds=None, obs_threshold=None, input_str=None):
+
+    def __init__(self, thresholds=np.arange(0, 1.1, 0.05), obs_threshold=1.0, input_str=None):
+        """
+        Initialize the DistributedReliability object.
+
+        Args:
+            thresholds (numpy.ndarray): Array of probability thresholds
+            obs_threshold (float): Split value for observations
+            input_str (str): String containing information to initialize the object from a text representation.
+        """
         self.thresholds = thresholds
         self.obs_threshold = obs_threshold
-        if self.thresholds is None:
-            self.frequencies = pd.DataFrame(columns=["Total_Freq", "Positive_Freq"])
-        else:
-            self.frequencies = pd.DataFrame(np.zeros((self.thresholds.size, 2), dtype=int),
-                                            columns=["Total_Freq", "Positive_Freq"])
+        self.frequencies = pd.DataFrame(np.zeros((self.thresholds.size, 2), dtype=int),
+                                        columns=["Total_Freq", "Positive_Freq"])
         if input_str is not None:
             self.from_str(input_str)
 
@@ -264,9 +279,9 @@ class DistributedReliability(object):
         """
         Update the statistics with a set of forecasts and observations.
 
-        :param forecasts:
-        :param observations:
-        :return:
+        Args:
+            forecasts (numpy.ndarray): Array of forecast probability values
+            observations (numpy.ndarray): Array of observation values
         """
         for t, threshold in enumerate(self.thresholds[:-1]):
             self.frequencies.loc[t, "Positive_Freq"] += np.count_nonzero((threshold <= forecasts) &
@@ -279,14 +294,23 @@ class DistributedReliability(object):
         """
         Add two DistributedReliability objects together and combine their values.
 
-        :param other: a DistributedReliability object
-        :return: a DistributedReliability Object
+        Args:
+            other: a DistributedReliability object
+
+        Returns:
+            A DistributedReliability Object
         """
         sum_rel = DistributedReliability(self.thresholds, self.obs_threshold)
         sum_rel.frequencies = self.frequencies + other.frequencies
         return sum_rel
 
     def merge(self, other_rel):
+        """
+        Ingest another DistributedReliability and add its contents to the current object.
+
+        Args:
+            other_rel: a Distributed reliability object.
+        """
         if other_rel.thresholds.size == self.thresholds.size and np.all(other_rel.thresholds == self.thresholds):
             self.frequencies += other_rel.frequencies
         else:
@@ -294,9 +318,10 @@ class DistributedReliability(object):
 
     def reliability_curve(self):
         """
-        Calculate the reliability diagram statistics.
+        Calculates the reliability diagram statistics. The key columns are Bin_Start and Positive_Relative_Freq
 
-        :return:
+        Returns:
+            pandas.DataFrame
         """
         total = self.frequencies["Total_Freq"].sum()
         curve = pd.DataFrame(columns=["Bin_Start", "Bin_End", "Bin_Center",
@@ -311,8 +336,6 @@ class DistributedReliability(object):
     def brier_score_components(self):
         """
         Calculate the components of the Brier score decomposition: reliability, resolution, and uncertainty.
-
-        :return:
         """
         rel_curve = self.reliability_curve()
         total = self.frequencies["Total_Freq"].sum()
@@ -325,13 +348,15 @@ class DistributedReliability(object):
         return reliability, resolution, uncertainty
 
     def climatology(self):
+        """
+        Calculates the sample climatological relative frequency of the event being forecast.
+
+        """
         return float(self.frequencies["Positive_Freq"].sum()) / self.frequencies["Total_Freq"].sum()
 
     def brier_score(self):
         """
         Calculate the Brier Score
-
-        :return:
         """
         reliability, resolution, uncertainty = self.brier_score_components()
         return reliability - resolution + uncertainty
@@ -339,8 +364,6 @@ class DistributedReliability(object):
     def brier_skill_score(self):
         """
         Calculate the Brier Skill Score
-
-        :return:
         """
         reliability, resolution, uncertainty = self.brier_score_components()
         return (resolution - reliability) / uncertainty
@@ -357,6 +380,13 @@ class DistributedReliability(object):
         return self.__str__()
 
     def from_str(self, in_str):
+        """
+        Updates the object attributes with the information contained in the input string
+
+        Args:
+            in_str (str): String output by the __str__ method containing all of the attribute values
+
+        """
         parts = in_str.split(";")
         for part in parts:
             var_name, value = part.split(":")
@@ -370,14 +400,11 @@ class DistributedReliability(object):
 
 class DistributedCRPS(object):
     """
-    A container for the statistics used to calculate the Continuous Ranked Probability Score
+    A container for the data used to calculate the Continuous Ranked Probability Score.
 
-    Parameters
-    ----------
-    thresholds : numpy.ndarray
-        Array of the intensity threshold bins
-    input_str : str
-        String containing the information for initializing the object from a storable text format.
+    Attributes:
+        thresholds (numpy.ndarray): Array of the intensity threshold bins
+        input_str (str): String containing the information for initializing the object
     """
     def __init__(self, thresholds=None, input_str=None):
         self.thresholds = thresholds
@@ -454,5 +481,16 @@ class DistributedCRPS(object):
 
 
 def bootstrap(score_objs, n_boot=1000):
+    """
+    Given a set of DistributedROC or DistributedReliability objects, this function performs a
+    bootstrap resampling of the objects and returns n_boot aggregations of them.
+
+    Args:
+        score_objs: A list of DistributedROC or DistributedReliability objects. Objects must have an __add__ method
+        n_boot (int): Number of bootstrap samples
+
+    Returns:
+        An array of DistributedROC or DistributedReliability
+    """
     all_samples = np.random.choice(score_objs, size=(n_boot, len(score_objs)), replace=True)
     return all_samples.sum(axis=1)
