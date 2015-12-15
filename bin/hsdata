@@ -357,6 +357,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
         start_date = run_date + timedelta(hours=forecast_track.start_time)
         end_date = run_date + timedelta(hours=forecast_track.end_time)
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
+        obs_track_id = "None"
         if config.train and track_errors is not None:
             if not np.isnan(track_errors.ix[f, 0]):
                 obs_track_num = track_errors.ix[f, 0]
