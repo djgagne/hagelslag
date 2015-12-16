@@ -8,24 +8,23 @@ class ModelOutput(object):
     """
     Container for the model output values and spatial coordinate information.
 
-    Parameters
-    ----------
-    ensemble_name : str
-        Name of the ensemble being loaded. Currently supports 'NCAR' and 'SSEF'.
-    member_name : str
-        Ensemble member being loaded.
-    run_date : datetime.datetime object
-        Date of the initial timestep of the model run.
-    variable : str
-        Variable being loaded.
-    start_date : datetime.datetime object
-        Date of the first timestep loaded.
-    end_date : datetime.datetime object
-        Date of the last timestep loaded.
-    path : str
-        Path to model output
-    single_step : boolean (default=True)
-        If true, each model timestep is in a separate file. If false, all timesteps are together in the same file.
+    Attributes:
+        ensemble_name : str
+            Name of the ensemble being loaded. Currently supports 'NCAR' and 'SSEF'.
+        member_name : str
+            Ensemble member being loaded.
+        run_date : datetime.datetime object
+            Date of the initial timestep of the model run.
+        variable : str
+            Variable being loaded.
+        start_date : datetime.datetime object
+            Date of the first timestep loaded.
+        end_date : datetime.datetime object
+            Date of the last timestep loaded.
+        path : str
+            Path to model output
+        single_step : boolean (default=True)
+            If true, each model timestep is in a separate file. If false, all timesteps are together in the same file.
     """
     def __init__(self, 
                  ensemble_name, 
@@ -89,8 +88,8 @@ class ModelOutput(object):
         """
         Load map projection information and create latitude, longitude, x, y, i, and j grids for the projection.
 
-        :param map_file: File specifying the projection information.
-        :return:
+        Args:
+            map_file: File specifying the projection information.
         """
         if self.ensemble_name.upper() == "SSEF":
             proj_dict, grid_dict = read_arps_map_file(map_file)

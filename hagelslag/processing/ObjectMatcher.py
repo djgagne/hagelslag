@@ -10,14 +10,10 @@ class ObjectMatcher(object):
     multiple cost functions to determine the distance between objects. Upper limits to each distance component are used
     to exclude the matching of objects that are too far apart.
 
-    Parameters
-    ----------
-    cost_function_components : list
-        List of distance functions for matching
-    weights : list
-        List of weights for each distance function
-    max_values : list
-        List of the maximum allowable distance for each distance function component.
+    Attributes:
+        cost_function_components: List of distance functions for matching
+        weights: List of weights for each distance function
+        max_values : List of the maximum allowable distance for each distance function component.
     """
 
     def __init__(self, cost_function_components, weights, max_values):
@@ -32,11 +28,14 @@ class ObjectMatcher(object):
         """
         Match two sets of objects at particular times.
 
-        :param set_a: list of STObjects
-        :param set_b: list of STObjects
-        :param time_a: time at which set_a is being evaluated for matching
-        :param time_b: time at which set_b is being evaluated for matching
-        :return: list of tuples containing (set_a index, set_b index) for each match
+        Args:
+            set_a: list of STObjects
+            set_b: list of STObjects
+            time_a: time at which set_a is being evaluated for matching
+            time_b: time at which set_b is being evaluated for matching
+
+        Returns:
+            List of tuples containing (set_a index, set_b index) for each match
         """
         costs = self.cost_matrix(set_a, set_b, time_a, time_b) * 100
         min_row_costs = costs.min(axis=1)
@@ -57,10 +56,15 @@ class ObjectMatcher(object):
         """
         Calculates the costs (distances) between the items in set a and set b at the specified times.
 
-        :param set_a: List of STObjects
-        :param set_b: List of STObjects
-        :param time_a: time at which objects in set_a are evaluated
-        :param time_b: time at whcih object in set_b are evaluated
+        Args:
+            set_a: List of STObjects
+            set_b: List of STObjects
+            time_a: time at which objects in set_a are evaluated
+            time_b: time at whcih object in set_b are evaluated
+
+        Returns:
+            A numpy array with shape [len(set_a), len(set_b)] containing the cost matrix between the items in set a
+            and the items in set b.
         """
         costs = np.zeros((len(set_a), len(set_b)))
         for a, item_a in enumerate(set_a):
@@ -71,6 +75,15 @@ class ObjectMatcher(object):
     def total_cost_function(self, item_a, item_b, time_a, time_b):
         """
         Calculate total cost function between two items.
+
+        Args:
+            item_a: STObject
+            item_b: STObject
+            time_a: Timestep in item_a at which cost function is evaluated
+            time_b: Timestep in item_b at which cost function is evaluated
+
+        Returns:
+            The total weighted distance between item_a and item_b
         """
         distances = np.zeros(len(self.weights))
         for c, component in enumerate(self.cost_function_components):

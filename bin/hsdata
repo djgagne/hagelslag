@@ -51,9 +51,10 @@ def process_ensemble_member(run_date, member, config):
     """
     Find forecast and observed tracks for one run of a storm-scale ensemble member.
 
-    :param run_date: datetime object containing the date of the model run
-    :param member: name of the ensemble member
-    :param config: Config object containing model parameters
+    Args:
+        run_date: datetime object containing the date of the model run
+        member: name of the ensemble member
+        config: Config object containing model parameters
     """
     try:
         print("Starting", run_date, member)
@@ -221,15 +222,20 @@ def rematch_ensemble_tracks(run_date, member, config):
 
 def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, observed_tracks=None, track_errors=None):
     """
-    Transform forecast track timesteps to csv and geojson format and output to files.
+    Calculate statistics about each model variable from the forecast track files and output the information to csv.
 
-    :param forecast_tracks: list of storm tracks found in the forecast model
-    :param run_date: datetime object with the start date and time of the model run
-    :param member: name of the ensemble member
-    :param config: Config object containing output parameters
-    :param proj: PyProj object
-    :param observed_tracks: list of storm trakcs found in the observation grid
-    :param track_errors: pandas dataframe containing track error information
+    Args:
+        forecast_tracks: list of storm tracks found in the forecast model
+        run_date: datetime object with the start date and time of the model run
+        member: name of the ensemble member
+        config: Config object containing output parameters
+        proj: PyProj object
+        observed_tracks: list of storm trakcs found in the observation grid
+        track_errors: pandas dataframe containing track error information
+
+    Returns:
+        A dictionary of pandas DataFrames that contain information about each track as well as the individual
+        steps within each track.
     """
     ensemble_name = config.ensemble_name
 
@@ -345,6 +351,18 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
 
 
 def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, observed_tracks=None, track_errors=None):
+    """
+    Write each forecast storm track to a geoJSON file.
+
+    Args:
+        forecast_tracks (list): List of STObjects containing forecast track information
+        run_date (datetime.datetime):  Date of the model run
+        member (str): Name of the ensemble member being processed
+        config: Config object
+        proj: pyproj object with map projection information for model grid
+        observed_tracks: List of STObjects for each observed storm track
+        track_errors: DataFrame containing information about space and time offsets between forecast and observed tracks
+    """
     ensemble_name = config.ensemble_name
     for f, forecast_track in enumerate(forecast_tracks):
         track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
@@ -391,6 +409,21 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
 
 
 def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairings, forecast_tracks):
+    """
+    Calculate statistics on observed storm tracks and out the information as a dataframe.
+
+    Args:
+        obs_tracks: List of observed storm tracks
+        member: Name of the ensemble member
+        run_date: Date of the model run
+        config: Config object
+        proj: pyproj object with map projection information
+        track_pairings: list of tuples containing indices of the forecast tracks and their matching observed track
+        forecast_tracks: List of forecast storm tracks.
+
+    Returns:
+        A dictionary of pandas dataframes with total and step information about each observed storm track.
+    """
     obs_total_track_columns = ["Obs_Track_ID", "Start_Date", "End_Date", "Duration", "Track_ID"]
     obs_step_track_columns = ["Step_ID", "Obs_Track_ID", "Date", "Forecast_Hour",
                               "Valid_Hour_UTC", "Duration",
@@ -449,6 +482,17 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
 
 
 def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
+    """
+    Write observed storm track information to geoJSON files.
+
+    Args:
+        obs_tracks: List of observed tracks
+        member: Name of the ensemble member
+        run_date: Date of the model run
+        config: Config object
+        proj: pyproj map projection
+
+    """
     for o, obs_track in enumerate(obs_tracks):
         obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
                                                                     run_date.strftime("%Y%m%d-%H%M"),

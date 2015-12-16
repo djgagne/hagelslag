@@ -10,18 +10,15 @@ class ModelGrid(object):
     Given a list of file names, loads the values of a single variable from a model run. Supports model output in
     netCDF format.
 
-    Parameters
-    ----------
-    filenames : list of str
-        List of netCDF files containing model output
-    run_date : ISO date string or datetime.datetime object
-        Date of the initialization time of the model run.
-    start_date : ISO date string or datetime.datetime object
-        Date of the first timestep extracted.
-    end_date : ISO date string or datetime.datetime object
-        Date of the last timestep extracted.
-    freqency : str (default="1H")
-        spacing between model time steps.
+    Attributes:
+        filenames (list of str): List of netCDF files containing model output
+        run_date (ISO date string or datetime.datetime object): Date of the initialization time of the model run.
+        start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
+        end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
+        freqency (str): spacing between model time steps.
+        valid_dates: DatetimeIndex of all model timesteps
+        forecast_hours: array of all hours in the forecast
+        file_objects (list): List of the file objects for each model time step
     """
     def __init__(self, 
                  filenames, 

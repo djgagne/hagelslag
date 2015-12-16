@@ -98,7 +98,7 @@ class ObjectEvaluator(object):
                                                 self.ensemble_member,
                                                 self.run_date.strftime("%Y%m%d"))
         track_total_cols = ["Track_ID", "Translation_Error_X", "Translation_Error_Y", "Start_Time_Error"]
-        track_step_cols = ["Step_ID", "Track_ID", "Hail_Size"]
+        track_step_cols = ["Step_ID", "Track_ID", "Hail_Size", ""]
         track_total_data = pd.read_csv(track_total_file, usecols=track_total_cols)
         track_step_data = pd.read_csv(track_step_file, usecols=track_step_cols)
         obs_data = pd.merge(track_step_data, track_total_data, on="Track_ID", how="left")
