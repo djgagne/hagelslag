@@ -3,6 +3,7 @@ import pandas as pd
 import json
 from glob import glob
 from ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
+from scipy.stats import gamma
 
 
 class ObjectEvaluator(object):
@@ -21,6 +22,7 @@ class ObjectEvaluator(object):
         model_types (list): The types of machine learning models being evaluated.
         forecast_bins (dict of str and numpy.ndarray pairs): For machine learning models forecasting a discrete pdf,
             this specifies the bin labels used.
+        dist_thresholds (array): Thresholds used to discretize probability distribution forecasts.
         forecast_json_path (str): Full path to the directory containing all json files with the forecast values.
         track_data_csv_path (str): Full path to the directory containing the csv data files used for training.
         metadata_columns (list): Columns pulled from track data csv files.
@@ -30,13 +32,14 @@ class ObjectEvaluator(object):
 
     """
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
-                 forecast_json_path, track_data_csv_path):
+                 dist_thresholds, forecast_json_path, track_data_csv_path):
         self.run_date = run_date
         self.ensemble_name = ensemble_name
         self.ensemble_member = ensemble_member
         self.model_names = model_names
         self.model_types = model_types
         self.forecast_bins = forecast_bins
+        self.dist_thresholds = dist_thresholds
         self.forecast_json_path = forecast_json_path
         self.track_data_csv_path = track_data_csv_path
         self.metadata_columns = ["Track_ID", "Obs_Track_ID", "Ensemble_Name", "Ensemble_Member", "Forecast_Hour",
@@ -44,7 +47,9 @@ class ObjectEvaluator(object):
         self.type_cols = {"size": "Hail_Size",
                           "translation-x": "Translation_Error_X",
                           "translation-y": "Translation_Error_Y",
-                          "start-time": "Start_Time_Error"}
+                          "start-time": "Start_Time_Error",
+                          "dist": ["Shape", "Location", "Scale"],
+                          "condition": "Hail_Size"}
         self.forecasts = {}
         self.obs = None
         self.matched_forecasts = {}
@@ -57,8 +62,6 @@ class ObjectEvaluator(object):
     def load_forecasts(self):
         """
         Loads the forecast files and gathers the forecast information into pandas DataFrames.
-
-        :return:
         """
         forecast_path = self.forecast_json_path + "/{0}/{1}/".format(self.run_date.strftime("%Y%m%d"),
                                                                      self.ensemble_member)
@@ -86,8 +89,6 @@ class ObjectEvaluator(object):
     def load_obs(self):
         """
         Loads the track total and step files and merges the information into a single data frame.
-
-        :return:
         """
         track_total_file = self.track_data_csv_path + \
             "track_total_{0}_{1}_{2}.csv".format(self.ensemble_name,
@@ -98,7 +99,7 @@ class ObjectEvaluator(object):
                                                 self.ensemble_member,
                                                 self.run_date.strftime("%Y%m%d"))
         track_total_cols = ["Track_ID", "Translation_Error_X", "Translation_Error_Y", "Start_Time_Error"]
-        track_step_cols = ["Step_ID", "Track_ID", "Hail_Size", ""]
+        track_step_cols = ["Step_ID", "Track_ID", "Hail_Size", "Shape", "Location", "Scale"]
         track_total_data = pd.read_csv(track_total_file, usecols=track_total_cols)
         track_step_data = pd.read_csv(track_step_file, usecols=track_step_cols)
         obs_data = pd.merge(track_step_data, track_total_data, on="Track_ID", how="left")
@@ -107,8 +108,6 @@ class ObjectEvaluator(object):
     def merge_obs(self):
         """
         Match forecasts and observations.
-
-        :return:
         """
         for model_type in self.model_types:
             self.matched_forecasts[model_type] = {}
@@ -121,68 +120,152 @@ class ObjectEvaluator(object):
         """
         Calculates the cumulative ranked probability score (CRPS) on the forecast data.
 
-        :param model_type: model type being evaluated.
-        :param model_name: machine learning model being evaluated.
-        :param query: pandas query string to filter the forecasts based on the metadata
-        :return: a DistributedCRPS object
+        Args:
+            model_type: model type being evaluated.
+            model_name: machine learning model being evaluated.
+            query: pandas query string to filter the forecasts based on the metadata
+
+        Returns:
+            a DistributedCRPS object
         """
+
+        def gamma_cdf(x, a, loc, b):
+            if a == 0 or b == 0:
+                cdf = np.ones(x.shape)
+            else:
+                cdf = gamma.cdf(x, a, loc, b)
+            return cdf
         crps_obj = DistributedCRPS(self.forecast_bins[model_type])
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+
+        else:
+            sub_forecasts = self.matched_forecasts[model_type][model_name]
+        if model_type == "dist":
+            forecast_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
+                                      for params in sub_forecasts[model_type][model_name][
+                                          self.forecast_bins[model_type]]])
+            obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
+                                 for params in sub_forecasts[model_type][model_name][self.forecast_bins[model_type]]])
+            crps_obj.update(forecast_cdfs, obs_cdfs)
+        else:
             crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
                             sub_forecasts[self.type_cols[model_type]].values)
-        else:
-            crps_obj.update(self.matched_forecasts[model_type][model_name][
-                                self.forecast_bins[model_type].astype(str)].values,
-                            self.matched_forecasts[model_type][model_name][self.type_cols[model_type]].values)
+
         return crps_obj
 
     def roc(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
         """
         Calculates a ROC curve at a specified intensity threshold.
 
-        :param model_type: type of model being evaluated (e.g. size).
-        :param model_name: machine learning model being evaluated
-        :param intensity_threshold: forecast bin used as the split point for evaluation
-        :param prob_thresholds: Array of probability thresholds being evaluated.
-        :param query: str to filter forecasts based on values of forecasts, obs, and metadata.
-        :return: a DistributedROC object
+        Args:
+            model_type: type of model being evaluated (e.g. size).
+            model_name: machine learning model being evaluated
+            intensity_threshold: forecast bin used as the split point for evaluation
+            prob_thresholds: Array of probability thresholds being evaluated.
+            query: str to filter forecasts based on values of forecasts, obs, and metadata.
+
+        Returns:
+             A DistributedROC object
         """
-        roc_obj = DistributedROC(prob_thresholds, intensity_threshold)
+        roc_obj = DistributedROC(prob_thresholds, 1)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
-        if len(self.forecast_bins[model_type]) > 1:
+        obs_values = np.zeros(sub_forecasts.shape[0])
+        if model_type == "dist":
+            forecast_values = np.array([gamma_sf(intensity_threshold, *params)
+                                        for params in sub_forecasts[model_type][model_name][
+                                            self.forecast_bins[model_type]]])
+            obs_probs = np.array([gamma_sf(intensity_threshold, *params)
+                                  for params in sub_forecasts[model_type][model_name][
+                                      self.type_cols[model_type]]])
+            obs_values[obs_probs >= 0.01] = 1
+        elif len(self.forecast_bins[model_type]) > 1:
             fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
             forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
                                   fbin]
+            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
         else:
             forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
-        roc_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
+            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+        roc_obj.update(forecast_values, obs_values)
         return roc_obj
 
     def reliability(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
         """
         Calculate reliability statistics based on the probability of exceeding a specified threshold.
 
-        :param model_type: type of model being evaluated.
-        :param model_name: Name of the machine learning model being evaluated.
-        :param intensity_threshold: forecast bin used as the split point for evaluation.
-        :param prob_thresholds: Array of probability thresholds being evaluated.
-        :param query: str to filter forecasts based on values of forecasts, obs, and metadata.
-        :return: a DistributedReliability object.
+        Args:
+            model_type: type of model being evaluated.
+            model_name: Name of the machine learning model being evaluated.
+            intensity_threshold: forecast bin used as the split point for evaluation.
+            prob_thresholds: Array of probability thresholds being evaluated.
+            query: str to filter forecasts based on values of forecasts, obs, and metadata.
+
+        Returns:
+            A DistributedReliability object.
         """
-        rel_obj = DistributedReliability(prob_thresholds, intensity_threshold)
+        rel_obj = DistributedReliability(prob_thresholds, 1)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
-        if len(self.forecast_bins[model_type]) > 1:
+        obs_values = np.zeros(sub_forecasts.shape[0])
+        if model_type == "dist":
+            forecast_values = np.array([gamma_sf(intensity_threshold, *params)
+                                        for params in sub_forecasts[model_type][model_name][
+                                            self.forecast_bins[model_type]]])
+            obs_probs = np.array([gamma_sf(intensity_threshold, *params)
+                                  for params in sub_forecasts[model_type][model_name][
+                                      self.type_cols[model_type]]])
+            obs_values[obs_probs >= 0.01] = 1
+        elif len(self.forecast_bins[model_type]) > 1:
             fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
             forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
                                   fbin]
+            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
         else:
             forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
-        rel_obj.update(forecast_values, sub_forecasts[self.type_cols[model_type]].values)
+            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+        rel_obj.update(forecast_values, obs_values)
         return rel_obj
+
+    def sample_max_hail(self, dist_model_name, condition_model_name, num_samples, condition_threshold=0.5):
+        """
+        Samples every forecast hail object and returns an empirical distribution of possible maximum hail sizes.
+
+        Hail sizes are sampled from each predicted gamma distribution. The total number of samples equals
+        num_samples * area of the hail object. To get the maximum hail size for each realization, the maximum
+        value within each area sample is used.
+
+        Args:
+            dist_model_name: Name of the distribution machine learning model being evaluated
+            condition_model_name: Name of the hail/no-hail model being evaluated
+            num_samples: Number of maximum hail samples to draw
+            condition_threshold: Threshold for drawing hail samples
+
+        Returns:
+            A numpy array containing maximum hail samples for each forecast object.
+        """
+        max_hail_samples = np.zeros((self.forecasts["dist"][dist_model_name].shape[0], num_samples))
+        dist_forecasts = self.forecasts["dist"][dist_model_name][self.forecast_bins["dist"]]
+        for f in np.arange(dist_forecasts.shape[0]):
+            condition_prob = self.forecasts["condition"][condition_model_name].loc[f, self.forecast_bins["condition"]]
+            if condition_prob >= condition_threshold:
+                max_hail_samples[f] = np.sort(gamma.rvs(*dist_forecasts.loc[f].values,
+                                                        size=(num_samples,
+                                                              dist_forecasts.loc[f, "Area"])).max(axis=1))
+        return max_hail_samples
+
+    def evaluate_max_hail_samples(self):
+        pass
+
+
+def gamma_sf(x, a, loc, b):
+    if a == 0 or b == 0:
+        sf = 0
+    else:
+        sf = gamma.sf(x, a, loc, b)
+    return sf

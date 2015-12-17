@@ -1,7 +1,8 @@
-__author__ = "David John Gagne <djgagne@ou.edu>"
 import numpy as np
 import pandas as pd
 from ContingencyTable import ContingencyTable
+
+__author__ = "David John Gagne <djgagne@ou.edu>"
 
 
 class ROC(object):
@@ -18,14 +19,10 @@ class ROC(object):
     def calc_roc(self):
         ct = ContingencyTable(0, 0, 0, 0)
         for t, threshold in enumerate(self.thresholds):
-            tp = np.count_nonzero((self.forecasts >= threshold)
-                                  & (self.observations >= self.obs_threshold))
-            fp = np.count_nonzero((self.forecasts >= threshold)
-                                  & (self.observations < self.obs_threshold))
-            fn = np.count_nonzero((self.forecasts < threshold)
-                                  & (self.observations >= self.obs_threshold))
-            tn = np.count_nonzero((self.forecasts < threshold)
-                                  & (self.observations < self.obs_threshold))
+            tp = np.count_nonzero((self.forecasts >= threshold) & (self.observations >= self.obs_threshold))
+            fp = np.count_nonzero((self.forecasts >= threshold) & (self.observations < self.obs_threshold))
+            fn = np.count_nonzero((self.forecasts < threshold) & (self.observations >= self.obs_threshold))
+            tn = np.count_nonzero((self.forecasts < threshold) & (self.observations < self.obs_threshold))
             ct.update(tp, fp, fn, tn)
             self.pod[t] = ct.pod()
             self.pofd[t] = ct.pofd()
@@ -84,14 +81,13 @@ class DistributedROC(object):
             observations: 1D array of observation values.
         """
         for t, threshold in enumerate(self.thresholds):
-            tp = np.count_nonzero((forecasts >= threshold)
-                                  & (observations >= self.obs_threshold))
-            fp = np.count_nonzero((forecasts >= threshold)
-                                  & (observations < self.obs_threshold))
-            fn = np.count_nonzero((forecasts < threshold)
-                                  & (observations >= self.obs_threshold))
-            tn = np.count_nonzero((forecasts < threshold)
-                                  & (observations < self.obs_threshold))
+            tp = np.count_nonzero((forecasts >= threshold) & (observations >= self.obs_threshold))
+            fp = np.count_nonzero((forecasts >= threshold) &
+                                  (observations < self.obs_threshold))
+            fn = np.count_nonzero((forecasts < threshold) &
+                                  (observations >= self.obs_threshold))
+            tn = np.count_nonzero((forecasts < threshold) &
+                                  (observations < self.obs_threshold))
             self.contingency_tables.ix[t] += [tp, fp, fn, tn]
 
     def __add__(self, other):
@@ -227,7 +223,7 @@ class Reliability(object):
     def brier_skill_score(self):
         obs_truth = np.where(self.observations >= self.obs_threshold, 1, 0)
         climo_freq = obs_truth.sum() / float(obs_truth.size)
-        bs_climo = np.mean((climo_freq - obs_truth) **2)
+        bs_climo = np.mean((climo_freq - obs_truth) ** 2)
         bs = self.brier_score()
         return 1.0 - bs / bs_climo
 
@@ -341,7 +337,7 @@ class DistributedReliability(object):
         total = self.frequencies["Total_Freq"].sum()
         climo_freq = float(self.frequencies["Positive_Freq"].sum()) / self.frequencies["Total_Freq"].sum()
         reliability = np.sum(self.frequencies["Total_Freq"] * (rel_curve["Bin_Start"] -
-                                                                rel_curve["Positive_Relative_Freq"]) ** 2) / total
+                                                               rel_curve["Positive_Relative_Freq"]) ** 2) / total
         resolution = np.sum(self.frequencies["Total_Freq"] * (rel_curve["Positive_Relative_Freq"] - climo_freq) ** 2) \
                      / total
         uncertainty = climo_freq * (1 - climo_freq)
@@ -406,14 +402,10 @@ class DistributedCRPS(object):
         thresholds (numpy.ndarray): Array of the intensity threshold bins
         input_str (str): String containing the information for initializing the object
     """
-    def __init__(self, thresholds=None, input_str=None):
+
+    def __init__(self, thresholds, input_str=None):
         self.thresholds = thresholds
-        if self.thresholds is None:
-            self.errors = pd.DataFrame(columns=["Errors", "Pos_Counts"])
-        else:
-            self.errors = pd.DataFrame({"Errors":np.zeros(self.thresholds.size), 
-                                        "Pos_Counts":np.zeros(self.thresholds.size, dtype=int)}, 
-                                       columns=["Errors", "Pos_Counts"])
+        self.errors = np.zeros(thresholds.size)
         self.num_forecasts = 0
         if input_str is not None:
             self.from_str(input_str)
@@ -422,16 +414,22 @@ class DistributedCRPS(object):
         """
         Update the statistics with forecasts and observations.
 
-        :param forecasts:
-        :param observations:
+        Args:
+            forecasts:
+            observations:
         :return:
         """
-        forecast_cdfs = np.cumsum(forecasts, axis=1)
-        obs_cdfs = np.zeros((observations.size, self.thresholds.size))
-        for o, observation in enumerate(observations):
-            obs_cdfs[o, self.thresholds >= observation] = 1
+        if forecasts.max() < 0.9:
+            forecast_cdfs = np.cumsum(forecasts, axis=1)
+        else:
+            forecast_cdfs = forecasts
+        if len(observations.shape) == 1:
+            obs_cdfs = np.zeros((observations.size, self.thresholds.size))
+            for o, observation in enumerate(observations):
+                obs_cdfs[o, self.thresholds >= observation] = 1
+        else:
+            obs_cdfs = observations
         self.errors["Errors"] += np.sum((forecast_cdfs - obs_cdfs) ** 2, axis=0)
-        self.errors["Pos_Counts"] += np.sum(obs_cdfs, axis=0)
         self.num_forecasts += forecasts.shape[0]
 
     def __add__(self, other):
@@ -462,17 +460,14 @@ class DistributedCRPS(object):
             if var_name == "Thresholds":
                 self.thresholds = np.array(value.split(), dtype=float)
             elif var_name == "Errors":
-                self.errors["Errors"] = np.array(value.split(), dtype=float)
-            elif var_name == "Pos_Counts":
-                self.errors["Pos_Counts"] = np.array(value.split(), dtype=int)
+                self.errors = np.array(value.split(), dtype=float)
             elif var_name == "Num_Forecasts":
                 self.num_forecasts = int(value)
 
     def __str__(self):
         out_str = ""
         out_str += "Thresholds:" + " ".join(["{0:0.2f}".format(t) for t in self.thresholds]) + ";"
-        out_str += "Errors:" + " ".join(["{0:0.3f}".format(e) for e in self.errors["Errors"]]) + ";"
-        out_str += "Pos_Counts:" + " ".join("{0:d}".format(int(e)) for e in self.errors["Pos_Counts"]) + ";"
+        out_str += "Errors:" + " ".join(["{0:0.3f}".format(e) for e in self.errors]) + ";"
         out_str += "Num_Forecasts:{0:d}".format(self.num_forecasts)
         return out_str
 
