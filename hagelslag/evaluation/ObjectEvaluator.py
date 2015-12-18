@@ -138,7 +138,6 @@ class ObjectEvaluator(object):
         crps_obj = DistributedCRPS(self.forecast_bins[model_type])
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
-
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         if model_type == "dist":
@@ -171,6 +170,7 @@ class ObjectEvaluator(object):
         roc_obj = DistributedROC(prob_thresholds, 1)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+            sub_forecasts = sub_forecasts.reset_index(drop=True)
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         obs_values = np.zeros(sub_forecasts.shape[0])
@@ -232,7 +232,8 @@ class ObjectEvaluator(object):
         rel_obj.update(forecast_values, obs_values)
         return rel_obj
 
-    def sample_max_hail(self, dist_model_name, condition_model_name, num_samples, condition_threshold=0.5):
+    def sample_forecast_max_hail(self, dist_model_name, condition_model_name,
+                                 num_samples, condition_threshold=0.5, query=None):
         """
         Samples every forecast hail object and returns an empirical distribution of possible maximum hail sizes.
 
@@ -245,22 +246,53 @@ class ObjectEvaluator(object):
             condition_model_name: Name of the hail/no-hail model being evaluated
             num_samples: Number of maximum hail samples to draw
             condition_threshold: Threshold for drawing hail samples
+            query: A str that selects a subset of the data for evaluation
 
         Returns:
             A numpy array containing maximum hail samples for each forecast object.
         """
-        max_hail_samples = np.zeros((self.forecasts["dist"][dist_model_name].shape[0], num_samples))
-        dist_forecasts = self.forecasts["dist"][dist_model_name][self.forecast_bins["dist"]]
+        if query is not None:
+            dist_forecasts = self.forecasts["dist"][dist_model_name].query(query)
+            dist_forecasts = dist_forecasts.reset_index(drop=True)
+            condition_forecasts = self.forecasts["condition"][condition_model_name].query(query)
+            condition_forecasts = condition_forecasts.reset_index(drop=True)
+        else:
+            dist_forecasts = self.forecasts["dist"][dist_model_name]
+            condition_forecasts = self.forecasts["condition"][condition_model_name]
+        max_hail_samples = np.zeros((dist_forecasts.shape[0], num_samples))
+        areas = dist_forecasts["Area"].values
         for f in np.arange(dist_forecasts.shape[0]):
-            condition_prob = self.forecasts["condition"][condition_model_name].loc[f, self.forecast_bins["condition"]]
+            condition_prob = condition_forecasts.loc[f, self.forecast_bins["condition"]]
             if condition_prob >= condition_threshold:
-                max_hail_samples[f] = np.sort(gamma.rvs(*dist_forecasts.loc[f].values,
-                                                        size=(num_samples,
-                                                              dist_forecasts.loc[f, "Area"])).max(axis=1))
+                max_hail_samples[f] = np.sort(gamma.rvs(*dist_forecasts.loc[f, self.forecast_bins["dist"]].values,
+                                                        size=(num_samples, areas[f])).max(axis=1))
         return max_hail_samples
 
-    def evaluate_max_hail_samples(self):
-        pass
+    def sample_obs_max_hail(self, dist_model_name, num_samples, query=None):
+        if query is not None:
+            dist_obs = self.forecasts["dist"][dist_model_name].query(query)
+            dist_obs = dist_obs.reset_index(drop=True)
+        else:
+            dist_obs = self.forecasts["dist"][dist_model_name]
+        max_hail_samples = np.zeros((dist_obs.shape[0], num_samples))
+        areas = dist_obs["Area"].values
+        for f in np.arange(dist_obs.shape[0]):
+            dist_params = dist_obs.loc[f, self.type_cols["dist"]].values
+            if dist_params[0] > 0:
+                max_hail_samples[f] = np.sort(gamma.rvs(*dist_params,
+                                                        size=(num_samples, areas[f])).max(axis=1))
+        return max_hail_samples
+
+    def max_hail_sample_crps(self, forecast_max_hail, obs_max_hail):
+        crps = DistributedCRPS(thresholds=self.dist_thresholds)
+        forecast_cdfs = np.array([np.searchsorted(fs, self.dist_thresholds) for fs in forecast_max_hail]) /\
+            float(forecast_max_hail.shape[1])
+        obs_cdfs = np.array([np.searchsorted(obs, self.dist_thresholds) for obs in obs_max_hail]) /\
+            float(obs_max_hail.shape[1])
+        crps.update(forecast_cdfs, obs_cdfs)
+        return crps
+
+
 
 
 def gamma_sf(x, a, loc, b):

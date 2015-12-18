@@ -11,6 +11,8 @@ from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
 from hagelslag.evaluation.GridEvaluator import GridEvaluator
 from hagelslag.evaluation.NeighborEvaluator import NeighborEvaluator
 
+score_counter = 0
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -29,39 +31,47 @@ def main():
     num_procs = args.proc
     if args.obj:
         evaluate_objects(config, num_procs)
-        #all_scores.to_csv(config.out_path + config.obj_scores_file, index_label="Index")
     if args.grid:
         evaluate_grids(config, num_procs)
-        #grid_scores.to_csv(config.out_path + config.grid_scores_file, index_label="Index")
     if args.neighbor:
         evaluate_neighborhood_probabilities(config, num_procs)
     return
 
 
 def evaluate_objects(config, num_procs):
+    """
+    Evaluates the individual object forecasts.
+
+    Args:
+        config:
+        num_procs:
+
+    Returns:
+
+    """
     pool = Pool(num_procs)
     run_dates = pd.DatetimeIndex(start=config.start_date,
                                  end=config.end_date, freq="1D")
     ensemble_members = config.ensemble_members
-    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "Forecast_Hour", "CRPS"]
-    score_columns += ["ROC_{0:d}".format(int(t)) for t in config.object_thresholds]
-    score_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
-    score_list = []
+    score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "Forecast_Hour"]
 
-    def append_scores(score_set):
-        score_list.append(score_set)
-        if len(score_list) == 1:
-            score_set.to_csv(config.out_path + config.obj_scores_file, index_label="Index")
+    def append_scores(score_dict):
+        global score_counter
+        if score_counter == 0:
+            for model_type, scores in score_dict.itemitems():
+                scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
+                              index_label="Index")
         else:
-            score_set.to_csv(config.out_path + config.obj_scores_file, mode="a", index_label="Index", header=False)
-
+            for model_type, scores in score_dict.itemitems():
+                scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
+                              mode="a", index_label="Index", header=False)
+        score_counter += 1
     for run_date in run_dates:
         for member in ensemble_members:
             pool.apply_async(evaluate_object_run, (run_date, member, config, score_columns),
                              callback=append_scores)
     pool.close()
     pool.join()
-    return pd.concat(score_list)
 
 
 def evaluate_object_run(run_date, ensemble_member, config, score_columns):
@@ -69,35 +79,70 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
         run_id = "{0} {1}".format(run_date, ensemble_member) 
         print("Starting " + run_id)
         object_eval = ObjectEvaluator(run_date, config.ensemble_name, ensemble_member, config.model_names,
-                                    config.model_types, config.forecast_bins, config.forecast_json_path,
-                                    config.track_data_csv_path)
+                                      config.model_types, config.forecast_bins, config.dist_thresholds,
+                                      config.forecast_json_path, config.track_data_csv_path)
         print("Loading forecasts " + run_id)
         object_eval.load_forecasts()
         print("Loading obs" + run_id)
         object_eval.load_obs()
         print("Merging obs" + run_id)
         object_eval.merge_obs()
-        scores = pd.DataFrame(columns=score_columns)
+        scores = {}
+        for model_type in config.model_types:
+            if model_type == "condition":
+                extra_columns = ["ROC_0", "Rel_0"]
+            elif model_type == "dist":
+                extra_columns = ["ROC_{0:d}".format(int(t)) for t in config.object_thresholds]
+                extra_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
+                extra_columns += ["CRPS", "CRPS_Max"]
+            else:
+                extra_columns = ["ROC_{0:d}".format(int(t)) for t in config.object_thresholds]
+                extra_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
+                extra_columns += ["CRPS"]
+            scores[model_type] = pd.DataFrame(columns=score_columns + extra_columns)
         query_start = "(Hail_Size>0)"
         forecast_hours = np.arange(config.start_hour, config.end_hour + 1, dtype=int)
         for model_type in config.model_types:
-            for model_name in config.model_names:
+            for model_name in config.model_names[model_type]:
                 for forecast_hour in forecast_hours:
+                    print(run_date, ensemble_member, model_type, model_name, forecast_hour)
                     index = "{0}_{1}_{2}_{3}_{4}_{5:d}".format(run_date.strftime("%Y%m%d"), config.ensemble_name,
                                                                ensemble_member, model_name, model_type, forecast_hour)
                     print(index)
                     query = query_start + " & " + "(Forecast_Hour == {0:d})".format(forecast_hour)
-                    crps = object_eval.crps(model_type, model_name, query=query)
+                    crps = None
+                    max_crps = None
+                    if model_type != "condition":
+                        crps = object_eval.crps(model_type, model_name, query=query)
+                    if model_type == "dist":
+                        forecast_max_hail = object_eval.sample_forecast_max_hail(model_name,
+                                                                                 config.model_names["condition"][0],
+                                                                                 config.num_max_samples,
+                                                                                 config.condition_threshold,
+                                                                                 query=query)
+                        obs_max_hail = object_eval.sample_obs_max_hail(model_name,
+                                                                       config.num_max_samples,
+                                                                       query=query)
+                        max_crps = object_eval.max_hail_sample_crps(forecast_max_hail, obs_max_hail)
                     rocs = []
                     rels = []
-                    for threshold in config.object_thresholds:
-                        rocs.append(object_eval.roc(model_type, model_name, threshold,
-                                                    config.forecast_thresholds, query=query))
-                        rels.append(object_eval.reliability(model_type, model_name, threshold,
+                    if model_type == "condition":
+                        rocs.append(object_eval.roc(model_type, model_name, 1, config.forecast_thresholds, query=query))
+                        rels.append(object_eval.reliability(model_type, model_name, 1,
                                                             config.forecast_thresholds, query=query))
-                    row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, forecast_hour, crps]
+                    else:
+                        for threshold in config.object_thresholds:
+                            rocs.append(object_eval.roc(model_type, model_name,
+                                                        threshold, config.forecast_thresholds, query=query))
+                            rels.append(object_eval.reliability(model_type, model_name,
+                                                                threshold, config.forecast_thresholds, query=query))
+                    row = [run_date, config.ensemble_name, ensemble_member, model_name, model_type, forecast_hour]
                     row += rocs + rels
-                    scores.loc[index] = row
+                    if model_type != "condition":
+                        row += [crps]
+                    if model_type == "dist":
+                        row += [max_crps]
+                    scores[model_type].loc[index] = row
         return scores
     except Exception as e:
         print(traceback.format_exc())
@@ -195,7 +240,11 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     """
     pool = Pool(num_procs)
     run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
-    
+    if os.access(config.neighbor_score_path + "period_scores.csv", os.R_OK):
+        os.remove(config.neighbor_score_path + "period_scores.csv")
+    if os.access(config.neighbor_score_path + "hour_scores.csv", os.R_OK):
+        os.remove(config.neighbor_score_path + "hour_scores.csv")
+
     def save_scores(output):
         hour_scores = output[0]
         period_scores = output[1]
@@ -208,6 +257,7 @@ def evaluate_neighborhood_probabilities(config, num_procs):
                                header=False)
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index", mode="a",
                                  header=False)
+
     for run_date in run_dates:
         forecast_files = glob(config.neighbor_path + "{0}/*.nc".format(run_date.strftime("%Y%m%d")))
         for forecast_file in forecast_files:
