@@ -135,7 +135,8 @@ class ObjectEvaluator(object):
             else:
                 cdf = gamma.cdf(x, a, loc, b)
             return cdf
-        crps_obj = DistributedCRPS(self.forecast_bins[model_type])
+
+        crps_obj = DistributedCRPS(self.dist_thresholds)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
         else:
@@ -143,9 +144,10 @@ class ObjectEvaluator(object):
         if model_type == "dist":
             forecast_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
                                       for params in sub_forecasts[model_type][model_name][
-                                          self.forecast_bins[model_type]]])
+                                          self.forecast_bins[model_type]].values])
             obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
-                                 for params in sub_forecasts[model_type][model_name][self.forecast_bins[model_type]]])
+                                 for params in sub_forecasts[model_type][model_name][
+                                     self.type_cols[model_type]].values])
             crps_obj.update(forecast_cdfs, obs_cdfs)
         else:
             crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
