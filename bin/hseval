@@ -58,11 +58,11 @@ def evaluate_objects(config, num_procs):
     def append_scores(score_dict):
         global score_counter
         if score_counter == 0:
-            for model_type, scores in score_dict.itemitems():
+            for model_type, scores in score_dict.iteritems():
                 scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
                               index_label="Index")
         else:
-            for model_type, scores in score_dict.itemitems():
+            for model_type, scores in score_dict.iteritems():
                 scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
                               mode="a", index_label="Index", header=False)
         score_counter += 1
