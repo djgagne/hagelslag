@@ -411,8 +411,8 @@ class DistributedCRPS(object):
 
     def __init__(self, thresholds=np.arange(0, 200.0), input_str=None):
         self.thresholds = thresholds
-        crps_columns = ["F^2", "F_O", "O^2", "O"]
-        self.errors = pd.DataFrame(index=thresholds, columns=crps_columns,
+        crps_columns = ["F_2", "F_O", "O_2", "O"]
+        self.errors = pd.DataFrame(columns=crps_columns,
                                    data=np.zeros((len(thresholds), len(crps_columns))), dtype=float)
         self.num_forecasts = 0
         if input_str is not None:
@@ -432,9 +432,9 @@ class DistributedCRPS(object):
                 obs_cdfs[o, self.thresholds >= observation] = 1
         else:
             obs_cdfs = observations
-        self.errors["F^2"] += np.sum(forecasts ** 2, axis=0)
+        self.errors["F_2"] += np.sum(forecasts ** 2, axis=0)
         self.errors["F_O"] += np.sum(forecasts * obs_cdfs, axis=0)
-        self.errors["O^2"] += np.sum(obs_cdfs ** 2, axis=0)
+        self.errors["O_2"] += np.sum(obs_cdfs ** 2, axis=0)
         self.errors["O"] += np.sum(obs_cdfs, axis=0)
         self.num_forecasts += forecasts.shape[0]
 
@@ -455,7 +455,7 @@ class DistributedCRPS(object):
         """
         Calculates the continuous ranked probability score.
         """
-        return np.sum(self.errors["F^2"].values - self.errors["F_0"].values * 2.0 + self.errors["O^2"].values) / \
+        return np.sum(self.errors["F_2"].values - self.errors["F_O"].values * 2.0 + self.errors["O_2"].values) / \
             (self.thresholds.size * self.num_forecasts)
 
     def crps_climo(self):
@@ -464,7 +464,7 @@ class DistributedCRPS(object):
         """
         o_bar = np.sum(self.errors["O"].values) / self.num_forecasts
         crps_c = np.sum(self.num_forecasts * o_bar ** 2 - 2 * o_bar * self.errors["O"].values +
-                        self.errors["O^2"].values) / (self.thresholds.size * self.num_forecasts)
+                        self.errors["O_2"].values) / (self.thresholds.size * self.num_forecasts)
         return crps_c
 
     def crpss(self):
@@ -481,7 +481,8 @@ class DistributedCRPS(object):
             var_name, value = part.split(":")
             if var_name == "Thresholds":
                 self.thresholds = np.array(value.split(), dtype=float)
-                self.errors = pd.DataFrame(data=np.zeros((self.thresholds.size, self.errors.columns.size)))
+                self.errors = pd.DataFrame(data=np.zeros((self.thresholds.size, self.errors.columns.size)),
+                                           columns=self.errors.columns)
             elif var_name in self.errors.columns:
                 self.errors[var_name] = np.array(value.split(), dtype=float)
             elif var_name == "Num_Forecasts":
