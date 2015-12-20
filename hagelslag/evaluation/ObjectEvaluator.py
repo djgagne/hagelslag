@@ -139,19 +139,20 @@ class ObjectEvaluator(object):
         crps_obj = DistributedCRPS(self.dist_thresholds)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+            sub_forecasts = sub_forecasts.reset_index(drop=True)
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
-        if model_type == "dist":
-            forecast_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
-                                      for params in sub_forecasts[model_type][model_name][
-                                          self.forecast_bins[model_type]].values])
-            obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
-                                 for params in sub_forecasts[model_type][model_name][
-                                     self.type_cols[model_type]].values])
-            crps_obj.update(forecast_cdfs, obs_cdfs)
-        else:
-            crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
-                            sub_forecasts[self.type_cols[model_type]].values)
+        if sub_forecasts.shape[0] > 0:
+            if model_type == "dist":
+                
+                forecast_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
+                                        for params in sub_forecasts[self.forecast_bins[model_type]].values])
+                obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
+                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                crps_obj.update(forecast_cdfs, obs_cdfs)
+            else:
+                crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
+                                sub_forecasts[self.type_cols[model_type]].values)
 
         return crps_obj
 
@@ -176,23 +177,22 @@ class ObjectEvaluator(object):
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         obs_values = np.zeros(sub_forecasts.shape[0])
-        if model_type == "dist":
-            forecast_values = np.array([gamma_sf(intensity_threshold, *params)
-                                        for params in sub_forecasts[model_type][model_name][
-                                            self.forecast_bins[model_type]]])
-            obs_probs = np.array([gamma_sf(intensity_threshold, *params)
-                                  for params in sub_forecasts[model_type][model_name][
-                                      self.type_cols[model_type]]])
-            obs_values[obs_probs >= 0.01] = 1
-        elif len(self.forecast_bins[model_type]) > 1:
-            fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
-                                  fbin]
-            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
-        else:
-            forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
-            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
-        roc_obj.update(forecast_values, obs_values)
+        if sub_forecasts.shape[0] > 0:
+            if model_type == "dist":
+                forecast_values = np.array([gamma_sf(intensity_threshold, *params)
+                                            for params in sub_forecasts[self.forecast_bins[model_type]].values])
+                obs_probs = np.array([gamma_sf(intensity_threshold, *params)
+                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                obs_values[obs_probs >= 0.01] = 1
+            elif len(self.forecast_bins[model_type]) > 1:
+                fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+                forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
+                                    fbin]
+                obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+            else:
+                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+                obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+            roc_obj.update(forecast_values, obs_values)
         return roc_obj
 
     def reliability(self, model_type, model_name, intensity_threshold, prob_thresholds, query=None):
@@ -212,26 +212,26 @@ class ObjectEvaluator(object):
         rel_obj = DistributedReliability(prob_thresholds, 1)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
+            sub_forecasts = sub_forecasts.reset_index(drop=True)
         else:
             sub_forecasts = self.matched_forecasts[model_type][model_name]
         obs_values = np.zeros(sub_forecasts.shape[0])
-        if model_type == "dist":
-            forecast_values = np.array([gamma_sf(intensity_threshold, *params)
-                                        for params in sub_forecasts[model_type][model_name][
-                                            self.forecast_bins[model_type]]])
-            obs_probs = np.array([gamma_sf(intensity_threshold, *params)
-                                  for params in sub_forecasts[model_type][model_name][
-                                      self.type_cols[model_type]]])
-            obs_values[obs_probs >= 0.01] = 1
-        elif len(self.forecast_bins[model_type]) > 1:
-            fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-            forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
-                                  fbin]
-            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
-        else:
-            forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
-            obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
-        rel_obj.update(forecast_values, obs_values)
+        if sub_forecasts.shape[0] > 0:
+            if model_type == "dist":
+                forecast_values = np.array([gamma_sf(intensity_threshold, *params)
+                                            for params in sub_forecasts[self.forecast_bins[model_type]].values])
+                obs_probs = np.array([gamma_sf(intensity_threshold, *params)
+                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                obs_values[obs_probs >= 0.01] = 1
+            elif len(self.forecast_bins[model_type]) > 1:
+                fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
+                forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
+                                    fbin]
+                obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+            else:
+                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+                obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
+            rel_obj.update(forecast_values, obs_values)
         return rel_obj
 
     def sample_forecast_max_hail(self, dist_model_name, condition_model_name,
@@ -254,17 +254,17 @@ class ObjectEvaluator(object):
             A numpy array containing maximum hail samples for each forecast object.
         """
         if query is not None:
-            dist_forecasts = self.forecasts["dist"][dist_model_name].query(query)
+            dist_forecasts = self.matched_forecasts["dist"][dist_model_name].query(query)
             dist_forecasts = dist_forecasts.reset_index(drop=True)
-            condition_forecasts = self.forecasts["condition"][condition_model_name].query(query)
+            condition_forecasts = self.matched_forecasts["condition"][condition_model_name].query(query)
             condition_forecasts = condition_forecasts.reset_index(drop=True)
         else:
-            dist_forecasts = self.forecasts["dist"][dist_model_name]
-            condition_forecasts = self.forecasts["condition"][condition_model_name]
+            dist_forecasts = self.matched_forecasts["dist"][dist_model_name]
+            condition_forecasts = self.matched_forecasts["condition"][condition_model_name]
         max_hail_samples = np.zeros((dist_forecasts.shape[0], num_samples))
         areas = dist_forecasts["Area"].values
         for f in np.arange(dist_forecasts.shape[0]):
-            condition_prob = condition_forecasts.loc[f, self.forecast_bins["condition"]]
+            condition_prob = condition_forecasts.loc[f, self.forecast_bins["condition"][0]]
             if condition_prob >= condition_threshold:
                 max_hail_samples[f] = np.sort(gamma.rvs(*dist_forecasts.loc[f, self.forecast_bins["dist"]].values,
                                                         size=(num_samples, areas[f])).max(axis=1))
@@ -272,10 +272,10 @@ class ObjectEvaluator(object):
 
     def sample_obs_max_hail(self, dist_model_name, num_samples, query=None):
         if query is not None:
-            dist_obs = self.forecasts["dist"][dist_model_name].query(query)
+            dist_obs = self.matched_forecasts["dist"][dist_model_name].query(query)
             dist_obs = dist_obs.reset_index(drop=True)
         else:
-            dist_obs = self.forecasts["dist"][dist_model_name]
+            dist_obs = self.matched_forecasts["dist"][dist_model_name]
         max_hail_samples = np.zeros((dist_obs.shape[0], num_samples))
         areas = dist_obs["Area"].values
         for f in np.arange(dist_obs.shape[0]):
@@ -287,11 +287,12 @@ class ObjectEvaluator(object):
 
     def max_hail_sample_crps(self, forecast_max_hail, obs_max_hail):
         crps = DistributedCRPS(thresholds=self.dist_thresholds)
-        forecast_cdfs = np.array([np.searchsorted(fs, self.dist_thresholds) for fs in forecast_max_hail]) /\
-            float(forecast_max_hail.shape[1])
-        obs_cdfs = np.array([np.searchsorted(obs, self.dist_thresholds) for obs in obs_max_hail]) /\
-            float(obs_max_hail.shape[1])
-        crps.update(forecast_cdfs, obs_cdfs)
+        if forecast_max_hail.shape[0] > 0:
+            forecast_cdfs = np.array([np.searchsorted(fs, self.dist_thresholds) for fs in forecast_max_hail]) /\
+                float(forecast_max_hail.shape[1])
+            obs_cdfs = np.array([np.searchsorted(obs, self.dist_thresholds) for obs in obs_max_hail]) /\
+                float(obs_max_hail.shape[1])
+            crps.update(forecast_cdfs, obs_cdfs)
         return crps
 
 
