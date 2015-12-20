@@ -45,4 +45,20 @@ class TestProbabilityMetrics(unittest.TestCase):
                                msg="Random AUC not 0.5, actually {0:0.3f}".format(random_auc))
         self.assertGreater(perfect_auc, random_auc, msg="Perfect AUC is not greater than random.")
 
-
+    def test_crps(self):
+        thresholds = np.arange(100)
+        obs = np.zeros((1000, 100))
+        for o in range(obs.shape[1]):
+            ob_ix = np.reshape(np.arange(0, 1000, 100) + o, (10, 1))
+            obs[ob_ix, thresholds[o:].reshape(1, 100 - o)] = 1
+        perfect_crps = DistributedCRPS(thresholds=thresholds)
+        perfect_crps.update(obs, obs)
+        self.assertEqual(perfect_crps.crps(), 0, "CRPS for perfect forecast is not 0")
+        self.assertEqual(perfect_crps.crpss(), 1,
+                         "CRPSS for perfect forecast is not 1, is {0}".format(perfect_crps.crpss()))
+        crps_copy = DistributedCRPS(input_str=str(perfect_crps))
+        self.assertEqual(crps_copy.crps(), 0, "CRPS copy is not 0")
+        self.assertEqual(crps_copy.crpss(), 1, "CRPSS copy is not 1")
+        crps_sum = perfect_crps + perfect_crps
+        self.assertEqual(crps_sum.crps(), 0, "CRPS sum is not 0")
+        self.assertEqual(crps_sum.crpss(), 1, "CRPSS sum is not 1")

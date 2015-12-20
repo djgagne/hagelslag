@@ -462,9 +462,9 @@ class DistributedCRPS(object):
         """
         Calculate the climatological CRPS.
         """
-        o_bar = np.sum(self.errors["O"].values) / self.num_forecasts
-        crps_c = np.sum(self.num_forecasts * o_bar ** 2 - 2 * o_bar * self.errors["O"].values +
-                        self.errors["O_2"].values) / (self.thresholds.size * self.num_forecasts)
+        o_bar = self.errors["O"].values / float(self.num_forecasts)
+        crps_c = np.sum(self.num_forecasts * (o_bar ** 2) - o_bar * self.errors["O"].values * 2.0 +
+                        self.errors["O_2"].values) / float(self.thresholds.size * self.num_forecasts)
         return crps_c
 
     def crpss(self):
@@ -473,7 +473,7 @@ class DistributedCRPS(object):
         """
         crps_f = self.crps()
         crps_c = self.crps_climo()
-        return 1 - crps_f / crps_c
+        return 1.0 - float(crps_f) / float(crps_c)
 
     def from_str(self, in_str):
         str_parts = in_str.split(";")
