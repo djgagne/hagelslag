@@ -170,7 +170,7 @@ class ObjectEvaluator(object):
         Returns:
              A DistributedROC object
         """
-        roc_obj = DistributedROC(prob_thresholds, 1)
+        roc_obj = DistributedROC(prob_thresholds, 0.5)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
             sub_forecasts = sub_forecasts.reset_index(drop=True)
@@ -209,7 +209,7 @@ class ObjectEvaluator(object):
         Returns:
             A DistributedReliability object.
         """
-        rel_obj = DistributedReliability(prob_thresholds, 1)
+        rel_obj = DistributedReliability(prob_thresholds, 0.5)
         if query is not None:
             sub_forecasts = self.matched_forecasts[model_type][model_name].query(query)
             sub_forecasts = sub_forecasts.reset_index(drop=True)
@@ -232,6 +232,8 @@ class ObjectEvaluator(object):
                 forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             rel_obj.update(forecast_values, obs_values)
+            if model_type == "condition":
+                print rel_obj
         return rel_obj
 
     def sample_forecast_max_hail(self, dist_model_name, condition_model_name,

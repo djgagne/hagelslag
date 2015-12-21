@@ -32,6 +32,27 @@ class TestProbabilityMetrics(unittest.TestCase):
         self.assertGreater(random_rel.brier_score(), perfect_rel.brier_score(),
                            msg="Perfect (BS={0:0.3f}) has worse score than random (BS={1:0.3f})".format(
                                perfect_rel.brier_score(), random_rel.brier_score()))
+        perfect_rel_copy = DistributedReliability(input_str=str(perfect_rel))
+        self.assertEqual(perfect_rel.brier_score(), perfect_rel_copy.brier_score(),
+                         msg="Brier Score of copy {0} does not match original {1}".format(perfect_rel.brier_score(),
+                                                                                          perfect_rel_copy.brier_score()
+                                                                                          ))
+        pbss = perfect_rel.brier_skill_score()
+        cpbss = perfect_rel_copy.brier_skill_score()
+        self.assertEqual(pbss, cpbss,
+                         msg="BSS of copy {0} does not match original {1}".format(pbss, cpbss))
+        self.assertLessEqual(perfect_rel.frequencies["Positive_Freq"].sum(),
+                             perfect_rel.frequencies["Total_Freq"].sum(),
+                             msg="There are more perfect positives than total events")
+        self.assertLessEqual(random_rel.frequencies["Positive_Freq"].sum(),
+                             random_rel.frequencies["Total_Freq"].sum(),
+                             msg="There are more random positives than total events")
+        perfect_sum = perfect_rel + perfect_rel
+        mixed_sum = perfect_rel + random_rel
+        self.assertEqual(perfect_rel.brier_score(), perfect_sum.brier_score(),
+                         msg="Summed perfect brier score not equal to perfect brier score")
+        self.assertLess(perfect_sum.brier_score(), mixed_sum.brier_score(),
+                           msg="Perfect brier score greater than mixed brier score")
 
     def test_roc(self):
         perfect_roc = DistributedROC(self.thresholds, self.obs_threshold)
@@ -41,8 +62,8 @@ class TestProbabilityMetrics(unittest.TestCase):
         random_roc.update(self.forecasts["random"], self.observations["random"])
         random_auc = random_roc.auc()
         self.assertEqual(perfect_auc, 1, msg="Perfect AUC not 1, is actually {0:0.2f}".format(perfect_auc))
-        self.assertAlmostEqual(random_auc, 0.5, places=1,
-                               msg="Random AUC not 0.5, actually {0:0.3f}".format(random_auc))
+        self.assertLessEqual(np.abs(random_auc - 0.5), 0.1,
+                             msg="Random AUC not 0.5, actually {0:0.3f}".format(random_auc))
         self.assertGreater(perfect_auc, random_auc, msg="Perfect AUC is not greater than random.")
 
     def test_crps(self):
