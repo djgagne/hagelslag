@@ -288,10 +288,10 @@ class ObjectEvaluator(object):
     def max_hail_sample_crps(self, forecast_max_hail, obs_max_hail):
         crps = DistributedCRPS(thresholds=self.dist_thresholds)
         if forecast_max_hail.shape[0] > 0:
-            forecast_cdfs = np.array([np.searchsorted(fs, self.dist_thresholds) for fs in forecast_max_hail]) /\
-                float(forecast_max_hail.shape[1])
-            obs_cdfs = np.array([np.searchsorted(obs, self.dist_thresholds) for obs in obs_max_hail]) /\
-                float(obs_max_hail.shape[1])
+            forecast_cdfs = np.array([np.searchsorted(fs, self.dist_thresholds, side="right")
+                                      for fs in forecast_max_hail]) / float(forecast_max_hail.shape[1])
+            obs_cdfs = np.array([np.searchsorted(obs, self.dist_thresholds, side="right")
+                                 for obs in obs_max_hail]) / float(obs_max_hail.shape[1])
             crps.update(forecast_cdfs, obs_cdfs)
         return crps
 

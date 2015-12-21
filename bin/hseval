@@ -114,7 +114,7 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
                 extra_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
                 extra_columns += ["CRPS"]
             scores[model_type] = pd.DataFrame(columns=score_columns + extra_columns)
-        query_start = "(Hail_Size>0)"
+        query_start = ""
         forecast_hours = np.arange(config.start_hour, config.end_hour + 1, dtype=int)
         for model_type in config.model_types:
             for model_name in config.model_names[model_type]:
