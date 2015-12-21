@@ -40,11 +40,11 @@ def main():
 
 def evaluate_objects(config, num_procs):
     """
-    Evaluates the individual object forecasts.
+    Evaluates the individual object forecasts in parallel.
 
     Args:
-        config:
-        num_procs:
+        config: Config object
+        num_procs: Number of processors to use
 
     Returns:
 
@@ -75,6 +75,20 @@ def evaluate_objects(config, num_procs):
 
 
 def evaluate_object_run(run_date, ensemble_member, config, score_columns):
+    """
+    Evaluates a single ensember member run for object based statistics. CRPS, ROC curves, and Reliability
+    statistics are calculated.
+
+    Args:
+        run_date (datetime.datetime): Date of the initial model run time
+        ensemble_member (str): Name of the ensemble member
+        config: Config object
+        score_columns (list): Metadata columns for the verification DataFrame.
+
+    Returns:
+        A dictionary where the keys correspond to each type of model being evaluated (e.g. condition, dist),
+        and the values are pandas DataFrames with the verification score values.
+    """
     try:
         run_id = "{0} {1}".format(run_date, ensemble_member) 
         print("Starting " + run_id)
@@ -230,13 +244,9 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     """
     Calculate evaluation statistics for a set of neighborhood probability forecasts.
 
-    Parameters
-    ----------
-    config : hagelslag.util.Config object
-        Object containing configuration parameters as attributes.
-    num_procs : int
-        Number of processors to use for the calculations
-
+    Args:
+        config (hagelslag.util.Config object): Object containing configuration parameters as attributes.
+        num_procs (int): Number of processors to use for the calculations
     """
     pool = Pool(num_procs)
     run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
@@ -248,7 +258,6 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     def save_scores(output):
         hour_scores = output[0]
         period_scores = output[1]
-        #period_scores = output
         if not os.access(config.neighbor_score_path + "period_scores.csv", os.R_OK):
             hour_scores.to_csv(config.neighbor_score_path + "hour_scores.csv", index_label="Index")
             period_scores.to_csv(config.neighbor_score_path + "period_scores.csv", index_label="Index")
@@ -285,23 +294,30 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
                                  obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file, lon_bounds,
                                  lat_bounds):
     """
-    Calculates verification statistics for a single set of model forecasts.
+    Calculate verification statistics for the neighborhood ensemble probabilities from a single model run.
 
-    :param run_date:
-    :param start_hour:
-    :param end_hour:
-    :param model_name:
-    :param forecast_variable:
-    :param mrms_variable:
-    :param neighbor_radii:
-    :param smoothing_radii:
-    :param size_thresholds:
-    :param probability_levels:
-    :param obs_mask:
-    :param mask_variable:
-    :param forecast_path:
-    :param mrms_path:
-    :return:
+    Args:
+        run_date (datetime.datetime): Date of the model run
+        start_hour (int): First hour being evaluated
+        end_hour (int): Last hour being evaluated (inclusive)
+        model_name (str): Name of the ensemble system or machine learning model type
+        forecast_variable (str): Name of the diagnostic variable or machine learning model
+        mrms_variable (str): MRMS variable used for verification
+        neighbor_radii (list): Radii in grid points for neighborhood convolution filter
+        smoothing_radii (list): Radii of Gaussian smoothing filter
+        obs_thresholds (list): Thresholds of the observed variable to test
+        size_thresholds (list): Intensity thresholds for neighborhood probabilities
+        probability_levels (list): Probablity thresholds for the ROC Curve and Reliability diagram
+        obs_mask (bool): True if grid mask is being used
+        mask_variable (str): Name of the MRMS variable used for masking the grid
+        forecast_path (str): Path to neighborhood probability netCDF files
+        mrms_path (str): Path to MRMS netCDF files
+        coordinate_file (str): Name of the file containing lat-lon coordinates
+        lon_bounds (list): lower and upper bounds of longitude bounding box
+        lat_bounds (list): lower and upper bounds of latitude bounding box
+
+    Returns:
+        A tuple of DataFrames containing hourly scores and full-period scores respectively.
     """
     try:
         ne = NeighborEvaluator(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
@@ -314,7 +330,6 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
         period_scores = ne.evaluate_period_forecasts()
         hourly_scores = ne.evaluate_hourly_forecasts()
         return hourly_scores, period_scores
-        #return period_scores
     except Exception as e:
         print(traceback.format_exc())
         raise e

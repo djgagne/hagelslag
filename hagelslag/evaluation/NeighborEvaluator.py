@@ -12,36 +12,22 @@ class NeighborEvaluator(object):
     """
     A framework for statistically evaluating neighborhood probability forecasts.
 
-    Parameters
-    ----------
-    run_date : datetime.datetime object
-        Date of the beginning of the model run
-    start_hour : int
-        First forecast hour evaluated
-    end_hour : int
-        Last forecast hour evaluated
-    model_name : str
-        Name of the ensemble or machine learning model being evaluated
-    forecast_variable : str
-        Name of the forecast variable being evaluated.
-    mrms_variable : str
-        Name of the NSSL MRMS product being used for gridded observations
-    neighbor_radii : list or array of ints
-        neighborhood radii in number of grid points
-    smoothing_radii : list or array of ints
-        radius of Gaussian filter used by the forecast
-    obs_thresholds : list or array of floats
-        Observed intensity threshold that corresponds with each element of size_thresholds
-    size_thresholds : list or array of floats
-        Intensity threshold for neighborhood probabilities
-    obs_mask : boolean
-        Whether or not another MRMS product is used to mask invalid grid points
-    mask_variable : str
-        MRMS variable used for masking invalid grid points
-    forecast_path : str
-        Path to forecast files
-    mrms_path : str
-        Path to MRMS data
+    Attributes:
+        run_date (datetime.datetime object): Date of the beginning of the model run
+        start_hour (int): First forecast hour evaluated
+        end_hour (int): Last forecast hour evaluated
+        model_name (str): Name of the ensemble or machine learning model being evaluated
+        forecast_variable (str): Name of the forecast variable being evaluated.
+        mrms_variable (str): Name of the NSSL MRMS product being used for gridded observations
+        neighbor_radii (list or array): neighborhood radii in number of grid points
+        smoothing_radii (list or array): radius of Gaussian filter used by the forecast
+        obs_thresholds (list or array): Observed intensity threshold that corresponds with each element of
+            size_thresholds
+        size_thresholds (list or array): Intensity threshold for neighborhood probabilities
+        obs_mask (bool): Whether or not another MRMS product is used to mask invalid grid points
+        mask_variable (str): MRMS variable used for masking invalid grid points
+        forecast_path (str): Path to forecast files
+        mrms_path (str): Path to MRMS data
     """
     def __init__(self, run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
                  neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels, obs_mask,
@@ -71,6 +57,9 @@ class NeighborEvaluator(object):
         self.lat_bounds = lat_bounds
 
     def load_forecasts(self):
+        """
+        Load neighborhood probability forecasts.
+        """
         run_date_str = self.run_date.strftime("%Y%m%d")
         forecast_file = self.forecast_path + "{0}/{1}_{2}_consensus_{0}.nc".format(run_date_str, self.model_name,
                                                                                    self.forecast_variable)
@@ -99,8 +88,8 @@ class NeighborEvaluator(object):
         """
         Loads observations and masking grid (if needed).
 
-        :param mask_threshold: Values greater than the threshold are kept, others are masked.
-        :return:
+        Args:
+            mask_threshold: Values greater than the threshold are kept, others are masked.
         """
         print "Loading obs ", self.run_date, self.model_name, self.forecast_variable
         start_date = self.run_date + timedelta(hours=self.start_hour)
@@ -117,6 +106,9 @@ class NeighborEvaluator(object):
                 self.period_obs[self.mask_variable] = self.raw_obs[self.mask_variable].max(axis=0)
 
     def load_coordinates(self):
+        """
+        Loads lat-lon coordinates from a netCDF file.
+        """
         coord_file = Dataset(self.coordinate_file)
         if "lon" in coord_file.variables.keys():
             self.coordinates["lon"] = coord_file.variables["lon"][:]
@@ -127,6 +119,12 @@ class NeighborEvaluator(object):
         coord_file.close()
 
     def evaluate_hourly_forecasts(self):
+        """
+        Calculates ROC curves and Reliability scores for each forecast hour.
+
+        Returns:
+            A pandas DataFrame containing forecast metadata as well as DistributedROC and Reliability objects.
+        """
         score_columns = ["Run_Date", "Forecast_Hour", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
                          "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
         all_scores = pd.DataFrame(columns=score_columns)
@@ -160,6 +158,12 @@ class NeighborEvaluator(object):
         return all_scores
 
     def evaluate_period_forecasts(self):
+        """
+        Evaluates ROC and Reliability scores for forecasts over the full period from start hour to end hour
+
+        Returns:
+            A pandas DataFrame with full-period metadata and verification statistics
+        """
         score_columns = ["Run_Date", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
                          "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
         all_scores = pd.DataFrame(columns=score_columns)

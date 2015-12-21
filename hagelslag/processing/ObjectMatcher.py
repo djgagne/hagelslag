@@ -96,6 +96,12 @@ class TrackMatcher(object):
     """
     Find the optimal pairings among two sets of STObject tracks.
 
+    Attributes:
+        cost_function_components: Array of cost function objects
+        weights: Array of weights for each cost function. All should sum to 1.
+        max_values: Array of distance values that correspond to the upper limit distance that should be
+            considered.
+
     """
 
     def __init__(self, cost_function_components, weights, max_values):
@@ -104,6 +110,19 @@ class TrackMatcher(object):
         self.max_values = max_values
 
     def match_tracks(self, set_a, set_b, closest_matches=False):
+        """
+        Find the optimal set of matching assignments between set a and set b. This function supports optimal 1:1
+        matching using the Munkres method and matching from every object in set a to the closest object in set b.
+        In this situation set b accepts multiple matches from set a.
+
+        Args:
+            set_a:
+            set_b:
+            closest_matches:
+
+        Returns:
+
+        """
         costs = self.track_cost_matrix(set_a, set_b) * 100
         min_row_costs = costs.min(axis=1)
         min_col_costs = costs.min(axis=0)
@@ -157,12 +176,15 @@ def centroid_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Euclidean distance between the centroids of item_a and item_b.
 
-    :param item_a: STObject
-    :param time_a: STObject
-    :param item_b:
-    :param time_b:
-    :param max_value:
-    :return:
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     ax, ay = item_a.center_of_mass(time_a)
     bx, by = item_b.center_of_mass(time_b)
@@ -173,12 +195,15 @@ def shifted_centroid_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Centroid distance with motion corrections.
 
-    :param item_a:
-    :param time_a:
-    :param item_b:
-    :param time_b:
-    :param max_value:
-    :return:
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     ax, ay = item_a.center_of_mass(time_a)
     bx, by = item_b.center_of_mass(time_b)
@@ -194,17 +219,33 @@ def shifted_centroid_distance(item_a, time_a, item_b, time_b, max_value):
 def closest_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Euclidean distance between the pixels in item_a and item_b closest to each other.
+
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     return np.minimum(item_a.closest_distance(time_a, item_b, time_b), max_value) / float(max_value)
-
-
-def percentile_distance(item_a, time_a, item_b, time_b, max_value, percentile=2):
-    return np.minimum(item_a.percentile_distance(time_a, item_b, time_b, percentile), max_value) / float(max_value)
 
 
 def ellipse_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Calculate differences in the properties of ellipses fitted to each object.
+
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     ts = np.array([0, np.pi])
     ell_a = item_a.get_ellipse_model(time_a)
@@ -218,13 +259,33 @@ def ellipse_distance(item_a, time_a, item_b, time_b, max_value):
 def nonoverlap(item_a, time_a, item_b, time_b, max_value):
     """
     Percentage of pixels in each object that do not overlap with the other object
+
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     return np.minimum(1 - item_a.count_overlap(time_a, item_b, time_b), max_value) / float(max_value)
 
 
 def max_intensity(item_a, time_a, item_b, time_b, max_value):
     """
-    RMS Difference in intensities.
+    RMS difference in maximum intensity
+
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     intensity_a = item_a.max_intensity(time_a)
     intensity_b = item_b.max_intensity(time_b)
@@ -235,6 +296,16 @@ def max_intensity(item_a, time_a, item_b, time_b, max_value):
 def area_difference(item_a, time_a, item_b, time_b, max_value):
     """
     RMS Difference in object areas.
+
+    Args:
+        item_a: STObject from the first set in ObjectMatcher
+        time_a: Time integer being evaluated
+        item_b: STObject from the second set in ObjectMatcher
+        time_b: Time integer being evaluated
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     size_a = item_a.size(time_a)
     size_b = item_b.size(time_b)
@@ -245,57 +316,104 @@ def area_difference(item_a, time_a, item_b, time_b, max_value):
 def mean_minimum_centroid_distance(item_a, item_b, max_value):
     """
     RMS difference in the minimum distances from the centroids of one track to the centroids of another track
+
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     centroids_a = np.array([item_a.center_of_mass(t) for t in item_a.times])
     centroids_b = np.array([item_b.center_of_mass(t) for t in item_b.times])
     distance_matrix = (centroids_a[:, 0:1] - centroids_b.T[0:1]) ** 2 + (centroids_a[:, 1:] - centroids_b.T[1:]) ** 2
     mean_min_distances = np.sqrt(distance_matrix.min(axis=0).mean() + distance_matrix.min(axis=1).mean())
-    return mean_min_distances / float(max_value)
+    return np.minimum(mean_min_distances, max_value) / float(max_value)
 
 
 def mean_min_time_distance(item_a, item_b, max_value):
     """
     Calculate the mean time difference among the time steps in each object.
 
-    :param item_a: STObject
-    :param item_b: STObject
-    :param max_value: maximum value of the distance
-    :return:
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     times_a = item_a.times.reshape((item_a.times.size, 1))
     times_b = item_b.times.reshape((1, item_b.times.size))
     distance_matrix = (times_a - times_b) ** 2
     mean_min_distances = np.sqrt(distance_matrix.min(axis=0).mean() + distance_matrix.min(axis=1).mean())
-    return mean_min_distances / float(max_value)
+    return np.minimum(mean_min_distances, max_value) / float(max_value)
 
 
 def start_centroid_distance(item_a, item_b, max_value):
+    """
+    Distance between the centroids of the first step in each object.
+
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
+    """
     start_a = item_a.center_of_mass(item_a.times[0])
     start_b = item_b.center_of_mass(item_b.times[0])
     start_distance = np.sqrt((start_a[0] - start_b[0]) ** 2 + (start_a[1] - start_b[1]) ** 2)
-    return start_distance / float(max_value)
+    return np.minimum(start_distance, max_value) / float(max_value)
 
 
 def start_time_distance(item_a, item_b, max_value):
+    """
+    Absolute difference between the starting times of each item.
+
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
+    """
     start_time_diff = np.abs(item_a.times[0] - item_b.times[0])
-    return start_time_diff / float(max_value)
+    return np.minimum(start_time_diff, max_value) / float(max_value)
 
 
 def duration_distance(item_a, item_b, max_value):
     """
     Absolute difference in the duration of two items
 
-    :param item_a: STObject
-    :param item_b: STObject
-    :param max_value: maximum value of the distance
-    :return:
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
     """
     duration_a = item_a.times.size
     duration_b = item_b.times.size
-    return np.abs(duration_a - duration_b) / float(max_value)
+    return np.minimum(np.abs(duration_a - duration_b), max_value) / float(max_value)
 
 
 def mean_area_distance(item_a, item_b, max_value):
+    """
+    Absolute difference in the means of the areas of each track over time.
+
+    Args:
+        item_a: STObject from the first set in TrackMatcher
+        item_b: STObject from the second set in TrackMatcher
+        max_value: Maximum distance value used as scaling value and upper constraint.
+
+    Returns:
+        Distance value between 0 and 1.
+    """
     mean_area_a = np.mean([item_a.size(t) for t in item_a.times])
     mean_area_b = np.mean([item_b.size(t) for t in item_b.times])
     return np.abs(mean_area_a - mean_area_b) / float(max_value)

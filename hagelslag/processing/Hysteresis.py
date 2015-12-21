@@ -7,8 +7,9 @@ class Hysteresis(object):
     Object segmentation method that identifies objects as contiguous areas with all pixels above a low
     threshold and contain at least one pixel above a high threshold.
 
-    :param low_thresh: lower threshold value
-    :param high_thresh: higher threshold value
+    Attributes:
+        low_thresh: lower threshold value
+        high_thresh: higher threshold value
     """
 
     def __init__(self, low_thresh, high_thresh):
@@ -20,8 +21,11 @@ class Hysteresis(object):
         """
         Label input grid with hysteresis method.
 
-        :param input_grid: 2D array of values.
-        :return: Labeled output grid.
+        Args:
+            input_grid: 2D array of values.
+
+        Returns:
+            Labeled output grid.
         """
         unset = 0
         high_labels, num_labels = label(input_grid > self.high_thresh)
@@ -43,13 +47,17 @@ class Hysteresis(object):
                             stack.append((i, j))
         return output_grid
 
-    def size_filter(self, labeled_grid, min_size):
+    @staticmethod
+    def size_filter(labeled_grid, min_size):
         """
         Remove labeled objects that do not meet size threshold criteria.
 
-        :param labeled_grid: 2D output from label method.
-        :param min_size: minimum size of object in pixels. 
-        :return: labeled grid with smaller objects removed.
+        Args:
+            labeled_grid: 2D output from label method.
+            min_size: minimum size of object in pixels.
+
+        Returns:
+            labeled grid with smaller objects removed.
         """
         out_grid = np.zeros(labeled_grid.shape, dtype=int)
         slices = find_objects(labeled_grid)

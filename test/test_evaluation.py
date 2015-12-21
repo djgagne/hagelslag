@@ -54,6 +54,8 @@ class TestProbabilityMetrics(unittest.TestCase):
         perfect_crps = DistributedCRPS(thresholds=thresholds)
         perfect_crps.update(obs, obs)
         self.assertEqual(perfect_crps.crps(), 0, "CRPS for perfect forecast is not 0")
+        self.assertGreater(perfect_crps.crps_climo(), 0, "Climo CRPS is greater than 0")
+        self.assertLess(perfect_crps.crps_climo(), 1, "Climo CRPS is less than 1")
         self.assertEqual(perfect_crps.crpss(), 1,
                          "CRPSS for perfect forecast is not 1, is {0}".format(perfect_crps.crpss()))
         crps_copy = DistributedCRPS(input_str=str(perfect_crps))
