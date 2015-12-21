@@ -114,7 +114,6 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
                 extra_columns += ["Rel_{0:d}".format(int(t)) for t in config.object_thresholds]
                 extra_columns += ["CRPS"]
             scores[model_type] = pd.DataFrame(columns=score_columns + extra_columns)
-        query_start = ""
         forecast_hours = np.arange(config.start_hour, config.end_hour + 1, dtype=int)
         for model_type in config.model_types:
             for model_name in config.model_names[model_type]:
@@ -123,7 +122,7 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
                     index = "{0}_{1}_{2}_{3}_{4}_{5:d}".format(run_date.strftime("%Y%m%d"), config.ensemble_name,
                                                                ensemble_member, model_name, model_type, forecast_hour)
                     print(index)
-                    query = query_start + " & " + "(Forecast_Hour == {0:d})".format(forecast_hour)
+                    query = "(Forecast_Hour == {0:d})".format(forecast_hour)
                     crps = None
                     max_crps = None
                     if model_type != "condition":
