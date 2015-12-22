@@ -190,7 +190,7 @@ class ObjectEvaluator(object):
                                     fbin]
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             else:
-                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)[0]].values
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             roc_obj.update(forecast_values, obs_values)
         return roc_obj
@@ -229,11 +229,9 @@ class ObjectEvaluator(object):
                                     fbin]
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             else:
-                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)].values
+                forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)[0]].values
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             rel_obj.update(forecast_values, obs_values)
-            if model_type == "condition":
-                print rel_obj
         return rel_obj
 
     def sample_forecast_max_hail(self, dist_model_name, condition_model_name,
