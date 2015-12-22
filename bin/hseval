@@ -126,7 +126,8 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
                     crps = None
                     max_crps = None
                     if model_type != "condition":
-                        crps = object_eval.crps(model_type, model_name, query=query)
+                        crps = object_eval.crps(model_type, model_name, config.model_names["condition"][0],
+                                                config.condition_threshold, query=query)
                     if model_type == "dist":
                         forecast_max_hail = object_eval.sample_forecast_max_hail(model_name,
                                                                                  config.model_names["condition"][0],
