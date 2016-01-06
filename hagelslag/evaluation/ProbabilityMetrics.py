@@ -147,6 +147,17 @@ class DistributedROC(object):
         roc_curve = self.roc_curve()
         return np.abs(np.trapz(roc_curve['POD'], x=roc_curve['POFD']))
 
+    def max_csi(self):
+        """
+        Calculate the maximum Critical Success Index across all probability thresholds
+
+        Returns:
+            The maximum CSI as a float
+        """
+        csi = self.contingency_tables["TP"] / (self.contingency_tables["TP"] + self.contingency_tables["FN"] +
+                                               self.contingency_tables["FP"])
+        return csi.max()
+
     def __str__(self):
         """
         Output the information within the DistributedROC object to a string.
