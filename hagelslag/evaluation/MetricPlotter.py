@@ -61,7 +61,7 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
                         ylabel="Probability of Detection", ticks=np.arange(0, 1.1, 0.1),
                         dpi=300, csi_cmap="Blues",
                         csi_label="Critical Success Index", title="Performance Diagram",
-                        legend_params=None):
+                        legend_params=None, bootstrap_sets=None, ci=(2.5, 97.5)):
     """
     Draws a performance diagram from a set of DistributedROC objects.
 
@@ -89,7 +89,9 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
         csi_cmap (str): Matplotlib colormap used to fill CSI contours.
         csi_label (str): Label for CSI colormap.
         legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
-
+        bootstrap_sets (list): A list of arrays of bootstrapped DistributedROC objects. If not None,
+            confidence regions will be plotted.
+        ci (tuple): tuple of bootstrap confidence interval percentiles
     Examples:
         >>>from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
         >>>import numpy as np
@@ -109,6 +111,16 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
     csi_contour = plt.contourf(sr_g, pod_g, csi, np.arange(0.1, 1.1, 0.1), extend="max", cmap=csi_cmap)
     b_contour = plt.contour(sr_g, pod_g, bias, [0.5, 1, 1.5, 2, 4], colors="k", linestyles="dashed")
     plt.clabel(b_contour, fmt="%1.1f", manual=[(0.2, 0.9), (0.4, 0.9), (0.6, 0.9), (0.7, 0.7)])
+    if bootstrap_sets is not None:
+        for b, b_set in enumerate(bootstrap_sets):
+            perf_curves = np.dstack([b_roc.performance_curve().values for b_roc in b_set])
+            pod_range = np.percentile(perf_curves[:,0], ci, axis=1)
+            sr_range = np.percentile(1 - perf_curves[:,1], ci, axis=1)
+            pod_poly = np.concatenate((pod_range[1], pod_range[0, ::-1]))
+            sr_poly = np.concatenate((sr_range[1], sr_range[0, ::-1]))
+            pod_poly[np.isnan(pod_poly)] = 0
+            sr_poly[np.isnan(sr_poly)] = 1
+            plt.fill(sr_poly, pod_poly, alpha=0.5, color=colors[b])
     for r, roc_obj in enumerate(roc_objs):
         perf_data = roc_obj.performance_curve()
         plt.plot(1 - perf_data["FAR"], perf_data["POD"], marker=markers[r], color=colors[r], label=obj_labels[r])
@@ -127,6 +139,24 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
 def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Forecast Probability",
                         ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size=1.5,
                         legend_params=dict(loc=0, fontsize=10, framealpha=1, frameon=True)):
+    """
+    Plot reliability curves against a 1:1 diagonal to determine if probability forecasts are consistent with their
+    observed relative frequency.
+
+    Args:
+        rel_objs (list): List of DistributedReliability objects.
+        obj_labels (list): List of labels describing the forecast model associated with each curve.
+        colors (list): List of colors for each line
+        markers (list): List of line markers
+        filename (str): Where to save the figure.
+        figsize (tuple): (Width, height) of the figure in inches.
+        xlabel (str): X-axis label
+        ylabel (str): Y-axis label
+        ticks (array): Tick value labels for the x and y axes.
+        dpi (int): resolution of the saved figure in dots per inch.
+        inset_size (float): Size of inset
+        legend_params (dict): Keyword arguments for the plot legend.
+    """
     fig, ax = plt.subplots(figsize=figsize)
     plt.plot(ticks, ticks, "k--")
     inset_hist = inset_axes(ax, width=inset_size, height=inset_size, loc=2)
@@ -147,10 +177,29 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
     plt.close()
 
 
-def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(6, 6), xlabel="Forecast Probability",
+def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Forecast Probability",
                         ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, inset_size="30%",
                         title="Attributes Diagram",
                         legend_params=dict(loc=0, fontsize=8, framealpha=1, frameon=True)):
+    """
+    Plot reliability curves against a 1:1 diagonal to determine if probability forecasts are consistent with their
+    observed relative frequency. Also adds gray areas to show where the climatological probabilities lie and what
+    areas result in a positive Brier Skill Score.
+
+    Args:
+        rel_objs (list): List of DistributedReliability objects.
+        obj_labels (list): List of labels describing the forecast model associated with each curve.
+        colors (list): List of colors for each line
+        markers (list): List of line markers
+        filename (str): Where to save the figure.
+        figsize (tuple): (Width, height) of the figure in inches.
+        xlabel (str): X-axis label
+        ylabel (str): Y-axis label
+        ticks (array): Tick value labels for the x and y axes.
+        dpi (int): resolution of the saved figure in dots per inch.
+        inset_size (float): Size of inset
+        legend_params (dict): Keyword arguments for the plot legend.
+    """
     fig, ax = plt.subplots(figsize=figsize)
     plt.plot(ticks, ticks, "k--")
     inset_hist = inset_axes(ax, width=inset_size, height=inset_size, loc=1, axes_kwargs=dict(axisbg='white'))
