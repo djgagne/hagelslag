@@ -48,7 +48,7 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
         for b, b_set in enumerate(bootstrap_sets):
             broc_curves = np.dstack([b_roc.roc_curve().values for b_roc in b_set])
             pod_range = np.percentile(broc_curves[:,0], ci, axis=1)
-            pofd_range = np.percentile(1 - broc_curves[:,1], ci, axis=1)
+            pofd_range = np.percentile(broc_curves[:, 1], ci, axis=1)
             pod_poly = np.concatenate((pod_range[1], pod_range[0, ::-1]))
             pofd_poly = np.concatenate((pofd_range[1], pofd_range[0, ::-1]))
             pod_poly[np.isnan(pod_poly)] = 0
@@ -183,7 +183,7 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
         for b, b_set in enumerate(bootstrap_sets):
             brel_curves = np.dstack([b_rel.reliability_curve().values for b_rel in b_set])
             bin_range = np.percentile(brel_curves[:,0], ci, axis=1)
-            rel_range = np.percentile(1 - brel_curves[:,3], ci, axis=1)
+            rel_range = np.percentile(brel_curves[:, 3], ci, axis=1)
             bin_poly = np.concatenate((bin_range[1], bin_range[0, ::-1]))
             rel_poly = np.concatenate((rel_range[1], rel_range[0, ::-1]))
             bin_poly[np.isnan(bin_poly)] = 0
@@ -248,7 +248,7 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
         for b, b_set in enumerate(bootstrap_sets):
             brel_curves = np.dstack([b_rel.reliability_curve().values for b_rel in b_set])
             bin_range = np.percentile(brel_curves[:,0], ci, axis=1)
-            rel_range = np.percentile(1 - brel_curves[:,3], ci, axis=1)
+            rel_range = np.percentile(brel_curves[:, 3], ci, axis=1)
             bin_poly = np.concatenate((bin_range[1], bin_range[0, ::-1]))
             rel_poly = np.concatenate((rel_range[1], rel_range[0, ::-1]))
             bin_poly[np.isnan(bin_poly)] = 0
