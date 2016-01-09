@@ -11,37 +11,23 @@ class MRMSGrid(object):
     MRMSGrid assumes that the data are in netCDF format and have been interpolated to match the grid being used for
     forecasting.
 
-    Parameters
-    ----------
-    start_date : datetime.datetime object or str in timestamp format
-        Date of first time step to be loaded.
-    end_date : datetime.datetime object or str in timestamp format
-        Date of last time step to be loaded.
-    variable : str
-        MRMS variable name
-    path : str
-        Path to the directory containing MRMS files.
-    freq : str, optional (default="1H")
-        Time frequency of the data being loaded. Uses pandas time syntax.
+    Args:
+        start_date (datetime.datetime or time str): Date of first time step to be loaded.
+        end_date (datetime.datetime or str in timestamp format): Date of last time step to be loaded.
+        variable (str): MRMS variable name
+        path (str): Path to the directory containing MRMS files.
+        freq (str, optional (default="1H")): Time frequency of the data being loaded. Uses pandas time syntax.
 
-    Attributes
-    ----------
-    start_date : datetime.datetime object or str in timestamp format
-        Date of first time step to be loaded.
-    end_date : datetime.datetime object or str in timestamp format
-        Date of last time step to be loaded.
-    variable : str
-        MRMS variable name
-    path : str
-        Path to the directory containing MRMS files.
-    freq : str
-        Time frequency of the data being loaded. Uses pandas time syntax.
-    all_dates : pandas.DatetimeIndex
+    Attributes:
+        start_date (datetime.datetime or time str): Date of first time step to be loaded.
+        end_date (datetime.datetime or str in timestamp format): Date of last time step to be loaded.
+        variable (str): MRMS variable name
+        path (str): Path to the directory containing MRMS files.
+        freq (str, optional (default="1H")): Time frequency of the data being loaded. Uses pandas time syntax.
+        all_dates : pandas.DatetimeIndex
         List of dates being loaded
-    data : None or numpy.ndarray
-        Array of gridded observations after load_data is called. None otherwise.
-    valid_dates: None or pandas.DatetimeIndex
-        None initially. After load_data is called, contains the dates where data loaded successfully.
+        data (ndarray or None): Array of gridded observations after load_data is called. None otherwise.
+        valid_dates (ndarray): Contains the dates where data loaded successfully.
     """
     def __init__(self, start_date, end_date, variable, path, freq="1H"):
         self.start_date = start_date
@@ -56,8 +42,6 @@ class MRMSGrid(object):
     def load_data(self):
         """
         Loads data files and stores the output in the data attribute.
-
-        :return:
         """
         data = []
         valid_dates = []

@@ -12,7 +12,8 @@ Contents:
    :maxdepth: 2
 
    data_processing.rst
-
+   hagelslag.rst
+   modules.rst
 
 Indices and tables
 ==================

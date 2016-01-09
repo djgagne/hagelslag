@@ -31,13 +31,14 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
         legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
 
     Examples:
-        >>>from hagelslag.evaluation import DistributedROC
-        >>>import numpy as np
-        >>>forecasts = np.random.random(1000)
-        >>>obs = np.random.random_integers(0, 1, 1000)
-        >>>roc = DistributedROC()
-        >>>roc.update(forecasts, obs)
-        >>>roc_curve([roc], ["Random"], ["orange"], ["o"], "random_roc.png")
+
+        >>> from hagelslag.evaluation import DistributedROC
+        >>> import numpy as np
+        >>> forecasts = np.random.random(1000)
+        >>> obs = np.random.random_integers(0, 1, 1000)
+        >>> roc = DistributedROC()
+        >>> roc.update(forecasts, obs)
+        >>> roc_curve([roc], ["Random"], ["orange"], ["o"], "random_roc.png")
     """
     if legend_params is None:
         legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)
@@ -102,14 +103,16 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
         bootstrap_sets (list): A list of arrays of bootstrapped DistributedROC objects. If not None,
             confidence regions will be plotted.
         ci (tuple): tuple of bootstrap confidence interval percentiles
+
     Examples:
-        >>>from hagelslag.evaluation import DistributedROC
-        >>>import numpy as np
-        >>>forecasts = np.random.random(1000)
-        >>>obs = np.random.random_integers(0, 1, 1000)
-        >>>roc = DistributedROC()
-        >>>roc.update(forecasts, obs)
-        >>>performance_diagram([roc], ["Random"], ["orange"], ["o"], "random_performance.png")
+
+        >>> from hagelslag.evaluation import DistributedROC
+        >>> import numpy as np
+        >>> forecasts = np.random.random(1000)
+        >>> obs = np.random.random_integers(0, 1, 1000)
+        >>> roc = DistributedROC()
+        >>> roc.update(forecasts, obs)
+        >>> performance_diagram([roc], ["Random"], ["orange"], ["o"], "random_performance.png")
     """
     if legend_params is None:
         legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)

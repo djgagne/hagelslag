@@ -262,11 +262,12 @@ class DistributedReliability(object):
         frequencies (pandas.DataFrame): Stores the total and positive frequencies for each bin
 
     Examples:
-        >>>forecasts = np.random.random(1000)
-        >>>obs = np.random.random_integers(0, 1, 1000)
-        >>>rel = DistributedReliability()
-        >>>rel.update(forecasts, obs)
-        >>>print(rel.brier_score())
+
+        >>> forecasts = np.random.random(1000)
+        >>> obs = np.random.random_integers(0, 1, 1000)
+        >>> rel = DistributedReliability()
+        >>> rel.update(forecasts, obs)
+        >>> print(rel.brier_score())
     """
 
     def __init__(self, thresholds=np.arange(0, 1.1, 0.05), obs_threshold=1.0, input_str=None):
