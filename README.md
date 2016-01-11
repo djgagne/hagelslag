@@ -1,20 +1,21 @@
-#Hagelslag
+# Hagelslag
 
 Hagelslag is an object-based severe storm forecasting system that utilizing image processing and machine learning tools
 to derive calibrated probabilities of severe hazards from convection-allowing numerical weather prediction model output.
 The package contains modules for storm identification and tracking, spatio-temporal data extraction, and 
 machine learning model training to predict hazard intensity as well as space and time translations.
 
-###Citation
+### Citation
 If you employ hagelslag in your research, please acknowledge its use with the following citation:
     
-    Gagne, D. J. II, 2015: Severe weather forecasting with python and data science tools. 2015 Unidata Users Workshop,
-    Boulder, CO.
+    Gagne II, D. J., A. McGovern, N. Snook, R. Sobash, J. Labriola, J. K. Williams, S. E. Haupt, and M. Xue, 2016: 
+    Hagelslag: Scalable object-based severe weather analysis and forecasting. Proceedings of the Sixth Symposium on 
+    Advances in Modeling and Analysis Using Python, New Orleans, LA, Amer. Meteor. Soc., 447.
 
 If you discover any issues, please post them to the Github issue tracker page. Questions and comments should be sent to
 djgagne at ou dot edu.
 
-###Requirements
+### Requirements
 
 Hagelslag is easiest to install with the help of the Anaconda Python Distribution, but it should work with other
 Python setups as well. Hagelslag requires the following packages and recommends the following versions:
@@ -27,7 +28,7 @@ Python setups as well. Hagelslag requires the following packages and recommends 
 * basemap
 * netCDF4-python
 
-###Installation
+### Installation
 
 To install hagelslag, enter the top-level directory of the package and run the standard python setup command: 
 
@@ -36,7 +37,7 @@ To install hagelslag, enter the top-level directory of the package and run the s
 Hagelslag will install the libraries in site-packages and will also install 3 applications into the `bin` directory
 of your Python installation.
 
-###Use
+### Use
 A Jupyter notebook is located in the demos directory that showcases the functionality of the package. For larger scale 
 use, 3 scripts are provided in the bin directory. 
 
