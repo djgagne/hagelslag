@@ -1,0 +1,4 @@
+scipy
+matplotlib
+scikit-learn>=0.16
+basemap
