@@ -1,0 +1,8 @@
+numpy>=1.9
+pandas>=0.15
+scipy
+matplotlib
+netCDF4
+scikit-learn>=0.16
+basemap
+scikit-image
