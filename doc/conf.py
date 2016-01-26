@@ -24,8 +24,9 @@ class Mock(MagicMock):
             return Mock()
 
 
-MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'scikit-image', 'netCDF4', 'basemap', 'matplotlib', "pyproj",
-                "scikit-learn"]
+MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'skimage.morphology', 'netCDF4', 'basemap', 'matplotlib', "pyproj",
+                "sklearn", "scipy.ndimage", "matplotlib.pyplot", "scipy.stats", "scipy.signal", "skimage.measure",
+                "skimage.segmentation", "scipy.interpolate", "mpl_toolkits.axes_grid.inset_locator"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
