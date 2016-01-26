@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+
 
 classifiers = ['Development Status :: 4 - Beta',
                'Intended Audience :: Science/Research',
@@ -8,6 +10,18 @@ classifiers = ['Development Status :: 4 - Beta',
                'Programming Language :: Python :: 2.7',
               ]
 
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if on_rtd:
+    requires = []
+else:
+    requires = ["numpy>=1.9",
+                "pandas>=0.15",
+                "scipy",
+                "matplotlib",
+                "netCDF4",
+                "scikit-learn>=0.16",
+                "basemap",
+                "scikit-image"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
@@ -24,11 +38,4 @@ if __name__ == "__main__":
           scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval"],
           keywords=["hail", "verification", "tracking", "weather", "meteorology", "machine learning"],
           classifiers=classifiers,
-          install_requires=["numpy>=1.9",
-                            "pandas>=0.15",
-                            "scipy", 
-                            "matplotlib", 
-                            "netCDF4", 
-                            "scikit-learn>=0.16",
-                            "basemap",
-                            "scikit-image"])
+          install_requires=requires)
