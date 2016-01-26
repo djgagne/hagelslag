@@ -23,7 +23,8 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
             return Mock()
 
-MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'scikit-image', 'netCDF4']
+
+MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'scikit-image', 'netCDF4', 'basemap', 'matplotlib']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
