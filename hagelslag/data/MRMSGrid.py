@@ -74,5 +74,5 @@ class MRMSGrid(object):
             file_obj.close()
         self.data = np.array(data)
         self.data[self.data < 0] = 0
-        self.data[self.data > 100] = 100
+        self.data[self.data > 150] = 150
         self.valid_dates = pd.DatetimeIndex(valid_dates) 

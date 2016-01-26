@@ -52,7 +52,7 @@ class ModelGrid(object):
                 print("Warning: File {0} not found.".format(filename))
                 self.file_objects.append(None)
 
-    def load_data(self):
+    def load_data_old(self):
         """
         Loads time series of 2D data grids from each opened file. The code 
         handles loading a full time series from one file or individual time steps
@@ -71,6 +71,7 @@ class ModelGrid(object):
                         grid_shape = file_object.variables[self.variable].shape
                     elif self.variable.ljust(6, "_") in file_object.variables.keys():
                         grid_shape = file_object.variables[self.variable.ljust(6, "_")].shape
+
                     else:
                         print("{0} not found".format(self.variable))
                         raise KeyError
@@ -91,6 +92,63 @@ class ModelGrid(object):
         else:
             data = None
         return data, units
+
+    def load_data(self):
+        """
+        Load data from netCDF file objects or list of netCDF file objects. Handles special variable name formats.
+
+        Returns:
+            Array of data loaded from files in (time, y, x) dimensions, Units
+        """
+        units = ""
+        if len(self.file_objects) == 1 and self.file_objects[0] is not None:
+            var_name, z_index = self.format_var_name(self.variable, self.file_objects[0].variables.keys())
+            if z_index is None:
+                data = self.file_objects[0].variables[self.variable][self.forecast_hours]
+            else:
+                data = self.file_objects[0].variables[self.variable][self.forecast_hours, z_index]
+            if hasattr(self.file_objects[0].variables[var_name], "units"):
+                units = self.file_objects[0].variables[var_name].units
+        elif len(self.file_objects) > 1:
+            var_name, z_index = self.format_var_name(self.variable, self.file_objects[0].variables.keys())
+            y_dim, x_dim = self.file_objects[0].variables[var_name].shape[-2:]
+            data = np.zeros((len(self.file_objects), y_dim, x_dim))
+            for f, file_object in enumerate(self.file_objects):
+                if file_object is not None:
+                    if z_index is None:
+                        data[f] = file_object.variables[var_name][0]
+                    else:
+                        data[f] = file_object.variables[var_name][0, z_index]
+            if hasattr(self.file_objects[0].variables[var_name], "units"):
+                units = self.file_objects[0].variables[var_name].units
+        else:
+            raise IOError()
+        return data, units
+
+    @staticmethod
+    def format_var_name(variable, var_list):
+        """
+        Searches var list for variable name, checks other variable name format options.
+
+        Args:
+            variable (str): Variable being loaded
+            var_list (list): List of variables in file.
+
+        Returns:
+            Name of variable in file containing relevant data, and index of variable z-level if multiple variables
+            contained in same array in file.
+        """
+        z_index = None
+        if variable in var_list:
+            var_name = variable
+        elif variable.ljust(6, "_") in var_list:
+            var_name = variable.ljust(6, "_")
+        elif any([variable in v_sub.split("_") for v_sub in var_list]):
+            var_name = var_list[[variable in v_sub.split("_") for v_sub in var_list].index(True)]
+            z_index = var_name.split("_").index(variable)
+        else:
+            raise KeyError("{0} not found in {1}".format(variable, var_list))
+        return var_name, z_index
 
     def __exit__(self):
         """
