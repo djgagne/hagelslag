@@ -21,7 +21,8 @@ else:
                 "netCDF4",
                 "scikit-learn>=0.16",
                 "basemap",
-                "scikit-image"]
+                "scikit-image",
+                "pyproj"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
