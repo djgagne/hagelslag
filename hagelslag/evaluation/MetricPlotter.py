@@ -50,7 +50,7 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
             pod_range = np.percentile(broc_curves[:,0], ci, axis=1)
             pofd_range = np.percentile(broc_curves[:, 1], ci, axis=1)
             pod_poly = np.concatenate((pod_range[1], pod_range[0, ::-1]))
-            pofd_poly = np.concatenate((pofd_range[1], pofd_range[0, ::-1]))
+            pofd_poly = np.concatenate((pofd_range[0], pofd_range[1, ::-1]))
             pod_poly[np.isnan(pod_poly)] = 0
             pofd_poly[np.isnan(pofd_poly)] = 0
             plt.fill(pofd_poly, pod_poly, alpha=0.5, color=colors[b])
