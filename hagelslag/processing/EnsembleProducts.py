@@ -72,35 +72,41 @@ class EnsembleProducts(object):
         if sigmas is None:
             sigmas = [0]
         weights = disk(radius)
-        neighborhood_prob = np.zeros(self.data.shape[1:])
         filtered_prob = []
         for sigma in sigmas:
-            filtered_prob.append(EnsembleConsensus(np.zeros(self.data.shape[1:]),
+            filtered_prob.append(EnsembleConsensus(np.zeros(self.data.shape[1:], dtype=np.float32),
                                                    "neighbor_prob_r_{0:d}_s_{1:d}".format(radius, sigma),
                                                    self.ensemble_name,
                                                    self.run_date, self.variable + "_{0:0.2f}".format(threshold),
                                                    self.start_date, self.end_date, ""))
-        thresh_data = np.where(self.data >= threshold, 1, 0)
+        thresh_data = np.zeros(self.data.shape[2:], dtype=np.int16)
+        neighbor_prob = np.zeros(self.data.shape[2:], dtype=np.float32)
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
-                maximized = fftconvolve(thresh_data[m, t], weights, mode="same")
+                thresh_data[self.data[m, t] >= threshold] = 1
+                maximized = fftconvolve(thresh_data, weights, mode="same")
                 maximized[maximized > 1] = 1
-                neighborhood_prob[t] += fftconvolve(maximized, weights, mode="same")
-            neighborhood_prob[t] /= (self.data.shape[0] * float(weights.sum()))
+                neighbor_prob += fftconvolve(maximized, weights, mode="same")
+                del maximized
+                thresh_data[:] = 0
+            neighbor_prob /= (self.data.shape[0] * float(weights.sum()))
             for s, sigma in enumerate(sigmas):
                 if sigma > 0:
-                    filtered_prob[s].data[t] = gaussian_filter(neighborhood_prob[t], sigma=sigma)
+                    filtered_prob[s].data[t] = gaussian_filter(neighbor_prob, sigma=sigma)
                 else:
-                    filtered_prob[s].data[t] = neighborhood_prob[t]
+                    filtered_prob[s].data[t] = neighbor_prob
+            neighbor_prob[:] = 0
         return filtered_prob
 
     def period_max_neighborhood_probability(self, threshold, radius, sigmas=None):
         if sigmas is None:
             sigmas = [0]
         weights = disk(radius)
-        neighborhood_prob = np.zeros(self.data.shape[2:])
+        neighborhood_prob = np.zeros(self.data.shape[2:], dtype=np.float32)
+        thresh_data = np.zeros(self.data.shape[2:], dtype=np.int16)
         for m in range(self.data.shape[0]):
-            maximized = fftconvolve(np.where(self.data[m].max(axis=0) >= threshold, 1, 0), weights, mode="same")
+            thresh_data[self.data[m].max(axis=0) >= threshold] = 1
+            maximized = fftconvolve(thresh_data, weights, mode="same")
             maximized[maximized > 1] = 1
             neighborhood_prob += fftconvolve(maximized, weights, mode="same")
         neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
