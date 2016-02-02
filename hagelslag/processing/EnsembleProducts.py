@@ -65,7 +65,8 @@ class EnsembleProducts(object):
         for t in range(self.data.shape[1]):
             point_prob[t] = np.where(self.data[:, t] >= threshold, 1.0, 0.0).mean(axis=0)
         return EnsembleConsensus(point_prob, "point_probability", self.ensemble_name,
-                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold, self.units.replace(" ", "_")),
+                                 self.run_date, self.variable + "_{0:0.2f}_{1}".format(threshold,
+                                                                                       self.units.replace(" ", "_")),
                                  self.start_date, self.end_date, "")
 
     def neighborhood_probability(self, threshold, radius, sigmas=None):
@@ -79,15 +80,16 @@ class EnsembleProducts(object):
                                                    self.ensemble_name,
                                                    self.run_date, self.variable + "_{0:0.2f}".format(threshold),
                                                    self.start_date, self.end_date, ""))
-        thresh_data = np.zeros(self.data.shape[2:], dtype=np.int16)
+        thresh_data = np.zeros(self.data.shape[2:], dtype=np.uint8)
         neighbor_prob = np.zeros(self.data.shape[2:], dtype=np.float32)
         for t in range(self.data.shape[1]):
             for m in range(self.data.shape[0]):
                 thresh_data[self.data[m, t] >= threshold] = 1
                 maximized = fftconvolve(thresh_data, weights, mode="same")
                 maximized[maximized > 1] = 1
+                maximized[maximized < 1] = 0
                 neighbor_prob += fftconvolve(maximized, weights, mode="same")
-                del maximized
+                neighbor_prob[neighbor_prob < 1] = 0
                 thresh_data[:] = 0
             neighbor_prob /= (self.data.shape[0] * float(weights.sum()))
             for s, sigma in enumerate(sigmas):
@@ -103,7 +105,7 @@ class EnsembleProducts(object):
             sigmas = [0]
         weights = disk(radius)
         neighborhood_prob = np.zeros(self.data.shape[2:], dtype=np.float32)
-        thresh_data = np.zeros(self.data.shape[2:], dtype=np.int16)
+        thresh_data = np.zeros(self.data.shape[2:], dtype=np.uint8)
         for m in range(self.data.shape[0]):
             thresh_data[self.data[m].max(axis=0) >= threshold] = 1
             maximized = fftconvolve(thresh_data, weights, mode="same")
@@ -256,7 +258,8 @@ class EnsembleConsensus(object):
             var.coordinates = "y x"
         else:
             if full_var_name not in out_data.variables.keys():
-                var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True, least_significant_digit=4)
+                var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True,
+                                              least_significant_digit=4)
             else:
                 var = out_data.variables[full_var_name]
             var.coordinates = "time y x"
