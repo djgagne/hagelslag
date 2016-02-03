@@ -23,24 +23,26 @@ class EnsembleProducts(object):
         self.times = pd.DatetimeIndex(start=self.start_date, end=self.end_date, freq="1H")
         self.path = path
         self.single_step = single_step
-        self.data = np.array([])
+        self.data = None
         self.units = ""
 
     def load_data(self):
-        data = []
-        for member in self.members:
+        for m, member in enumerate(self.members):
             mo = ModelOutput(self.ensemble_name, member, self.run_date, self.variable,
                              self.start_date, self.end_date, self.path, self.single_step)
             mo.load_data()
+            if self.data is None:
+                self.data = np.zeros((len(self.members), mo.data.shape[0], mo.data.shape[1], mo.data.shape[2]),
+                                     dtype=np.float32)
             if mo.units == "m":
-                data.append(mo.data * 1000)
+                self.data[m] = mo.data * 1000
                 self.units = "mm"
             else:
-                data.append(mo.data)
+                self.data[m] = mo.data
             if self.units == "":
                 self.units = mo.units
+            del mo.data
             del mo
-        self.data = np.array(data)
 
     def point_consensus(self, consensus_type):
         if "mean" in consensus_type:
