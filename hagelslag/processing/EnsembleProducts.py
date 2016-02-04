@@ -156,7 +156,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     del tfo
         return
 
-    def load_data(self, grid_method="mean"):
+    def load_data(self, grid_method="gamma", num_samples=1000, condition_threshold=0.5):
         if self.track_forecasts == {}:
             self.load_track_forecasts()
         if self.track_forecasts == {}:
@@ -210,8 +210,9 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                             i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                             j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
                             if rankings.size > 0:
-                                samples = np.sort(forecast_dist.rvs(size=rankings.size))
-                                if condition is None or condition >= 0.5:
+                                samples = np.sort(forecast_dist.rvs(size=(num_samples, rankings.size)),
+                                                  axis=1).mean(axis=0)
+                                if condition is None or condition >= condition_threshold:
                                     self.data[m, t, i, j] = samples
         return 0
 
