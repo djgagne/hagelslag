@@ -3,13 +3,18 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
-from scipy.stats import gamma
+from scipy.stats import gamma, bernoulli
 from skimage.morphology import disk
 from netCDF4 import Dataset, date2num
 import os
 from glob import glob
 import json
 from datetime import timedelta
+try:
+    from ncepgrib2 import Grib2Encode, dump
+    grib_support = True
+except ImportError("ncepgrib2 not available"):
+    grib_support = False
 
 
 class EnsembleProducts(object):
@@ -132,11 +137,12 @@ class EnsembleProducts(object):
 
 class MachineLearningEnsembleProducts(EnsembleProducts):
     def __init__(self, ml_model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                 forecast_json_path, condition_model_name=None):
+                 forecast_json_path, condition_model_name=None, mapfile=None):
         self.track_forecasts = {}
         self.grid_shape = grid_shape
         self.forecast_bins = forecast_bins
         self.condition_model_name = condition_model_name
+        self.percentile = None
         super(MachineLearningEnsembleProducts, self).__init__(ml_model_name, members, run_date, variable,
                                                               start_date, end_date, forecast_json_path,
                                                               single_step=False)
@@ -156,7 +162,9 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     del tfo
         return
 
-    def load_data(self, grid_method="gamma", num_samples=1000, condition_threshold=0.5):
+    def load_data(self, grid_method="gamma", num_samples=1000, condition_threshold=0.5, zero_inflate=False,
+                  percentile=None):
+        self.percentile = percentile
         if self.track_forecasts == {}:
             self.load_track_forecasts()
         if self.track_forecasts == {}:
@@ -210,12 +218,25 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                             i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                             j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
                             if rankings.size > 0:
-                                samples = np.sort(forecast_dist.rvs(size=(num_samples, rankings.size)),
-                                                  axis=1).mean(axis=0)
+                                raw_samples = np.sort(forecast_dist.rvs(size=(num_samples, rankings.size)),
+                                                      axis=1)
+                                if zero_inflate:
+                                    raw_samples = raw_samples * bernoulli.rvs(condition_threshold,
+                                                                              size=(num_samples, rankings.size))
+                                if percentile is None:
+                                    samples = raw_samples.mean(axis=0)
+                                else:
+                                    samples = np.percentile(raw_samples, percentile, axis=0)
                                 if condition is None or condition >= condition_threshold:
                                     self.data[m, t, i, j] = samples
         return 0
 
+    def write_grib2(self, path):
+        for t, time in enumerate(self.times):
+            grbe = Grib2Encode(0, [9, 255, 15, 0, 2])
+            grbe.addgrid()
+            grbe.addfield()
+        return
 
 class EnsembleConsensus(object):
     """
