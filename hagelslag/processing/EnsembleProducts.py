@@ -1,4 +1,5 @@
 from hagelslag.data.ModelOutput import ModelOutput
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter
@@ -18,6 +19,23 @@ except ImportError("ncepgrib2 not available"):
 
 
 class EnsembleProducts(object):
+    """
+    Loads in individual ensemble members and generates both grid point and neighborhood probabilities from the
+    model output.
+
+    Attributes:
+        ensemble_name (str): Name of the ensemble prediction system.
+        members (list): List of ensemble member names.
+        run_date (datetime.datetime): Initial date and time of the model run
+        variable (str): Name of model variable being processed
+        start_date (datetime.datetime or date string): Date of the initial forecast time step.
+        end_date (datetime.datetime or date string): Date of the final forecast time step.
+        times (pandas.DatetimeIndex): A sequence of hourly forecast times.
+        path (str): Path to the ensemble model files.
+        single_step (bool): If True, each forecast timestep is in a separate file.
+        data (ndarray[members, times, y, x]): Forecast data. Initially None.
+        units (str): The units of the forecast variable
+    """
     def __init__(self, ensemble_name, members, run_date, variable, start_date, end_date, path, single_step):
         self.ensemble_name = ensemble_name
         self.members = members
@@ -32,6 +50,9 @@ class EnsembleProducts(object):
         self.units = ""
 
     def load_data(self):
+        """
+        Loads data from each ensemble member.
+        """
         for m, member in enumerate(self.members):
             mo = ModelOutput(self.ensemble_name, member, self.run_date, self.variable,
                              self.start_date, self.end_date, self.path, self.single_step)
@@ -50,6 +71,15 @@ class EnsembleProducts(object):
             del mo
 
     def point_consensus(self, consensus_type):
+        """
+        Calculate grid-point statistics across ensemble members.
+
+        Args:
+            consensus_type: mean, std, median, max, or percentile_nn
+
+        Returns:
+            EnsembleConsensus containing point statistic
+        """
         if "mean" in consensus_type:
             consensus_data = np.mean(self.data, axis=0)
         elif "std" in consensus_type:
@@ -68,6 +98,16 @@ class EnsembleProducts(object):
         return consensus
 
     def point_probability(self, threshold):
+        """
+        Determine the probability of exceeding a threshold at a grid point based on the ensemble forecasts at
+        that point.
+
+        Args:
+            threshold: If >= threshold assigns a 1 to member, otherwise 0.
+
+        Returns:
+            EnsembleConsensus
+        """
         point_prob = np.zeros(self.data.shape[1:])
         for t in range(self.data.shape[1]):
             point_prob[t] = np.where(self.data[:, t] >= threshold, 1.0, 0.0).mean(axis=0)
@@ -77,6 +117,17 @@ class EnsembleProducts(object):
                                  self.start_date, self.end_date, "")
 
     def neighborhood_probability(self, threshold, radius, sigmas=None):
+        """
+        Hourly probability of exceeding a threshold based on model values within a specified radius of a point.
+
+        Args:
+            threshold (float): probability of exceeding this threshold
+            radius (int): distance from point in number of grid points to include in neighborhood calculation.
+            sigmas (array of ints): Radii for Gaussian filter used to smooth neighborhood probabilities.
+
+        Returns:
+            EnsembleConsensus containing neighborhood probabilities for each forecast hour.
+        """
         if sigmas is None:
             sigmas = [0]
         weights = disk(radius)
@@ -108,6 +159,17 @@ class EnsembleProducts(object):
         return filtered_prob
 
     def period_max_neighborhood_probability(self, threshold, radius, sigmas=None):
+        """
+        Calculates the neighborhood probability of exceeding a threshold at any time over the period loaded.
+
+        Args:
+            threshold (float): splitting threshold for probability calculatations
+            radius (int): distance from point in number of grid points to include in neighborhood calculation.
+            sigmas (array of ints): Radii for Gaussian filter used to smooth neighborhood probabilities.
+
+        Returns:
+            EnsembleConsensus
+        """
         if sigmas is None:
             sigmas = [0]
         weights = disk(radius)
@@ -136,18 +198,34 @@ class EnsembleProducts(object):
 
 
 class MachineLearningEnsembleProducts(EnsembleProducts):
+    """
+    Subclass of EnsembleProducts that processes forecasts from machine learning models. In particular, this
+    class converts object distribution forecasts to grid point values for each ensemble member.
+    """
     def __init__(self, ml_model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                 forecast_json_path, condition_model_name=None, mapfile=None):
+                 forecast_json_path, condition_model_name=None, map_file=None):
         self.track_forecasts = {}
         self.grid_shape = grid_shape
         self.forecast_bins = forecast_bins
         self.condition_model_name = condition_model_name
         self.percentile = None
+        if map_file is not None:
+            if map_file[-3:] == "map":
+                self.proj_dict, self.grid_dict = read_arps_map_file(map_file)
+            else:
+                self.proj_dict, self.grid_dict = read_ncar_map_file(map_file)
+        else:
+            self.proj_dict = None
+            self.grid_dict = None
         super(MachineLearningEnsembleProducts, self).__init__(ml_model_name, members, run_date, variable,
                                                               start_date, end_date, forecast_json_path,
                                                               single_step=False)
 
     def load_track_forecasts(self):
+        """
+        Load the track forecasts from each geoJSON file.
+
+        """
         run_date_str = self.run_date.strftime("%Y%m%d")
         print("Load track forecasts {0} {1}".format(self.ensemble_name, run_date_str))
         for member in self.members:
@@ -164,6 +242,21 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
 
     def load_data(self, grid_method="gamma", num_samples=1000, condition_threshold=0.5, zero_inflate=False,
                   percentile=None):
+        """
+        Reads the track forecasts and converts them to grid point values based on random sampling.
+
+        Args:
+            grid_method: "gamma" by default
+            num_samples: Number of samples drawn from predicted pdf
+            condition_threshold: Objects are not written to the grid if condition model probability is below this
+                threshold.
+            zero_inflate: Whether to sample zeros from a Bernoulli sampler based on the condition model probability
+            percentile: If None, outputs the mean of the samples at each grid point, otherwise outputs the specified
+                percentile from 0 to 100.
+
+        Returns:
+            0 if tracks are successfully sampled on to grid. If no tracks are found, returns -1.
+        """
         self.percentile = percentile
         if self.track_forecasts == {}:
             self.load_track_forecasts()
@@ -232,11 +325,51 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
         return 0
 
     def write_grib2(self, path):
-        for t, time in enumerate(self.times):
-            grbe = Grib2Encode(0, [9, 255, 15, 0, 2])
-            grbe.addgrid()
-            grbe.addfield()
+        """
+        Writes data to grib2 file. Currently, grib codes are set by hand to hail.
+
+        Args:
+            path: Path to directory containing grib2 files.
+
+        Returns:
+
+        """
+        if self.percentile is None:
+            var_type = "mean"
+        else:
+            var_type = "p{0:02d}".format(self.percentile)
+        lscale = 1e6
+        grib_id_start = [7, 0, 15, 0, 2]
+        gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
+        lon_0 = self.proj_dict["lon_0"]
+        sw_lon = self.proj_dict["sw_lon"]
+        if lon_0 < 0:
+            lon_0 += 360
+        if sw_lon < 0:
+            sw_lon += 360
+        gdtmp1 = np.array([7, 1, self.proj_dict['a'], 1, self.proj_dict['a'], 1, self.proj_dict['b'],
+                           self.data.shape[-2], self.data.shape[-1], self.grid_dict["sw_lat"] * lscale,
+                           sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
+                           lon_0 * lscale,
+                           self.grid_dict["dx"] * 1e-3, self.grid_dict["dy"] * 1e-3, 0,
+                           self.proj_dict["lat_1"] * lscale,
+                           self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
+        pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
+        for m, member in enumerate(self.members):
+            pdtmp1[-2] = m
+            for t, time in enumerate(self.times):
+                time_list = list(time.utctimetuple()[0:6])
+                grbe = Grib2Encode(0, grib_id_start + time_list + [2, 1])
+                grbe.addgrid(gdsinfo, gdtmp1)
+                pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
+                drtmp1 = np.array([0, 2, 2, 16, 0], dtype=np.int32)
+                grbe.addfield(1, pdtmp1, 0, drtmp1, self.data[m, t].astype(np.float32))
+                grbe.end()
+                filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name, member, var_type,
+                                                                        time.to_datetime().strftime("%Y%m%d%H%M"))
+                dump(filename, [grbe.msg])
         return
+
 
 class EnsembleConsensus(object):
     """

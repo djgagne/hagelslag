@@ -21,6 +21,7 @@ def main():
     parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
     parser.add_argument("-s", "--samp", action="store_true", help="Sample tracks.")
     parser.add_argument("-e", "--ens", action="store_true", help="Generate ensemble products.")
+    parser.add_argument("-g", "--grid", action="store_true", help="Generate forecast grids.")
     args = parser.parse_args()
     required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
                 "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
@@ -46,8 +47,10 @@ def main():
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
             output_forecasts(forecasts, track_modeler, config)
+    if args.grid:
+        generate_ml_grids(config, mode="forecast")
     if args.ens:
-            generate_all_ensemble_products(config, mode="forecast")
+        generate_all_ensemble_products(config, mode="forecast")
     if args.samp:
         sample_all_tracks(config)
     return
@@ -278,7 +281,8 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
         print(r_date + " " + model_name + " started")
 
         ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
-                                             forecast_bins, forecast_json_path, condition_model_name=neighbor_condition_model)
+                                             forecast_bins, forecast_json_path,
+                                             condition_model_name=neighbor_condition_model)
         data_code = ep.load_data(grid_method=grid_method)
         if data_code == 0:
             if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
@@ -302,6 +306,82 @@ def generate_ml_run_product(model_name, members, run_date, variable, start_date,
         print(traceback.format_exc())
         raise e
 
+    return
+
+
+def generate_ml_grids(config, mode="forecast"):
+    """
+    Creates gridded machine learning model forecasts and writes them to GRIB2 files.
+
+    Args:
+        config:
+        mode:
+
+    Returns:
+
+    """
+    pool = Pool(config.num_procs)
+    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
+                                 end=config.end_dates[mode],
+                                 freq='1D')
+    ml_model_list = config.size_distribution_model_names
+    ml_var = "dist"
+    for ml_model in ml_model_list:
+        for run_date in run_dates:
+            start_date = run_date + timedelta(hours=config.start_hour)
+            end_date = run_date + timedelta(hours=config.end_hour)
+            args = (ml_model, config.ensemble_members, run_date, ml_var, start_date, end_date,
+                    config.grid_shape, config.neighbor_condition_model, config.condition_threshold,
+                    config.zero_inflate, config.ml_grid_percentiles, config.forecast_json_path,
+                    config.grib_path, config.model_map_file)
+            pool.apply_async(generate_ml_run_grid, args)
+    pool.close()
+    pool.join()
+    return
+
+
+def generate_ml_run_grid(model_name, members, run_date, variable, start_date, end_date, grid_shape,
+                         neighbor_condition_model, condition_threshold, zero_inflate, ml_grid_percentiles,
+                         forecast_json_path, grib_path, map_file):
+    """
+    Loads machine learning model forecasts and outputs them to original ensemble model grid. The grids are then
+    written out to GRIB2 files.
+
+    Args:
+        model_name:
+        members:
+        run_date:
+        variable:
+        start_date:
+        end_date:
+        grid_shape:
+        neighbor_condition_model:
+        condition_threshold:
+        zero_inflate:
+        ml_grid_percentiles:
+        forecast_json_path:
+        grib_path:
+        map_file:
+
+    Returns:
+
+    """
+    forecast_bins = np.arange(0, 105, 5)
+    ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date,
+                                         grid_shape, forecast_bins, forecast_json_path,
+                                         condition_model_name=neighbor_condition_model,
+                                         map_file=map_file)
+    ep.load_track_forecasts()
+    for percentile in ml_grid_percentiles:
+        data_code = ep.load_data(condition_threshold=condition_threshold, zero_inflate=zero_inflate,
+                                 percentile=percentile)
+        if data_code == 0:
+            if not os.access(grib_path + run_date.strftime("%Y%m%d"), os.R_OK):
+                try:
+                    os.mkdir(grib_path + run_date.strftime("%Y%m%d"))
+                except OSError:
+                    print("Directory already created: " + grib_path + run_date.strftime("%Y%m%d"))
+        ep.write_grib2(grib_path + run_date.strftime("%Y%m%d"))
     return
 
 if __name__ == "__main__":
