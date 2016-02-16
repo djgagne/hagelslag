@@ -314,7 +314,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                                 raw_samples = np.sort(forecast_dist.rvs(size=(num_samples, rankings.size)),
                                                       axis=1)
                                 if zero_inflate:
-                                    raw_samples = raw_samples * bernoulli.rvs(condition_threshold,
+                                    raw_samples = raw_samples * bernoulli.rvs(condition,
                                                                               size=(num_samples, rankings.size))
                                 if percentile is None:
                                     samples = raw_samples.mean(axis=0)
@@ -334,15 +334,16 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
         Returns:
 
         """
+        print("entered grib2 function")
         if self.percentile is None:
             var_type = "mean"
         else:
             var_type = "p{0:02d}".format(self.percentile)
         lscale = 1e6
-        grib_id_start = [7, 0, 15, 0, 2]
+        grib_id_start = [7, 0, 14, 14, 2]
         gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
         lon_0 = self.proj_dict["lon_0"]
-        sw_lon = self.proj_dict["sw_lon"]
+        sw_lon = self.grid_dict["sw_lon"]
         if lon_0 < 0:
             lon_0 += 360
         if sw_lon < 0:
@@ -356,18 +357,24 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                            self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
         pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
         for m, member in enumerate(self.members):
+            print("Encoding GRIB2 " + member)
             pdtmp1[-2] = m
             for t, time in enumerate(self.times):
                 time_list = list(time.utctimetuple()[0:6])
-                grbe = Grib2Encode(0, grib_id_start + time_list + [2, 1])
+                grbe = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grbe.addgrid(gdsinfo, gdtmp1)
                 pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
-                drtmp1 = np.array([0, 2, 2, 16, 0], dtype=np.int32)
-                grbe.addfield(1, pdtmp1, 0, drtmp1, self.data[m, t].astype(np.float32))
+                drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
+                data = self.data[m, t].astype(np.float32) / 1000.0
+                masked_data = np.ma.array(data, mask=data<=0)
+                grbe.addfield(1, pdtmp1, 0, drtmp1, masked_data)
                 grbe.end()
-                filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name, member, var_type,
+                filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name.replace(" ", "-"), member, var_type,
                                                                         time.to_datetime().strftime("%Y%m%d%H%M"))
-                dump(filename, [grbe.msg])
+                print("Writing to " + filename)
+                grib_file = open(filename, "wb")
+                grib_file.write(grbe.msg)
+                grib_file.close()
         return
 
 

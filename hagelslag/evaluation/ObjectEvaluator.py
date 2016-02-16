@@ -152,11 +152,12 @@ class ObjectEvaluator(object):
             if model_type == "dist":
                 forecast_cdfs = np.zeros((sub_forecasts.shape[0], self.dist_thresholds.size))
                 for f in range(sub_forecasts.shape[0]):
-                    if condition_forecasts[f] >= condition_threshold:
-                        params = np.zeros(3)
+                    condition_prob = condition_forecasts.loc[f, self.forecast_bins["condition"][0]]
+                    if condition_prob >= condition_threshold:
+                        f_params = [0, 0, 0]
                     else:
-                        params = sub_forecasts[self.forecast_bins[model_type]].values
-                    forecast_cdfs[f] = gamma_cdf(self.dist_thresholds, *params)
+                        f_params = sub_forecasts[self.forecast_bins[model_type]].values[f]
+                    forecast_cdfs[f] = gamma_cdf(self.dist_thresholds, f_params[0], f_params[1], f_params[2])
                 obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
                                     for params in sub_forecasts[self.type_cols[model_type]].values])
                 crps_obj.update(forecast_cdfs, obs_cdfs)
