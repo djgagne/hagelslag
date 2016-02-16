@@ -217,15 +217,14 @@ def generate_all_ensemble_products(config, mode="forecast"):
     else:
         ml_var = "size"
         ml_model_list = config.size_model_names
-    for ml_model in ml_model_list:
-        for run_date in run_dates.to_pydatetime():
-            start_date = run_date + timedelta(hours=config.start_hour)
-            end_date = run_date + timedelta(hours=config.end_hour)
-            args = (ml_model, config.ensemble_members, run_date, ml_var, start_date, end_date,
-                    config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
-                    config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
-                    config.ensemble_consensus_path, config.neighbor_condition_model)
-            pool.apply_async(generate_ml_run_product, args)
+    for run_date in run_dates.to_pydatetime():
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        args = (ml_model_list, config.ensemble_members, run_date, ml_var, start_date, end_date,
+                config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
+                config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
+                config.ensemble_consensus_path, config.neighbor_condition_model)
+        pool.apply_async(generate_ml_run_product, args)
     for run_date in run_dates.to_pydatetime():
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
@@ -241,6 +240,27 @@ def generate_all_ensemble_products(config, mode="forecast"):
 
 def generate_ensemble_run_product(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step,
                                   thresholds, neighbor_radii, neighbor_sigmas, out_path):
+    """
+    Calculate neighborhood probabilities from raw ensemble data.
+
+    Args:
+        ensemble_name:
+        members:
+        run_date:
+        variable:
+        start_date:
+        end_date:
+        path:
+        single_step:
+        thresholds:
+        neighbor_radii:
+        neighbor_sigmas:
+        out_path:
+
+    Returns:
+
+    """
+    out_file = None
     try:
         r_date = run_date.strftime("%Y%m%d")
         print(r_date + " " + variable + " started")
@@ -253,59 +273,101 @@ def generate_ensemble_run_product(ensemble_name, members, run_date, variable, st
                 print("Directory already created")
         filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(ensemble_name, variable,
                                                                     run_date.strftime("%Y%m%d"))
+        ecs = []
         for threshold in thresholds:
             print(r_date + " " + variable + "{0:d}".format(int(threshold)))
             for neighbor_radius in neighbor_radii:
                 print(r_date + " Hourly " + variable + " r={0:d}".format(int(neighbor_radius)))
-                ecs = ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
-                for ec in ecs:
-                    ec.to_file(filename)
-                del ecs
+                ecs.extend(ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
                 print(r_date + " Max " + variable + " r={0:d}".format(int(neighbor_radius)))
-                ecps = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
-                for ecp in ecps:
-                    ecp.to_file(filename)
-                del ecps
+                ecs.extend(ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
+                if out_file is None:
+                    out_file = ecs[0].init_file(filename)
+                for ec in ecs:
+                    ec.to_file(out_file)
+                del ecs[:]
+
     except Exception as e:
         print(traceback.format_exc())
         raise e
-
+    finally:
+        if out_file is not None:
+            out_file.close()
+            del out_file
     return
 
 
-def generate_ml_run_product(model_name, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
+def generate_ml_run_product(model_names, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
                             forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path,
                             neighbor_condition_model):
+    """
+    Calculate neighborhood probabilities from machine learning model forecasts.
+
+    Args:
+        model_names:
+        members:
+        run_date:
+        variable:
+        start_date:
+        end_date:
+        grid_shape:
+        forecast_bins:
+        forecast_json_path:
+        grid_method:
+        thresholds:
+        neighbor_radii:
+        neighbor_sigmas:
+        out_path:
+        neighbor_condition_model:
+
+    Returns:
+
+    """
+    out_file = None
     try:
         r_date = run_date.strftime("%Y%m%d")
-        print(r_date + " " + model_name + " started")
 
-        ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date, grid_shape,
+        ep = MachineLearningEnsembleProducts(None, members, run_date, variable, start_date, end_date, grid_shape,
                                              forecast_bins, forecast_json_path,
                                              condition_model_name=neighbor_condition_model)
-        data_code = ep.load_data(grid_method=grid_method)
-        if data_code == 0:
-            if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
-                try:
-                    os.mkdir(out_path + run_date.strftime("%Y%m%d"))
-                except OSError:
-                    print("Directory already created")
-            filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
-                                                                        run_date.strftime("%Y%m%d"))
-            for threshold in thresholds:
-                for neighbor_radius in neighbor_radii:
-                    print(r_date + " Hourly " + model_name + " r={0:d}".format(int(neighbor_radius)))
-                    ecs = ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
-                    for ec in ecs:
-                        ec.to_file(filename)
-                    print(r_date + " Max " + model_name + " r={0:d}".format(int(neighbor_radius)))
-                    ecps = ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas)
-                    for ecp in ecps:
-                        ecp.to_file(filename)
+        ep.load_track_forecasts()
+        ecs = []
+        for model_name in model_names:
+            print(r_date + " " + model_name + " neighborhood probability started")
+            ep.ensemble_name = model_name
+            data_code = ep.load_data(grid_method=grid_method)
+            if data_code == 0:
+                if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
+                    try:
+                        os.mkdir(out_path + run_date.strftime("%Y%m%d"))
+                    except OSError:
+                        print("Directory already created")
+                filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
+                                                                            run_date.strftime("%Y%m%d"))
+                out_file = None
+                for threshold in thresholds:
+                    for neighbor_radius in neighbor_radii:
+                        print(r_date + " Hourly " + model_name + " r={0:d}".format(int(neighbor_radius)))
+                        ecs.extend(ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
+                        print(r_date + " Max " + model_name + " r={0:d}".format(int(neighbor_radius)))
+                        ecs.extend(ep.period_max_neighborhood_probability(threshold, neighbor_radius,
+                                                                          sigmas=neighbor_sigmas))
+                        if out_file is None:
+                            out_file = ecs[0].init_file(filename)
+                        for ec in ecs:
+                            ec.to_file(out_file)
+                        del ecs[:]
+                if out_file is not None:
+                    out_file.close()
+                    del out_file
+
     except Exception as e:
         print(traceback.format_exc())
         raise e
-
+    finally:
+        if out_file is not None:
+            out_file.close()
+            del out_file
     return
 
 
@@ -326,21 +388,20 @@ def generate_ml_grids(config, mode="forecast"):
                                  freq='1D')
     ml_model_list = config.size_distribution_model_names
     ml_var = "dist"
-    for ml_model in ml_model_list:
-        for run_date in run_dates:
-            start_date = run_date + timedelta(hours=config.start_hour)
-            end_date = run_date + timedelta(hours=config.end_hour)
-            args = (ml_model, config.ensemble_members, run_date, ml_var, start_date, end_date,
-                    config.grid_shape, config.neighbor_condition_model, config.condition_threshold,
-                    config.zero_inflate, config.ml_grid_percentiles, config.forecast_json_path,
-                    config.grib_path, config.model_map_file)
-            pool.apply_async(generate_ml_run_grid, args)
+    for run_date in run_dates:
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        args = (ml_model_list, config.ensemble_members, run_date, ml_var, start_date, end_date,
+                config.grid_shape, config.neighbor_condition_model, config.condition_threshold,
+                config.zero_inflate, config.ml_grid_percentiles, config.forecast_json_path,
+                config.grib_path, config.model_map_file)
+        pool.apply_async(generate_ml_run_grid, args)
     pool.close()
     pool.join()
     return
 
 
-def generate_ml_run_grid(model_name, members, run_date, variable, start_date, end_date, grid_shape,
+def generate_ml_run_grid(model_names, members, run_date, variable, start_date, end_date, grid_shape,
                          neighbor_condition_model, condition_threshold, zero_inflate, ml_grid_percentiles,
                          forecast_json_path, grib_path, map_file):
     """
@@ -348,7 +409,7 @@ def generate_ml_run_grid(model_name, members, run_date, variable, start_date, en
     written out to GRIB2 files.
 
     Args:
-        model_name:
+        model_names:
         members:
         run_date:
         variable:
@@ -368,22 +429,24 @@ def generate_ml_run_grid(model_name, members, run_date, variable, start_date, en
     """
     try:
         forecast_bins = np.arange(0, 105, 5)
-        ep = MachineLearningEnsembleProducts(model_name, members, run_date, variable, start_date, end_date,
-                                            grid_shape, forecast_bins, forecast_json_path,
-                                            condition_model_name=neighbor_condition_model,
-                                            map_file=map_file)
+        ep = MachineLearningEnsembleProducts(None, members, run_date, variable, start_date, end_date,
+                                             grid_shape, forecast_bins, forecast_json_path,
+                                             condition_model_name=neighbor_condition_model,
+                                             map_file=map_file)
         ep.load_track_forecasts()
-        for percentile in ml_grid_percentiles:
-            data_code = ep.load_data(condition_threshold=condition_threshold, zero_inflate=zero_inflate,
-                                    percentile=percentile)
-            if data_code == 0:
-                if not os.access(grib_path + run_date.strftime("%Y%m%d/"), os.R_OK):
-                    try:
-                        os.mkdir(grib_path + run_date.strftime("%Y%m%d/"))
-                    except OSError:
-                        print("Directory already created: " + grib_path + run_date.strftime("%Y%m%d"))
-                print("Write grib2 file to " + grib_path + run_date.strftime("%Y%m%d/"))
-                ep.write_grib2(grib_path + run_date.strftime("%Y%m%d/"))
+        for model_name in model_names:
+            ep.ensemble_name = model_name
+            for percentile in ml_grid_percentiles:
+                data_code = ep.load_data(condition_threshold=condition_threshold, zero_inflate=zero_inflate,
+                                         percentile=percentile)
+                if data_code == 0:
+                    if not os.access(grib_path + run_date.strftime("%Y%m%d/"), os.R_OK):
+                        try:
+                            os.mkdir(grib_path + run_date.strftime("%Y%m%d/"))
+                        except OSError:
+                            print("Directory already created: " + grib_path + run_date.strftime("%Y%m%d"))
+                    print("Write grib2 file to " + grib_path + run_date.strftime("%Y%m%d/"))
+                    ep.write_grib2(grib_path + run_date.strftime("%Y%m%d/"))
     except Exception as e:
         print(traceback.format_exc())
         raise e

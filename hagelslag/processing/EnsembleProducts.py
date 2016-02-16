@@ -126,7 +126,7 @@ class EnsembleProducts(object):
             sigmas (array of ints): Radii for Gaussian filter used to smooth neighborhood probabilities.
 
         Returns:
-            EnsembleConsensus containing neighborhood probabilities for each forecast hour.
+            list of EnsembleConsensus objects containing neighborhood probabilities for each forecast hour.
         """
         if sigmas is None:
             sigmas = [0]
@@ -168,7 +168,7 @@ class EnsembleProducts(object):
             sigmas (array of ints): Radii for Gaussian filter used to smooth neighborhood probabilities.
 
         Returns:
-            EnsembleConsensus
+            list of EnsembleConsensus objects
         """
         if sigmas is None:
             sigmas = [0]
@@ -262,7 +262,11 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
             self.load_track_forecasts()
         if self.track_forecasts == {}:
             return -1
-        self.data = np.zeros((len(self.members), self.times.size, self.grid_shape[0], self.grid_shape[1]))
+        if self.data is None:
+            self.data = np.zeros((len(self.members), self.times.size, self.grid_shape[0], self.grid_shape[1]),
+                                 dtype=np.float32)
+        else:
+            self.data[:] = 0
         if grid_method in ["mean", "median", "samples"]:
             for m, member in enumerate(self.members):
                 for track_forecast in self.track_forecasts[member]:
@@ -293,16 +297,17 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                                 forecast_value = 0
                             self.data[m, t, i, j] = forecast_value
         if grid_method in ["gamma"]:
+            full_condition_name = "condition_" + self.condition_model_name.replace(" ", "-")
+            dist_model_name = self.variable + "_" + self.ensemble_name.replace(" ", "-")
             for m, member in enumerate(self.members):
                 for track_forecast in self.track_forecasts[member]:
                     times = track_forecast["properties"]["times"]
                     for s, step in enumerate(track_forecast["features"]):
-                        forecast_params = step["properties"][self.variable + "_" + self.ensemble_name.replace(" ", "-")]
+                        forecast_params = step["properties"][dist_model_name]
                         if self.condition_model_name is not None:
-                            condition = step["properties"]["condition_" + self.condition_model_name.replace(" ", "-")]
+                            condition = step["properties"][full_condition_name]
                         else:
                             condition = None
-                        forecast_dist = gamma(forecast_params[0], loc=forecast_params[1], scale=forecast_params[2])
                         forecast_time = self.run_date + timedelta(hours=times[s])
                         if forecast_time in self.times:
                             t = np.where(self.times == forecast_time)[0][0]
@@ -311,11 +316,13 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                             i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                             j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
                             if rankings.size > 0:
-                                raw_samples = np.sort(forecast_dist.rvs(size=(num_samples, rankings.size)),
+                                raw_samples = np.sort(gamma.rvs(forecast_params[0], loc=forecast_params[1],
+                                                                scale=forecast_params[2],
+                                                                size=(num_samples, rankings.size)),
                                                       axis=1)
                                 if zero_inflate:
-                                    raw_samples = raw_samples * bernoulli.rvs(condition,
-                                                                              size=(num_samples, rankings.size))
+                                    raw_samples *= bernoulli.rvs(condition,
+                                                                 size=(num_samples, rankings.size))
                                 if percentile is None:
                                     samples = raw_samples.mean(axis=0)
                                 else:
@@ -334,7 +341,6 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
         Returns:
 
         """
-        print("entered grib2 function")
         if self.percentile is None:
             var_type = "mean"
         else:
@@ -357,7 +363,6 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                            self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
         pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
         for m, member in enumerate(self.members):
-            print("Encoding GRIB2 " + member)
             pdtmp1[-2] = m
             for t, time in enumerate(self.times):
                 time_list = list(time.utctimetuple()[0:6])
@@ -395,25 +400,38 @@ class EnsembleConsensus(object):
         self.times = pd.DatetimeIndex(start=start_date, end=end_date, freq="1H")
         self.units = units
 
-    def to_file(self, filename, time_units="seconds since 1970-01-01T00:00"):
+    def init_file(self, filename, time_units="seconds since 1970-01-01T00:00"):
         """
-        Outputs data to a netCDF file. If the file does not exist, it will be created. Otherwise, additional variables
-        are appended to the current file
+        Initializes netCDF file for writing
 
-        :param filename: Full-path and name of output netCDF file
-        :param time_units: Units for the time variable in format "<time> since <date string>"
-        :return:
+        Args:
+            filename: Name of the netCDF file
+            time_units: Units for the time variable in format "<time> since <date string>"
+        Returns:
+            Dataset object
         """
-        full_var_name = self.consensus_type + "_" + self.variable 
         if os.access(filename, os.R_OK):
             out_data = Dataset(filename, "r+")
         else:
             out_data = Dataset(filename, "w")
             for d, dim in enumerate(["time", "y", "x"]):
                 out_data.createDimension(dim, self.data.shape[d])
+
             time_var = out_data.createVariable("time", "i8", ("time",))
             time_var[:] = date2num(self.times.to_pydatetime(), time_units)
             time_var.units = time_units
+            out_data.Conventions = "CF-1.6"
+        return out_data
+
+    def write_to_file(self, out_data):
+        """
+        Outputs data to a netCDF file. If the file does not exist, it will be created. Otherwise, additional variables
+        are appended to the current file
+
+        Args:
+            out_data: Full-path and name of output netCDF file
+        """
+        full_var_name = self.consensus_type + "_" + self.variable
         if "-hour" in self.consensus_type:
             if full_var_name not in out_data.variables.keys():
                 var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True, least_significant_digit=4)
@@ -430,6 +448,5 @@ class EnsembleConsensus(object):
         var[:] = self.data
         var.units = self.units
         var.long_name = self.consensus_type + "_" + self.variable
-        out_data.Conventions = "CF-1.6"
-        out_data.close()
         return
+
