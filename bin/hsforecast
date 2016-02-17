@@ -12,7 +12,6 @@ import traceback
 from datetime import timedelta
 import os
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", help="Config filename.")
@@ -370,7 +369,6 @@ def generate_ml_run_product(model_names, members, run_date, variable, start_date
             del out_file
     return
 
-
 def generate_ml_grids(config, mode="forecast"):
     """
     Creates gridded machine learning model forecasts and writes them to GRIB2 files.
@@ -399,7 +397,6 @@ def generate_ml_grids(config, mode="forecast"):
     pool.close()
     pool.join()
     return
-
 
 def generate_ml_run_grid(model_names, members, run_date, variable, start_date, end_date, grid_shape,
                          neighbor_condition_model, condition_threshold, zero_inflate, ml_grid_percentiles,

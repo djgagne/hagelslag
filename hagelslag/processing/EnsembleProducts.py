@@ -17,7 +17,6 @@ try:
 except ImportError("ncepgrib2 not available"):
     grib_support = False
 
-
 class EnsembleProducts(object):
     """
     Loads in individual ensemble members and generates both grid point and neighborhood probabilities from the
@@ -48,7 +47,7 @@ class EnsembleProducts(object):
         self.single_step = single_step
         self.data = None
         self.units = ""
-
+    
     def load_data(self):
         """
         Loads data from each ensemble member.
@@ -196,7 +195,6 @@ class EnsembleProducts(object):
             consensus_probs.append(ec)
         return consensus_probs
 
-
 class MachineLearningEnsembleProducts(EnsembleProducts):
     """
     Subclass of EnsembleProducts that processes forecasts from machine learning models. In particular, this
@@ -239,7 +237,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                     tfo.close()
                     del tfo
         return
-
+    
     def load_data(self, grid_method="gamma", num_samples=1000, condition_threshold=0.5, zero_inflate=False,
                   percentile=None):
         """
@@ -269,6 +267,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
             self.data[:] = 0
         if grid_method in ["mean", "median", "samples"]:
             for m, member in enumerate(self.members):
+                print("Sampling " + member)
                 for track_forecast in self.track_forecasts[member]:
                     times = track_forecast["properties"]["times"]
                     for s, step in enumerate(track_forecast["features"]):
