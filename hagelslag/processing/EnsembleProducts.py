@@ -11,11 +11,156 @@ import os
 from glob import glob
 import json
 from datetime import timedelta
+from multiprocessing import Queue, Pool
+import traceback
+
 try:
     from ncepgrib2 import Grib2Encode, dump
     grib_support = True
 except ImportError("ncepgrib2 not available"):
     grib_support = False
+
+
+def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, run_date, variable, start_date,
+                                            end_date, path, single_step, thresholds, radii, sigmas, out_path,
+                                            num_procs):
+    pool = Pool(num_procs)
+    q = Queue(100)
+    pool.apply_async(merge_member_probabilities, (ensemble_name, model_name, members, run_date, variable, start_date,
+                                                  end_date, thresholds, radii, sigmas, out_path, q))
+    for member in members:
+        pool.apply_async(member_neighborhood_probability, (ensemble_name, model_name, member, run_date, variable,
+                                                           start_date, end_date, path, single_step, thresholds,
+                                                           radii, q))
+    pool.close()
+    pool.join()
+    return
+
+
+def member_neighborhood_probability(ensemble_name, model_name, member, run_date, variable, start_date,
+                                    end_date, path, single_step, thresholds, radii, queue):
+    try:
+        emp = EnsembleMemberProduct(ensemble_name, model_name, member, run_date, variable, start_date, end_date,
+                                path, single_step)
+        emp.load_data()
+        for radius in radii:
+            for threshold in thresholds:
+                neighbor_prob = emp.neighborhood_probability(threshold, radius)
+                queue.put(["hourly", threshold, radius, member, neighbor_prob])
+                period_prob = emp.period_max_neighborhood_probability(threshold, radius)
+                queue.put(["period", threshold, radius, member, period_prob])
+    except Exception as e:
+        traceback.format_exc()
+        raise e
+    return
+
+
+def merge_member_probabilities(ensemble_name, model_name, num_members, run_date, variable, start_date, end_date,
+                               thresholds, radii, sigmas, out_path, queue):
+    out_file = None
+    out_filename = out_path + "{3}/{0}_{1}_{2}_consensus_{3}.nc".format(ensemble_name, model_name, variable,
+                                                                    run_date.strftime("%Y%m%d"))
+    times = pd.DatetimeIndex(start=start_date, end=end_date, freq="1H")
+    try:
+        merged_data = dict()
+        for threshold in thresholds:
+            for radius in radii:
+                merged_data[("hourly", threshold, radius)] = []
+                merged_data[("period", threshold, radius)] = []
+        while len(merged_data) > 0:
+            if not queue.empty():
+                output = queue.get()
+                merged_data[output[0:3]].append(output[-1])
+                if len(merged_data[output[0:3]]) == num_members:
+                    ens_mean = np.mean(merged_data[output[0:3]], axis=0)
+                    for sigma in sigmas:
+                        if output[0] == "hourly":
+                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
+                                                   "neighbor_prob_r_{0:d}_s_{1:d}".format(output[2], sigma),
+                                                   ensemble_name,
+                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
+                                                   start_date, end_date, "")
+                            for t in range(ens_mean.shape[0]):
+                                ec.data[t] = gaussian_filter(ens_mean[t], sigma)
+                        else:
+                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
+                                                   "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(times.shape[0],
+                                                                                                       output[2],
+                                                                                                       sigma),
+                                                   ensemble_name,
+                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
+                                                   start_date, end_date, "")
+                            ec.data[:] = gaussian_filter(ens_mean, sigma)
+                        if out_file is None:
+                            out_file = ec.init_file(out_filename)
+                        ec.write_to_file(out_file)
+                    del merged_data[output[0:3]]
+                    del ens_mean
+                    del output
+                    del ec
+
+    except Exception as e:
+        traceback.format_exc()
+        raise e
+    finally:
+        if out_file is not None:
+            out_file.close()
+    return
+
+
+class EnsembleMemberProduct(object):
+    def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step):
+        self.ensemble_name = ensemble_name
+        self.model_name = model_name
+        self.member = member
+        self.run_date = run_date
+        self.variable = variable
+        self.start_date = start_date
+        self.end_date = end_date
+        self.times = pd.DatetimeIndex(start=self.start_date, end=self.end_date, freq="1H")
+        self.forecast_hours = (self.times - self.run_date).astype('timedelta64[h]').values
+        self.path = path
+        self.single_step = single_step
+        self.data = None
+        self.units = ""
+
+    def load_data(self):
+        mo = ModelOutput(self.ensemble_name, self.member, self.run_date, self.variable,
+                             self.start_date, self.end_date, self.path, self.single_step)
+        mo.load_data()
+        self.data = mo.data[:]
+        if mo.units == "m":
+            self.data *= 1000
+            self.units = "mm"
+        else:
+            self.units = mo.units
+
+    def neighborhood_probability(self, threshold, radius):
+        weights = disk(radius, dtype=np.uint8)
+        thresh_data = np.zeros(self.data.shape[1:], dtype=np.uint8)
+        neighbor_prob = np.zeros(self.data.shape, dtype=np.float32)
+        for t in np.arange(self.data.shape[0]):
+            thresh_data[self.data[t] >= threshold] = 1
+            maximized = fftconvolve(thresh_data, weights, mode="same")
+            maximized[maximized > 1] = 1
+            maximized[maximized < 1] = 0
+            neighbor_prob[t] = fftconvolve(maximized, weights, mode="same")
+            thresh_data[:] = 0
+        neighbor_prob[neighbor_prob < 1] = 0
+        neighbor_prob /= weights.sum()
+        return neighbor_prob
+
+    def period_max_neighborhood_probability(self, threshold, radius):
+        weights = disk(radius, dtype=np.uint8)
+        thresh_data = np.zeros(self.data.shape[2:], dtype=np.uint8)
+        thresh_data[self.data.max(axis=0) >= threshold] = 1
+        maximized = fftconvolve(thresh_data, weights, mode="same")
+        maximized[maximized > 1] = 1
+        maximized[maximized < 1] = 0
+        neighborhood_prob = fftconvolve(maximized, weights, mode="same")
+        neighborhood_prob[neighborhood_prob < 1] = 0
+        neighborhood_prob /= weights.sum()
+        return neighborhood_prob
 
 class EnsembleProducts(object):
     """
@@ -179,6 +324,7 @@ class EnsembleProducts(object):
             maximized = fftconvolve(thresh_data, weights, mode="same")
             maximized[maximized > 1] = 1
             neighborhood_prob += fftconvolve(maximized, weights, mode="same")
+        neighborhood_prob[neighborhood_prob < 1] = 0
         neighborhood_prob /= (self.data.shape[0] * float(weights.sum()))
         consensus_probs = []
         for sigma in sigmas:
@@ -194,6 +340,7 @@ class EnsembleProducts(object):
                                    self.start_date, self.end_date, "")
             consensus_probs.append(ec)
         return consensus_probs
+
 
 class MachineLearningEnsembleProducts(EnsembleProducts):
     """
