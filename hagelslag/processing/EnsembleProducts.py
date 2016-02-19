@@ -1,5 +1,5 @@
 from hagelslag.data.ModelOutput import ModelOutput
-from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter
@@ -109,7 +109,8 @@ def merge_member_probabilities(ensemble_name, model_name, num_members, run_date,
 
 
 class EnsembleMemberProduct(object):
-    def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step):
+    def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step,
+                 map_file=None, condition_model_name=None, condition_threshold=0.5):
         self.ensemble_name = ensemble_name
         self.model_name = model_name
         self.member = member
@@ -121,19 +122,81 @@ class EnsembleMemberProduct(object):
         self.forecast_hours = (self.times - self.run_date).astype('timedelta64[h]').values
         self.path = path
         self.single_step = single_step
+        self.track_forecasts = None
         self.data = None
+        self.map_file = map_file
+        self.proj_dict = None
+        self.grid_dict = None
+        self.mapping_data = None
+        self.condition_model_name = condition_model_name
+        self.condition_threshold = condition_threshold
+        if self.map_file is not None:
+            if self.map_file[-3:] == "map":
+                self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
+            else:
+                self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)
+            self.mapping_data = make_proj_grids(self.proj_dict, self.grid_dict)
         self.units = ""
 
-    def load_data(self):
-        mo = ModelOutput(self.ensemble_name, self.member, self.run_date, self.variable,
+    def load_data(self, num_samples=1000, percentile=None):
+        if self.model_name.lower() in ["wrf"]:
+            mo = ModelOutput(self.ensemble_name, self.member, self.run_date, self.variable,
                              self.start_date, self.end_date, self.path, self.single_step)
-        mo.load_data()
-        self.data = mo.data[:]
-        if mo.units == "m":
-            self.data *= 1000
-            self.units = "mm"
+            mo.load_data()
+            self.data = mo.data[:]
+            if mo.units == "m":
+                self.data *= 1000
+                self.units = "mm"
+            else:
+                self.units = mo.units
         else:
-            self.units = mo.units
+            self.load_track_data()
+            self.units = "mm"
+            self.data = np.zeros((self.forecast_hours.size,
+                                  self.mapping_data["lon"].shape[0],
+                                  self.mapping_data["lon"].shape[1]), dtype=np.float32)
+            full_condition_name = "condition_" + self.condition_model_name.replace(" ", "-")
+            for track_forecast in self.track_forecasts:
+                times = track_forecast["properties"]["times"]
+                for s, step in enumerate(track_forecast["features"]):
+                    forecast_params = step["properties"][self.model_name]
+                    if self.condition_model_name is not None:
+                        condition = step["properties"][full_condition_name]
+                    else:
+                        condition = None
+                    forecast_time = self.run_date + timedelta(hours=times[s])
+                    if forecast_time in self.times:
+                        t = np.where(self.times == forecast_time)[0][0]
+                        mask = np.array(step["properties"]["masks"], dtype=int)
+                        rankings = np.argsort(step["properties"]["timesteps"])[mask == 1]
+                        i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
+                        j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
+                        if rankings.size > 0:
+                            raw_samples = np.sort(gamma.rvs(forecast_params[0], loc=forecast_params[1],
+                                                            scale=forecast_params[2],
+                                                            size=(num_samples, rankings.size)),
+                                                  axis=1)
+                            raw_samples *= bernoulli.rvs(condition,
+                                                         size=(num_samples, rankings.size))
+                            if percentile is None:
+                                samples = raw_samples.mean(axis=0)
+                            else:
+                                samples = np.percentile(raw_samples, percentile, axis=0)
+                            if condition is None or condition >= self.condition_threshold:
+                                self.data[t, i, j] = samples
+
+
+    def load_track_data(self):
+        run_date_str = self.run_date.strftime("%Y%m%d")
+        print("Load track forecasts {0} {1}".format(self.ensemble_name, run_date_str))
+        track_files = sorted(glob(self.path + "/".join([run_date_str, self.member]) + "/*.json"))
+        if len(track_files) > 0:
+            self.track_forecasts = []
+            for track_file in track_files:
+                tfo = open(track_file)
+                self.track_forecasts.append(json.load(tfo))
+                tfo.close()
+
 
     def neighborhood_probability(self, threshold, radius):
         weights = disk(radius, dtype=np.uint8)
