@@ -5,12 +5,14 @@ from hagelslag.processing.TrackModeler import TrackModeler
 from hagelslag.processing.TrackSampler import sample_member_run_tracks
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
 from multiprocessing import Pool
-from hagelslag.processing.EnsembleProducts import EnsembleProducts, MachineLearningEnsembleProducts
+from hagelslag.processing.EnsembleProducts import EnsembleProducts, MachineLearningEnsembleProducts, \
+    ensemble_run_neighborhood_probabilities
 import pandas as pd
 import numpy as np
 import traceback
 from datetime import timedelta
 import os
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -192,6 +194,45 @@ def output_forecasts(forecasts, track_modeler, config):
     return
 
 
+def make_ensemble_probabilities(config, mode="forecast"):
+    """
+    Generate neighborhood probabilities from each ensemble member in parallel and output to netCDF.
+
+    Args:
+        config:
+        mode:
+
+    Returns:
+
+    """
+    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
+                                 end=config.end_dates[mode],
+                                 freq='1D')
+    for run_date in run_dates.to_pydatetime():
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        for model_variable in config.ensemble_variables:
+            ensemble_run_neighborhood_probabilities(config.ensemble_name, "WRF", config.ensemble_members,
+                                                    run_date, model_variable, start_date, end_date,
+                                                    config.ensemble_data_path, config.single_step,
+                                                    config.ensemble_variable_thresholds[model_variable],
+                                                    config.neighbor_radius, config.neighbor_sigma,
+                                                    config.ensemble_consensus_path, config.num_procs,
+                                                    config.model_map_file, config.neighbor_condition_model,
+                                                    config.condition_threshold, config.num_track_samples,
+                                                    config.ml_grid_percentiles[0])
+        for ml_model_name in config.size_distribution_model_names:
+            ensemble_run_neighborhood_probabilities(config.ensemble_name, ml_model_name, config.ensemble_members,
+                                                    run_date, "dist", start_date, end_date,
+                                                    config.ensemble_data_path, config.single_step,
+                                                    config.sampler_thresholds,
+                                                    config.neighbor_radius, config.neighbor_sigma,
+                                                    config.forecast_json_path, config.num_procs,
+                                                    config.model_map_file, config.neighbor_condition_model,
+                                                    config.condition_threshold, config.num_track_samples,
+                                                    config.ml_grid_percentiles[0])
+
+
 def generate_all_ensemble_products(config, mode="forecast"):
     """
     Create neighborhood probabilities from raw model forecasts and from machine learning model forecasts.
@@ -368,6 +409,7 @@ def generate_ml_run_product(model_names, members, run_date, variable, start_date
             out_file.close()
             del out_file
     return
+
 
 def generate_ml_grids(config, mode="forecast"):
     """
