@@ -42,12 +42,12 @@ def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, 
 
 def member_neighborhood_probability(ensemble_name, model_name, member, run_date, variable, start_date,
                                     end_date, path, single_step, thresholds, radii, queue, map_file,
-                                    condition_model_name, condition_threshold, num_samples, percentile):
+                                    condition_model_name, condition_threshold, num_samples, percentiles):
     try:
         emp = EnsembleMemberProduct(ensemble_name, model_name, member, run_date, variable, start_date, end_date,
                                     path, single_step, map_file=map_file, condition_model_name=condition_model_name,
                                     condition_threshold=condition_threshold)
-        emp.load_data(num_samples=num_samples, percentile=percentile)
+        emp.load_data(num_samples=num_samples, percentiles=percentiles)
         for radius in radii:
             for threshold in thresholds:
                 neighbor_prob = emp.neighborhood_probability(threshold, radius)
@@ -64,7 +64,7 @@ def merge_member_probabilities(ensemble_name, model_name, num_members, run_date,
                                thresholds, radii, sigmas, out_path, queue):
     out_file = None
     out_filename = out_path + "{3}/{0}_{1}_{2}_consensus_{3}.nc".format(ensemble_name, model_name, variable,
-                                                                    run_date.strftime("%Y%m%d"))
+                                                                        run_date.strftime("%Y%m%d"))
     times = pd.DatetimeIndex(start=start_date, end=end_date, freq="1H")
     try:
         merged_data = dict()
@@ -78,6 +78,7 @@ def merge_member_probabilities(ensemble_name, model_name, num_members, run_date,
                 merged_data[output[0:3]].append(output[-1])
                 if len(merged_data[output[0:3]]) == num_members:
                     ens_mean = np.mean(merged_data[output[0:3]], axis=0)
+                    ec = None
                     for sigma in sigmas:
                         if output[0] == "hourly":
                             ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
@@ -135,7 +136,9 @@ class EnsembleMemberProduct(object):
         self.mapping_data = None
         self.condition_model_name = condition_model_name
         self.condition_threshold = condition_threshold
-        self.percentile = None
+        self.percentiles = None
+        self.num_samples = None
+        self.percentile_data = None
         if self.map_file is not None:
             if self.map_file[-3:] == "map":
                 self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
@@ -144,8 +147,16 @@ class EnsembleMemberProduct(object):
             self.mapping_data = make_proj_grids(self.proj_dict, self.grid_dict)
         self.units = ""
 
-    def load_data(self, num_samples=1000, percentile=None):
-        self.percentile = percentile
+    def load_data(self, num_samples=1000, percentiles=None):
+        """
+        Args:
+            num_samples:
+            percentiles:
+
+        Returns:
+        """
+        self.percentiles = percentiles
+        self.num_samples = num_samples
         if self.model_name.lower() in ["wrf"]:
             mo = ModelOutput(self.ensemble_name, self.member, self.run_date, self.variable,
                              self.start_date, self.end_date, self.path, self.single_step)
@@ -157,16 +168,18 @@ class EnsembleMemberProduct(object):
             else:
                 self.units = mo.units
         else:
-            self.load_track_data()
+            if self.track_forecasts is None:
+                self.load_track_data()
             self.units = "mm"
             self.data = np.zeros((self.forecast_hours.size,
                                   self.mapping_data["lon"].shape[0],
                                   self.mapping_data["lon"].shape[1]), dtype=np.float32)
             full_condition_name = "condition_" + self.condition_model_name.replace(" ", "-")
+            dist_model_name = "dist" + "_" + self.model_name.replace(" ", "-")
             for track_forecast in self.track_forecasts:
                 times = track_forecast["properties"]["times"]
                 for s, step in enumerate(track_forecast["features"]):
-                    forecast_params = step["properties"][self.model_name]
+                    forecast_params = step["properties"][dist_model_name]
                     if self.condition_model_name is not None:
                         condition = step["properties"][full_condition_name]
                     else:
@@ -185,12 +198,20 @@ class EnsembleMemberProduct(object):
                                                   axis=1)
                             raw_samples *= bernoulli.rvs(condition,
                                                          size=(num_samples, rankings.size))
-                            if percentile is None:
+                            if self.percentiles is None:
                                 samples = raw_samples.mean(axis=0)
+                                if condition is None or condition >= self.condition_threshold:
+                                    self.data[t, i, j] = samples
                             else:
-                                samples = np.percentile(raw_samples, percentile, axis=0)
-                            if condition is None or condition >= self.condition_threshold:
-                                self.data[t, i, j] = samples
+                                self.percentile_data = np.zeros([len(self.percentiles)] + list(self.data.shape))
+                                for p, percentile in enumerate(self.percentiles):
+                                    if percentile != "mean":
+                                        self.percentile_data[p] = np.percentile(raw_samples, percentile, axis=0)
+                                    else:
+                                        self.percentile_data[p] = np.mean(raw_samples, axis=0)
+                                samples = raw_samples.mean(axis=0)
+                                if condition is None or condition >= self.condition_threshold:
+                                    self.data[t, i, j] = samples
 
     def load_track_data(self):
         run_date_str = self.run_date.strftime("%Y%m%d")
@@ -230,20 +251,13 @@ class EnsembleMemberProduct(object):
         neighborhood_prob /= weights.sum()
         return neighborhood_prob
 
-    def write_grib2(self, path):
+    def encode_grib2(self):
         """
-        Writes data to grib2 file. Currently, grib codes are set by hand to hail.
-
-        Args:
-            path: Path to directory containing grib2 files.
+        Encodes member percentile data to GRIB2 format.
 
         Returns:
-
+            Series of
         """
-        if self.percentile is None:
-            var_type = "mean"
-        else:
-            var_type = "p{0:02d}".format(self.percentile)
         lscale = 1e6
         grib_id_start = [7, 0, 14, 14, 2]
         gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
@@ -260,26 +274,59 @@ class EnsembleMemberProduct(object):
                            self.grid_dict["dx"] * 1e-3, self.grid_dict["dy"] * 1e-3, 0,
                            self.proj_dict["lat_1"] * lscale,
                            self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
-        pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
+        pdtmp1 = np.array([1,                # parameter category Moisture
+                           31,               # parameter number Hail
+                           4,                # Type of generating process Ensemble Forecast
+                           0,                # Background generating process identifier
+                           31,               # Generating process or model from NCEP
+                           0,                # Hours after reference time data cutoff
+                           0,                # Minutes after reference time data cutoff
+                           1,                # Forecast time units Hours
+                           0,                # Forecast time
+                           1,                # Type of first fixed surface Ground
+                           1,                # Scale value of first fixed surface
+                           0,                # Value of first fixed surface
+                           1,                # Type of second fixed surface
+                           1,                # Scale value of 2nd fixed surface
+                           0,                # Value of 2nd fixed surface
+                           0,                # Derived forecast type
+                           self.num_samples  # Number of ensemble members
+                           ], dtype=np.int32)
+        #pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
+        grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
+        drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
         for t, time in enumerate(self.times):
             time_list = list(time.utctimetuple()[0:6])
-            grbe = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
-            grbe.addgrid(gdsinfo, gdtmp1)
+            if grib_objects[time] is None:
+                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
-            drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
-            data = self.data[t].astype(np.float32) / 1000.0
+            data = self.percentile_data[:, t].astype(np.float32) / 1000.0
             masked_data = np.ma.array(data, mask=data <= 0)
-            grbe.addfield(1, pdtmp1, 0, drtmp1, masked_data)
-            grbe.end()
-            filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name.replace(" ", "-"), self.member,
-                                                                    var_type,
-                                                                    time.to_datetime().strftime("%Y%m%d%H%M"))
-            print("Writing to " + filename)
-            grib_file = open(filename, "wb")
-            grib_file.write(grbe.msg)
-            grib_file.close()
-        return
+            for p, percentile in enumerate(self.percentiles):
+                if percentile == 10:
+                    pdtmp1[-2] = 193
+                elif percentile == 50:
+                    pdtmp1[-2] = 194
+                elif percentile == 90:
+                    pdtmp1[-2] = 195
+                else:
+                    pdtmp1[-2] = 0
+                grib_objects[time].addfield(2, pdtmp1, 0, drtmp1, masked_data[p])
+        return grib_objects
 
+    def write_grib2_files(self, grib_objects, path):
+        for time in self.times.to_pydatetime():
+            grib_objects[time].end()
+            filename = path  + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
+                                                                  self.member,
+                                                                  self.model_name.replace(" ", "-"),
+                                                                  self.variable,
+                                                                  time.strftime("%Y%m%d%H%M")
+                                                                  )
+            fo = open(filename, "w")
+            fo.write(grib_objects[time].msg)
+            fo.close()
 
 class EnsembleProducts(object):
     """

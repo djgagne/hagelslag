@@ -6,7 +6,7 @@ from hagelslag.processing.TrackSampler import sample_member_run_tracks
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
 from multiprocessing import Pool
 from hagelslag.processing.EnsembleProducts import EnsembleProducts, MachineLearningEnsembleProducts, \
-    ensemble_run_neighborhood_probabilities
+    ensemble_run_neighborhood_probabilities, EnsembleMemberProduct
 import pandas as pd
 import numpy as np
 import traceback
@@ -51,7 +51,8 @@ def main():
     if args.grid:
         generate_ml_grids(config, mode="forecast")
     if args.ens:
-        generate_all_ensemble_products(config, mode="forecast")
+        make_ensemble_probabilities(config, mode="forecast")
+        #generate_all_ensemble_products(config, mode="forecast")
     if args.samp:
         sample_all_tracks(config)
     return
@@ -427,22 +428,24 @@ def generate_ml_grids(config, mode="forecast"):
                                  end=config.end_dates[mode],
                                  freq='1D')
     ml_model_list = config.size_distribution_model_names
-    ml_var = "dist"
+    ml_var = "hail"
     for run_date in run_dates:
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
-        args = (ml_model_list, config.ensemble_members, run_date, ml_var, start_date, end_date,
-                config.grid_shape, config.neighbor_condition_model, config.condition_threshold,
-                config.zero_inflate, config.ml_grid_percentiles, config.forecast_json_path,
-                config.grib_path, config.model_map_file)
-        pool.apply_async(generate_ml_run_grid, args)
+        for member in config.ensemble_members:
+            args = (config.ensemble_name, ml_model_list, member, run_date, ml_var, start_date, end_date,
+                    config.single_step, config.neighbor_condition_model, config.condition_threshold,
+                    config.ml_grid_percentiles, config.forecast_json_path,
+                    config.grib_path, config.model_map_file, config.num_track_samples)
+            pool.apply_async(generate_ml_member_grid, args)
     pool.close()
     pool.join()
     return
 
-def generate_ml_run_grid(model_names, members, run_date, variable, start_date, end_date, grid_shape,
-                         neighbor_condition_model, condition_threshold, zero_inflate, ml_grid_percentiles,
-                         forecast_json_path, grib_path, map_file):
+
+def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variable, start_date, end_date,
+                            single_step, neighbor_condition_model, condition_threshold, ml_grid_percentiles,
+                            forecast_json_path, grib_path, map_file, num_samples):
     """
     Loads machine learning model forecasts and outputs them to original ensemble model grid. The grids are then
     written out to GRIB2 files.
@@ -467,25 +470,20 @@ def generate_ml_run_grid(model_names, members, run_date, variable, start_date, e
 
     """
     try:
-        forecast_bins = np.arange(0, 105, 5)
-        ep = MachineLearningEnsembleProducts(None, members, run_date, variable, start_date, end_date,
-                                             grid_shape, forecast_bins, forecast_json_path,
-                                             condition_model_name=neighbor_condition_model,
-                                             map_file=map_file)
-        ep.load_track_forecasts()
-        for model_name in model_names:
-            ep.ensemble_name = model_name
-            for percentile in ml_grid_percentiles:
-                data_code = ep.load_data(condition_threshold=condition_threshold, zero_inflate=zero_inflate,
-                                         percentile=percentile)
-                if data_code == 0:
-                    if not os.access(grib_path + run_date.strftime("%Y%m%d/"), os.R_OK):
-                        try:
-                            os.mkdir(grib_path + run_date.strftime("%Y%m%d/"))
-                        except OSError:
-                            print("Directory already created: " + grib_path + run_date.strftime("%Y%m%d"))
-                    print("Write grib2 file to " + grib_path + run_date.strftime("%Y%m%d/"))
-                    ep.write_grib2(grib_path + run_date.strftime("%Y%m%d/"))
+        if os.access(forecast_json_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
+            ep = EnsembleMemberProduct(ensemble_name, model_names[0], member, run_date, variable,
+                                       start_date, end_date, forecast_json_path, single_step, map_file=map_file,
+                                       condition_model_name=neighbor_condition_model,
+                                       condition_threshold=condition_threshold)
+            ep.load_track_data()
+
+            for model_name in model_names:
+                ep.model_name = model_name
+                ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
+                grib_objects = ep.encode_grib2()
+                ep.write_grib2_files(grib_objects, grib_path)
+        else:
+            print("No model runs on " + run_date)
     except Exception as e:
         print(traceback.format_exc())
         raise e
