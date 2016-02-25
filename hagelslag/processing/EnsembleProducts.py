@@ -21,97 +21,6 @@ except ImportError("ncepgrib2 not available"):
     grib_support = False
 
 
-def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, run_date, variable, start_date,
-                                            end_date, path, single_step, thresholds, radii, sigmas, out_path,
-                                            num_procs, map_file, condition_model_name, condition_threshold,
-                                            num_samples, percentile):
-    pool = Pool(num_procs)
-    q = Queue(100)
-    pool.apply_async(merge_member_probabilities, (ensemble_name, model_name, members, run_date, variable, start_date,
-                                                  end_date, thresholds, radii, sigmas, out_path, q))
-    for member in members:
-        pool.apply_async(member_neighborhood_probability, (ensemble_name, model_name, member, run_date, variable,
-                                                           start_date, end_date, path, single_step, thresholds,
-                                                           radii, q, map_file, condition_model_name,
-                                                           condition_threshold, num_samples, percentile
-                                                           ))
-    pool.close()
-    pool.join()
-    return
-
-
-def member_neighborhood_probability(ensemble_name, model_name, member, run_date, variable, start_date,
-                                    end_date, path, single_step, thresholds, radii, queue, map_file,
-                                    condition_model_name, condition_threshold, num_samples, percentiles):
-    try:
-        emp = EnsembleMemberProduct(ensemble_name, model_name, member, run_date, variable, start_date, end_date,
-                                    path, single_step, map_file=map_file, condition_model_name=condition_model_name,
-                                    condition_threshold=condition_threshold)
-        emp.load_data(num_samples=num_samples, percentiles=percentiles)
-        for radius in radii:
-            for threshold in thresholds:
-                neighbor_prob = emp.neighborhood_probability(threshold, radius)
-                queue.put(["hourly", threshold, radius, member, neighbor_prob])
-                period_prob = emp.period_max_neighborhood_probability(threshold, radius)
-                queue.put(["period", threshold, radius, member, period_prob])
-    except Exception as e:
-        traceback.format_exc()
-        raise e
-    return
-
-
-def merge_member_probabilities(ensemble_name, model_name, num_members, run_date, variable, start_date, end_date,
-                               thresholds, radii, sigmas, out_path, queue):
-    out_file = None
-    out_filename = out_path + "{3}/{0}_{1}_{2}_consensus_{3}.nc".format(ensemble_name, model_name, variable,
-                                                                        run_date.strftime("%Y%m%d"))
-    times = pd.DatetimeIndex(start=start_date, end=end_date, freq="1H")
-    try:
-        merged_data = dict()
-        for threshold in thresholds:
-            for radius in radii:
-                merged_data[("hourly", threshold, radius)] = []
-                merged_data[("period", threshold, radius)] = []
-        while len(merged_data) > 0:
-            if not queue.empty():
-                output = queue.get()
-                merged_data[output[0:3]].append(output[-1])
-                if len(merged_data[output[0:3]]) == num_members:
-                    ens_mean = np.mean(merged_data[output[0:3]], axis=0)
-                    ec = None
-                    for sigma in sigmas:
-                        if output[0] == "hourly":
-                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
-                                                   "neighbor_prob_r_{0:d}_s_{1:d}".format(output[2], sigma),
-                                                   ensemble_name,
-                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
-                                                   start_date, end_date, "")
-                            for t in range(ens_mean.shape[0]):
-                                ec.data[t] = gaussian_filter(ens_mean[t], sigma)
-                        else:
-                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
-                                                   "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(times.shape[0],
-                                                                                                       output[2],
-                                                                                                       sigma),
-                                                   ensemble_name,
-                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
-                                                   start_date, end_date, "")
-                            ec.data[:] = gaussian_filter(ens_mean, sigma)
-                        if out_file is None:
-                            out_file = ec.init_file(out_filename)
-                        ec.write_to_file(out_file)
-                    del merged_data[output[0:3]]
-                    del ens_mean
-                    del output
-                    del ec
-
-    except Exception as e:
-        traceback.format_exc()
-        raise e
-    finally:
-        if out_file is not None:
-            out_file.close()
-    return
 
 
 class EnsembleMemberProduct(object):
@@ -174,6 +83,9 @@ class EnsembleMemberProduct(object):
             self.data = np.zeros((self.forecast_hours.size,
                                   self.mapping_data["lon"].shape[0],
                                   self.mapping_data["lon"].shape[1]), dtype=np.float32)
+            
+            if self.percentiles is not None:
+                self.percentile_data = np.zeros([len(self.percentiles)] + list(self.data.shape))
             full_condition_name = "condition_" + self.condition_model_name.replace(" ", "-")
             dist_model_name = "dist" + "_" + self.model_name.replace(" ", "-")
             for track_forecast in self.track_forecasts:
@@ -203,12 +115,11 @@ class EnsembleMemberProduct(object):
                                 if condition is None or condition >= self.condition_threshold:
                                     self.data[t, i, j] = samples
                             else:
-                                self.percentile_data = np.zeros([len(self.percentiles)] + list(self.data.shape))
                                 for p, percentile in enumerate(self.percentiles):
                                     if percentile != "mean":
-                                        self.percentile_data[p] = np.percentile(raw_samples, percentile, axis=0)
+                                        self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile, axis=0)
                                     else:
-                                        self.percentile_data[p] = np.mean(raw_samples, axis=0)
+                                        self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
                                 samples = raw_samples.mean(axis=0)
                                 if condition is None or condition >= self.condition_threshold:
                                     self.data[t, i, j] = samples
@@ -223,7 +134,8 @@ class EnsembleMemberProduct(object):
                 tfo = open(track_file)
                 self.track_forecasts.append(json.load(tfo))
                 tfo.close()
-
+        else:
+            self.track_forecasts = []
     def neighborhood_probability(self, threshold, radius):
         weights = disk(radius, dtype=np.uint8)
         thresh_data = np.zeros(self.data.shape[1:], dtype=np.uint8)
@@ -241,7 +153,7 @@ class EnsembleMemberProduct(object):
 
     def period_max_neighborhood_probability(self, threshold, radius):
         weights = disk(radius, dtype=np.uint8)
-        thresh_data = np.zeros(self.data.shape[2:], dtype=np.uint8)
+        thresh_data = np.zeros(self.data.shape[1:], dtype=np.uint8)
         thresh_data[self.data.max(axis=0) >= threshold] = 1
         maximized = fftconvolve(thresh_data, weights, mode="same")
         maximized[maximized > 1] = 1
@@ -267,13 +179,13 @@ class EnsembleMemberProduct(object):
             lon_0 += 360
         if sw_lon < 0:
             sw_lon += 360
-        gdtmp1 = np.array([7, 1, self.proj_dict['a'], 1, self.proj_dict['a'], 1, self.proj_dict['b'],
-                           self.data.shape[-2], self.data.shape[-1], self.grid_dict["sw_lat"] * lscale,
+        gdtmp1 = [1, 0, self.proj_dict['a'], 3, float(self.proj_dict['a']), 3, float(self.proj_dict['b']),
+                           self.data.shape[-1], self.data.shape[-2], self.grid_dict["sw_lat"] * lscale,
                            sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
                            lon_0 * lscale,
-                           self.grid_dict["dx"] * 1e-3, self.grid_dict["dy"] * 1e-3, 0,
+                           self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
                            self.proj_dict["lat_1"] * lscale,
-                           self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
+                           self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
         pdtmp1 = np.array([1,                # parameter category Moisture
                            31,               # parameter number Hail
                            4,                # Type of generating process Ensemble Forecast
@@ -301,18 +213,19 @@ class EnsembleMemberProduct(object):
                 grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
-            data = self.percentile_data[:, t].astype(np.float32) / 1000.0
+            data = self.percentile_data[:, t] / 1000.0
             masked_data = np.ma.array(data, mask=data <= 0)
             for p, percentile in enumerate(self.percentiles):
-                if percentile == 10:
-                    pdtmp1[-2] = 193
-                elif percentile == 50:
-                    pdtmp1[-2] = 194
-                elif percentile == 90:
-                    pdtmp1[-2] = 195
+                print("GRIB {3} Percentile {0}. Max: {1} Min: {2}".format(percentile, 
+                                                                          masked_data[p].max(), 
+                                                                          masked_data[p].min(),
+                                                                          time))
+                if percentile in range(1, 100):
+                    pdtmp1[-2] = percentile
+                    grib_objects[time].addfield(6, pdtmp1[:-1], 0, drtmp1, masked_data[p])
                 else:
                     pdtmp1[-2] = 0
-                grib_objects[time].addfield(2, pdtmp1, 0, drtmp1, masked_data[p])
+                    grib_objects[time].addfield(2, pdtmp1, 0, drtmp1, masked_data[p])
         return grib_objects
 
     def write_grib2_files(self, grib_objects, path):
@@ -324,7 +237,7 @@ class EnsembleMemberProduct(object):
                                                                   self.variable,
                                                                   time.strftime("%Y%m%d%H%M")
                                                                   )
-            fo = open(filename, "w")
+            fo = open(filename, "wb")
             fo.write(grib_objects[time].msg)
             fo.close()
 

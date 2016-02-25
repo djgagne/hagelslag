@@ -4,9 +4,8 @@ from hagelslag.util.Config import Config
 from hagelslag.processing.TrackModeler import TrackModeler
 from hagelslag.processing.TrackSampler import sample_member_run_tracks
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
-from multiprocessing import Pool
-from hagelslag.processing.EnsembleProducts import EnsembleProducts, MachineLearningEnsembleProducts, \
-    ensemble_run_neighborhood_probabilities, EnsembleMemberProduct
+from multiprocessing import Pool, Manager
+from hagelslag.processing.EnsembleProducts import *
 import pandas as pd
 import numpy as np
 import traceback
@@ -210,9 +209,11 @@ def make_ensemble_probabilities(config, mode="forecast"):
                                  end=config.end_dates[mode],
                                  freq='1D')
     for run_date in run_dates.to_pydatetime():
+        print(run_date)
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
         for model_variable in config.ensemble_variables:
+            print(model_variable)
             ensemble_run_neighborhood_probabilities(config.ensemble_name, "WRF", config.ensemble_members,
                                                     run_date, model_variable, start_date, end_date,
                                                     config.ensemble_data_path, config.single_step,
@@ -220,9 +221,9 @@ def make_ensemble_probabilities(config, mode="forecast"):
                                                     config.neighbor_radius, config.neighbor_sigma,
                                                     config.ensemble_consensus_path, config.num_procs,
                                                     config.model_map_file, config.neighbor_condition_model,
-                                                    config.condition_threshold, config.num_track_samples,
-                                                    config.ml_grid_percentiles[0])
+                                                    config.condition_threshold, config.num_track_samples)
         for ml_model_name in config.size_distribution_model_names:
+            print(ml_model_name)
             ensemble_run_neighborhood_probabilities(config.ensemble_name, ml_model_name, config.ensemble_members,
                                                     run_date, "dist", start_date, end_date,
                                                     config.ensemble_data_path, config.single_step,
@@ -230,8 +231,7 @@ def make_ensemble_probabilities(config, mode="forecast"):
                                                     config.neighbor_radius, config.neighbor_sigma,
                                                     config.forecast_json_path, config.num_procs,
                                                     config.model_map_file, config.neighbor_condition_model,
-                                                    config.condition_threshold, config.num_track_samples,
-                                                    config.ml_grid_percentiles[0])
+                                                    config.condition_threshold, config.num_track_samples)
 
 
 def generate_all_ensemble_products(config, mode="forecast"):
@@ -481,13 +481,121 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                 ep.model_name = model_name
                 ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
                 grib_objects = ep.encode_grib2()
-                ep.write_grib2_files(grib_objects, grib_path)
+                if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
+                    os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
+                ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("/%Y%m%d/"))
         else:
             print("No model runs on " + run_date)
     except Exception as e:
         print(traceback.format_exc())
         raise e
     return
+
+
+def member_neighborhood_probability(ensemble_name, model_name, member, run_date, variable, start_date,
+                                    end_date, path, single_step, thresholds, radii, queue, map_file,
+                                    condition_model_name, condition_threshold, num_samples):
+    try:
+        print(member, ensemble_name, variable)
+        emp = EnsembleMemberProduct(ensemble_name, model_name, member, run_date, variable, start_date, end_date,
+                                    path, single_step, map_file=map_file, condition_model_name=condition_model_name,
+                                    condition_threshold=condition_threshold)
+        emp.load_data(num_samples=num_samples, percentiles=None)
+        for radius in radii:
+            for threshold in thresholds:
+                print radius
+                print threshold
+                neighbor_prob = emp.neighborhood_probability(threshold, radius)
+                queue.put(["hourly", threshold, radius, member, neighbor_prob])
+                period_prob = emp.period_max_neighborhood_probability(threshold, radius)
+                queue.put(["period", threshold, radius, member, period_prob])
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+    return
+
+
+def merge_member_probabilities(ensemble_name, model_name, num_members, run_date, variable, start_date, end_date,
+                               thresholds, radii, sigmas, out_path, queue):
+    out_file = None
+    out_filename = out_path + "{3}/{0}_{1}_{2}_consensus_{3}.nc".format(ensemble_name, model_name, variable,
+                                                                        run_date.strftime("%Y%m%d"))
+    times = pd.DatetimeIndex(start=start_date, end=end_date, freq="1H")
+    if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
+        os.mkdir(out_path + run_date.strftime("%Y%m%d"))
+    print out_filename
+    try:
+        merged_data = dict()
+        for threshold in thresholds:
+            for radius in radii:
+                merged_data[("hourly", threshold, radius)] = None
+                merged_data[("period", threshold, radius)] = None
+        while len(merged_data.keys()) > 0:
+            if not queue.empty():
+                output = queue.get()
+                out_key = tuple(output[0:3])
+                if merged_data[out_key] is None:
+                    merged_data[out_key] = [output[-1], 1]
+                else:
+                    merged_data[out_key][0] += output[-1]
+                    merged_data[out_key][1] += 1
+                print("Added to ", out_key, "Size: ", merged_data[out_key][1])
+                if merged_data[out_key][1] == num_members:
+                    ens_mean = merged_data[out_key][0] / float(num_members)
+                    ec = None
+                    for sigma in sigmas:
+                        if output[0] == "hourly":
+                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
+                                                   "neighbor_prob_r_{0:d}_s_{1:d}".format(output[2], sigma),
+                                                   ensemble_name,
+                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
+                                                   start_date, end_date, "") 
+                            for t in range(ens_mean.shape[0]):
+                                ec.data[t] = gaussian_filter(ens_mean[t], sigma)
+                        else:
+                            ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
+                                                   "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(times.shape[0],
+                                                                                                       output[2],
+                                                                                                       sigma),
+                                                   ensemble_name,
+                                                   run_date, variable + "_{0:0.2f}".format(output[1]),
+                                                   start_date, end_date, "") 
+                            ec.data[:] = gaussian_filter(ens_mean, sigma)
+                        if out_file is None:
+                            out_file = ec.init_file(out_filename)
+                        print("Writing to " + out_filename, out_key)
+                        ec.write_to_file(out_file)
+                    del merged_data[out_key]
+                    del ens_mean
+                    del output
+                    del ec
+
+    except Exception as e:
+        traceback.format_exc()
+        raise e
+    finally:
+        if out_file is not None:
+            out_file.close()
+    return 0 
+
+def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, run_date, variable, start_date,
+                                            end_date, path, single_step, thresholds, radii, sigmas, out_path,
+                                            num_procs, map_file, condition_model_name, condition_threshold,
+                                            num_samples):
+    pool = Pool(num_procs)
+    m = Manager()
+    q = m.Queue()
+    for member in members:
+        pool.apply_async(member_neighborhood_probability, args=(ensemble_name, model_name, member, run_date, variable,
+                                                        start_date, end_date, path, single_step, thresholds,
+                                                        radii, q, map_file, condition_model_name,
+                                                        condition_threshold, num_samples))
+    merge_member_probabilities(ensemble_name, model_name, len(members), run_date, variable, start_date, end_date, thresholds, radii, sigmas, out_path, q)
+    pool.close()
+    pool.join()
+    return
+
+
 
 if __name__ == "__main__":
     main()
