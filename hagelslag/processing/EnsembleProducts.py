@@ -108,8 +108,8 @@ class EnsembleMemberProduct(object):
                                                             scale=forecast_params[2],
                                                             size=(num_samples, rankings.size)),
                                                   axis=1)
-                            raw_samples *= bernoulli.rvs(condition,
-                                                         size=(num_samples, rankings.size))
+                            #raw_samples *= bernoulli.rvs(condition,
+                            #                             size=(num_samples, rankings.size))
                             if self.percentiles is None:
                                 samples = raw_samples.mean(axis=0)
                                 if condition is None or condition >= self.condition_threshold:
@@ -659,14 +659,15 @@ class EnsembleConsensus(object):
         full_var_name = self.consensus_type + "_" + self.variable
         if "-hour" in self.consensus_type:
             if full_var_name not in out_data.variables.keys():
-                var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True, least_significant_digit=4)
+                var = out_data.createVariable(full_var_name, "f4", ("y", "x"), zlib=True, 
+                                              least_significant_digit=3, shuffle=True)
             else:
                 var = out_data.variables[full_var_name]
             var.coordinates = "y x"
         else:
             if full_var_name not in out_data.variables.keys():
                 var = out_data.createVariable(full_var_name, "f4", ("time", "y", "x"), zlib=True,
-                                              least_significant_digit=4)
+                                              least_significant_digit=3, shuffle=True)
             else:
                 var = out_data.variables[full_var_name]
             var.coordinates = "time y x"
