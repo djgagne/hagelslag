@@ -179,7 +179,7 @@ class EnsembleMemberProduct(object):
             lon_0 += 360
         if sw_lon < 0:
             sw_lon += 360
-        gdtmp1 = [1, 0, self.proj_dict['a'], 3, float(self.proj_dict['a']), 3, float(self.proj_dict['b']),
+        gdtmp1 = [1, 0, self.proj_dict['a'], 0, float(self.proj_dict['a']), 0, float(self.proj_dict['b']),
                            self.data.shape[-1], self.data.shape[-2], self.grid_dict["sw_lat"] * lscale,
                            sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
                            lon_0 * lscale,
