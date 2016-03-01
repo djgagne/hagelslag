@@ -4,6 +4,8 @@ import os
 import subprocess
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
+from scipy.spatial import cKDTree
+import cPickle
 from netCDF4 import Dataset, date2num
 from datetime import datetime, timedelta
 from hagelslag.util.make_proj_grids import read_arps_map_file, make_proj_grids
@@ -21,7 +23,9 @@ def main():
     parser.add_argument("-p", "--path", required=True, help="Path to MRMS GRIB2 files")
     parser.add_argument("-o", "--out", required=True, help="Path to save MRMS netCDF4 files")
     parser.add_argument("-m", "--map", required=True, help="File containing map coordinates for interpolation")
-    parser.add_argument("-v", "--var", required=True, help="Comma-separated list of variables (example: MESH_Max_60min_00.50)")
+    parser.add_argument("-v", "--var", required=True,
+                        help="Comma-separated list of variables (example: MESH_Max_60min_00.50)")
+    parser.add_argument("-i", "--int", default="max", help="Interpolation type ('max' or 'spline')")
     parser.add_argument("-n", "--np", type=int, default=1, help="Number of processors to use")
     args = parser.parse_args()
     start_date = datetime.strptime(args.start, "%Y%m%d%H%M")
@@ -36,7 +40,8 @@ def main():
         curr_date = start_date
         while curr_date <= end_date:
             for variable in variables:
-                pool.apply_async(interpolate_mrms_day, (curr_date, variable, mrms_path, map_filename, out_path))
+                pool.apply_async(interpolate_mrms_day, (curr_date, variable, args.int, mrms_path,
+                                                        map_filename, out_path))
             curr_date += timedelta(days=1)
         pool.close()
         pool.join()
@@ -44,16 +49,19 @@ def main():
         curr_date = start_date
         while curr_date <= end_date:
             for variable in variables:
-                apply(interpolate_mrms_day, (curr_date, variable, mrms_path, map_filename, out_path))
+                interpolate_mrms_day(curr_date, variable, args.int, mrms_path, map_filename, out_path)
             curr_date += timedelta(days=1)
 
 
 def load_map_coordinates(map_file):
     """
     Loads map coordinates from netCDF or pickle file created by util.makeMapGrids.
-    
-    :param map_file: Filename for the file containing coordinate information.
-    :returns: Latitude and longitude grids as numpy arrays.
+
+    Args:
+        map_file: Filename for the file containing coordinate information.
+
+    Returns:
+        Latitude and longitude grids as numpy arrays.
     """
     if map_file[-4:] == ".pkl":
         map_data = cPickle.load(open(map_file))
@@ -70,24 +78,19 @@ def load_map_coordinates(map_file):
     return lon, lat
 
 
-def interpolate_mrms_day(start_date, variable, mrms_path, map_filename, out_path):
+def interpolate_mrms_day(start_date, variable, interp_type, mrms_path, map_filename, out_path):
     """
     For a given day, this module interpolates hourly MRMS data to a specified latitude and 
     longitude grid, and saves the interpolated grids to CF-compliant netCDF4 files.
     
-    Parameters
-    ----------
-    start_date : datetime.datetime
-        Date of data being interpolated
-    variable : str
-        MRMS variable
-    mrms_path : str
-        Path to top-level directory of MRMS GRIB2 files
-    map_filename : str
-        Name of the map filename. Supports ARPS map file format and netCDF files containing latitude 
-        and longitude variables
-    out_path : str
-        Path to location where interpolated netCDF4 files are saved. 
+    Args:
+        start_date (datetime.datetime): Date of data being interpolated
+        variable (str): MRMS variable
+        interp_type (str): Whether to use maximum neighbor or spline
+        mrms_path (str): Path to top-level directory of MRMS GRIB2 files
+        map_filename (str): Name of the map filename. Supports ARPS map file format and netCDF files containing latitude
+            and longitude variables
+        out_path (str): Path to location where interpolated netCDF4 files are saved.
     """
     try:
         print start_date, variable
@@ -99,7 +102,7 @@ def interpolate_mrms_day(start_date, variable, mrms_path, map_filename, out_path
                 mrms.interpolate_to_netcdf(mapping_data['lon'], mapping_data['lat'], out_path)
             else:
                 lon, lat = load_map_coordinates(map_filename)
-                mrms.interpolate_to_netcdf(lon, lat, out_path)
+                mrms.interpolate_to_netcdf(lon, lat, out_path, interp_type=interp_type)
     except Exception as e:
         # This exception catches any errors when run in multiprocessing, prints the stack trace,
         # and ends the process. Otherwise the process will stall.
@@ -190,12 +193,41 @@ class MRMSGrid(object):
                 out_data[d] = -9999
         return out_data
 
-    def interpolate_to_netcdf(self, in_lon, in_lat, out_path, date_unit="seconds since 1970-01-01T00:00"):
+    def max_neighbor(self, in_lon, in_lat, radius=0.05):
+        """
+        Finds the largest value within a given radius of a point on the interpolated grid.
+
+        Args:
+            in_lon: 2D array of longitude values
+            in_lat: 2D array of latitude values
+            radius: radius of influence for largest neighbor search in degrees
+
+        Returns:
+            Array of interpolated data
+        """
+        out_data = np.zeros((self.data.shape[0], in_lon.shape[0], in_lon.shape[1]))
+        in_tree = cKDTree(np.vstack(in_lat.ravel(), in_lon.ravel()).T)
+        out_indices = np.indices(out_data.shape[1:])
+        for d in range(self.data.shape[0]):
+            nz_points = np.where(self.data[d] > 0)
+            nz_vals = self.data[d][nz_points]
+            original_points = cKDTree(np.vstack((self.lat[nz_points[0]], self.lat[nz_points[1]])).T)
+            all_neighbors = in_tree.query_ball_tree(original_points, radius, p=2, eps=0)
+            for n, neighbors in enumerate(all_neighbors):
+                if len(neighbors) > 0:
+                    out_data[d, out_indices[0].ravel()[n], out_indices[1].ravel()[n]] = nz_vals[neighbors].max()
+        return out_data
+
+    def interpolate_to_netcdf(self, in_lon, in_lat, out_path, date_unit="seconds since 1970-01-01T00:00",
+                              interp_type="spline"):
         """
         Calls the interpolation function and then saves the MRMS data to a netCDF file. It will also create 
         separate directories for each variable if they are not already available.
         """
-        out_data = self.interpolate_grid(in_lon, in_lat)
+        if interp_type == "spline":
+            out_data = self.interpolate_grid(in_lon, in_lat)
+        else:
+            out_data = self.max_neighbor(in_lon, in_lat)
         if not os.access(out_path + self.variable, os.R_OK):
             try:
                 os.mkdir(out_path + self.variable)
