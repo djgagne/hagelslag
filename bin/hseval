@@ -275,6 +275,7 @@ def evaluate_neighborhood_probabilities(config, num_procs):
             forecast_variable = "_".join(file_comps[1:file_comps.index("consensus")])
             if forecast_variable in config.neighbor_thresholds.keys():
                 pool.apply_async(evaluate_single_neighborhood, (run_date, config.start_hour, config.end_hour,
+                                                                config.ensemble_name,
                                                                 model_name, forecast_variable, config.mrms_variable,
                                                                 config.neighbor_radii, config.smoothing_radii,
                                                                 config.obs_thresholds,
@@ -289,7 +290,8 @@ def evaluate_neighborhood_probabilities(config, num_procs):
     pool.join()
 
 
-def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
+def evaluate_single_neighborhood(run_date, start_hour, end_hour, ensemble_name, model_name, forecast_variable,
+                                 mrms_variable,
                                  neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
                                  obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file, lon_bounds,
                                  lat_bounds):
@@ -300,7 +302,8 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
         run_date (datetime.datetime): Date of the model run
         start_hour (int): First hour being evaluated
         end_hour (int): Last hour being evaluated (inclusive)
-        model_name (str): Name of the ensemble system or machine learning model type
+        ensemble_name (str): Name of the ensemble system
+        model_name (str): Name of the numerical or machine learning model type
         forecast_variable (str): Name of the diagnostic variable or machine learning model
         mrms_variable (str): MRMS variable used for verification
         neighbor_radii (list): Radii in grid points for neighborhood convolution filter
@@ -320,10 +323,10 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, model_name, for
         A tuple of DataFrames containing hourly scores and full-period scores respectively.
     """
     try:
-        ne = NeighborEvaluator(run_date, start_hour, end_hour, model_name, forecast_variable, mrms_variable,
-                               neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds, probability_levels,
-                               obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file, lon_bounds,
-                               lat_bounds)
+        ne = NeighborEvaluator(run_date, start_hour, end_hour, ensemble_name, model_name, forecast_variable,
+                               mrms_variable, neighbor_radii, smoothing_radii, obs_thresholds, size_thresholds,
+                               probability_levels, obs_mask, mask_variable, forecast_path, mrms_path, coordinate_file,
+                               lon_bounds, lat_bounds)
         ne.load_forecasts()
         ne.load_obs()
         ne.load_coordinates()
