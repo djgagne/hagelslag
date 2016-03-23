@@ -248,22 +248,19 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
     no_skill = 0.5 * ticks + 0.5 * climo
     skill_x = [climo, climo, 1, 1, climo, climo, 0, 0, climo]
     skill_y = [climo, 1, 1, no_skill[-1], climo, 0, 0, no_skill[0], climo]
-    ax.fill(skill_x, skill_y, "0.8")
+    f = ax.fill(skill_x, skill_y, "0.8")
+    f[0].set_zorder(1)
     ax.plot(ticks, np.ones(ticks.shape) * climo, "k--")
     if bootstrap_sets is not None:
         for b, b_set in enumerate(bootstrap_sets):
-            brel_curves = np.dstack([b_rel.reliability_curve().values for b_rel in b_set])
-            bin_range = np.percentile(brel_curves[:,0], ci, axis=1)
-            rel_range = np.percentile(brel_curves[:, 3], ci, axis=1)
-            bin_poly = np.concatenate((bin_range[1], bin_range[0, ::-1]))
-            rel_poly = np.concatenate((rel_range[1], rel_range[0, ::-1]))
-            bin_poly[np.isnan(bin_poly)] = 0
-            rel_poly[np.isnan(rel_poly)] = 0
-            plt.fill(bin_poly, rel_poly, alpha=0.5, color=colors[b])
+            brel_curves = np.vstack([b_rel.reliability_curve()["Positive_Relative_Freq"].values for b_rel in b_set])
+            rel_range = np.nanpercentile(brel_curves, ci, axis=0)
+            fb = ax.fill_between(b_rel.thresholds[:-1], rel_range[1], rel_range[0], alpha=0.5, color=colors[b])
+            fb.set_zorder(2)
     for r, rel_obj in enumerate(rel_objs):
         rel_curve = rel_obj.reliability_curve()
-        ax.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r], marker=markers[r],
-                 label=obj_labels[r])
+        ax.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r],
+                marker=markers[r], label=obj_labels[r])
         inset_hist.semilogy(rel_curve["Bin_Start"] * 100, rel_obj.frequencies["Total_Freq"][:-1], color=colors[r],
                             marker=markers[r])
     inset_hist.set_xlabel("Forecast Probability")
