@@ -208,8 +208,15 @@ def make_ensemble_probabilities(config, mode="forecast"):
     run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
                                  end=config.end_dates[mode],
                                  freq='1D')
+
     for run_date in run_dates.to_pydatetime():
-        if all([os.access(config.ensemble_data_path + "/" + m + run_date.strftime("/%Y%m%d/"), os.R_OK) for m in config.ensemble_members]):
+        if config.ensemble_name.upper() == "NCAR":
+            full_path = config.ensemble_data_path + "/{0}/{1}_surrogate_{0}.nc"
+            run_date_str = run_date.strftime("%Y%m%d%H")
+        else:
+            full_path = config.ensemble_data_path + "/{1}/{0}/"
+            run_date_str = run_date.strftime("%Y%m%d")
+        if all([os.access(full_path.format(run_date_str, m), os.R_OK) for m in config.ensemble_members]):
             print("Starting " + run_date.strftime("%Y%m%d"))
             start_date = run_date + timedelta(hours=config.start_hour)
             end_date = run_date + timedelta(hours=config.end_hour)
