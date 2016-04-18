@@ -3,7 +3,7 @@ from skimage.measure import regionprops
 from skimage.segmentation import find_boundaries
 from skimage.morphology import convex_hull_image
 import json
-
+import os
 
 class STObject(object):
     """
