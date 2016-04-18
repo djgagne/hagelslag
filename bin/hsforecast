@@ -6,6 +6,7 @@ from hagelslag.processing.TrackSampler import sample_member_run_tracks
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
 from multiprocessing import Pool, Manager
 from hagelslag.processing.EnsembleProducts import *
+from scipy.ndimage import gaussian_filter
 import pandas as pd
 import numpy as np
 import traceback
@@ -504,7 +505,7 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
 
 def member_neighborhood_probability(ensemble_name, model_name, member, run_date, variable, start_date,
                                     end_date, path, single_step, thresholds, radii, queue, map_file,
-                                    condition_model_name, condition_threshold, num_samples):
+                                    condition_model_name, condition_threshold, num_samples, sigmas):
     try:
         print(member, ensemble_name, variable)
         emp = EnsembleMemberProduct(ensemble_name, model_name, member, run_date, variable, start_date, end_date,
@@ -513,12 +514,22 @@ def member_neighborhood_probability(ensemble_name, model_name, member, run_date,
         emp.load_data(num_samples=num_samples, percentiles=None)
         for radius in radii:
             for threshold in thresholds:
-                print "Hourly {0} {1} {2} {3}".format(radius, threshold, member, run_date)
+                print("Hourly {0} {1} {2} {3}".format(radius, threshold, member, run_date))
                 neighbor_prob = emp.neighborhood_probability(threshold, radius)
-                queue.put(["hourly", threshold, radius, member, neighbor_prob])
+                smooth_neighbor_prob = np.zeros(neighbor_prob.shape)
+                for sigma in sigmas:
+                    for t in range(neighbor_prob.shape[0]):
+                        smooth_neighbor_prob[t] = gaussian_filter(neighbor_prob[t], sigma)
+                    queue.put(["hourly", threshold, radius, sigma, member, smooth_neighbor_prob])
+                    smooth_neighbor_prob[:] = 0
+        for radius in radii:
+            for threshold in thresholds:
                 print "Period {0} {1} {2} {3}".format(radius, threshold, member, run_date)
                 period_prob = emp.period_max_neighborhood_probability(threshold, radius)
-                queue.put(["period", threshold, radius, member, period_prob])
+                for sigma in sigmas:
+                    smooth_period_prob = gaussian_filter(period_prob, sigma)
+                    queue.put(["period", threshold, radius, sigma, member, smooth_period_prob])
+
     except Exception as e:
         print(traceback.format_exc())
         raise e
@@ -538,12 +549,13 @@ def merge_member_probabilities(ensemble_name, model_name, num_members, run_date,
     merged_data = dict()
     for threshold in thresholds:
         for radius in radii:
-            merged_data[("hourly", threshold, radius)] = [None, 0]
-            merged_data[("period", threshold, radius)] = [None, 0]
+            for sigma in sigmas:
+                merged_data[("hourly", threshold, radius, sigma)] = [None, 0]
+                merged_data[("period", threshold, radius, sigma)] = [None, 0]
     while len(merged_data.keys()) > 0:
-        while not queue.empty():
+        if not queue.empty():
             output = queue.get()
-            out_key = tuple(output[0:3])
+            out_key = tuple(output[0:4])
             if merged_data[out_key][0] is None:
                 merged_data[out_key][:] = [output[-1], 1]
             else:
@@ -551,32 +563,28 @@ def merge_member_probabilities(ensemble_name, model_name, num_members, run_date,
                 merged_data[out_key][1] += 1
             print("Added to ", out_key, "Size: ", merged_data[out_key][1])
             del output
-        for out_key in sorted(merged_data.keys()):
+        for out_key in merged_data.keys():
             if merged_data[out_key][1] == num_members:
                 ens_mean = merged_data[out_key][0] / float(num_members)
                 ec = None
-                for sigma in sigmas:
-                    if out_key[0] == "hourly":
-                        ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
-                                                "neighbor_prob_r_{0:d}_s_{1:d}".format(out_key[2], sigma),
-                                                ensemble_name,
-                                                run_date, variable + "_{0:0.2f}".format(out_key[1]),
-                                                start_date, end_date, "") 
-                        for t in range(ens_mean.shape[0]):
-                            ec.data[t] = gaussian_filter(ens_mean[t], sigma)
-                    else:
-                        ec = EnsembleConsensus(np.zeros(ens_mean.shape, dtype=np.float32),
-                                                "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(times.shape[0],
-                                                                                                    out_key[2],
-                                                                                                    sigma),
-                                                ensemble_name,
-                                                run_date, variable + "_{0:0.2f}".format(out_key[1]),
-                                                start_date, end_date, "") 
-                        ec.data[:] = gaussian_filter(ens_mean, sigma)
-                    if out_file is None:
-                        out_file = ec.init_file(out_filename)
-                    print("Writing to " + out_filename, out_key)
-                    ec.write_to_file(out_file)
+                if out_key[0] == "hourly":
+                    ec = EnsembleConsensus(ens_mean,
+                                            "neighbor_prob_r_{0:d}_s_{1:d}".format(out_key[2], out_key[3]),
+                                            ensemble_name,
+                                            run_date, variable + "_{0:0.2f}".format(out_key[1]),
+                                            start_date, end_date, "") 
+                else:
+                    ec = EnsembleConsensus(ens_mean,
+                                            "neighbor_prob_{0:02d}-hour_r_{1:d}_s_{2:d}".format(times.shape[0],
+                                                                                                out_key[2],
+                                                                                                out_key[3]),
+                                            ensemble_name,
+                                            run_date, variable + "_{0:0.2f}".format(out_key[1]),
+                                            start_date, end_date, "") 
+                if out_file is None:
+                    out_file = ec.init_file(out_filename)
+                print("Writing to " + out_filename, out_key)
+                ec.write_to_file(out_file)
                 del merged_data[out_key]
                 del ens_mean
                 del ec
@@ -596,7 +604,7 @@ def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, 
         pool.apply_async(member_neighborhood_probability, args=(ensemble_name, model_name, member, run_date, variable,
                                                         start_date, end_date, path, single_step, thresholds,
                                                         radii, q, map_file, condition_model_name,
-                                                        condition_threshold, num_samples))
+                                                        condition_threshold, num_samples, sigmas))
     merge_member_probabilities(ensemble_name, model_name, len(members), run_date, variable, start_date, end_date, thresholds, radii, sigmas, out_path, q)
     pool.close()
     pool.join()
