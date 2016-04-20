@@ -5,7 +5,7 @@ import pygrib
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
 from skimage.morphology import disk
-
+from os.path import exists
 
 class HailForecastGrid(object):
     def __init__(self, run_date, start_date, end_date, ensemble_name, ml_model, members,
@@ -33,10 +33,16 @@ class HailForecastGrid(object):
     def load_data(self):
         for m, member in enumerate(self.members):
             for f, forecast_date in enumerate(self.forecast_dates.to_pydatetime()):
+                dt = int((forecast_date - self.run_date).total_seconds() / 3600)
                 filename_args = (self.ensemble_name, member, self.ml_model, self.variable,
                                  forecast_date.strftime("%Y%m%d%H%M"))
                 filename = self.path + self.run_date.strftime("%Y%m%d") + \
                            "/{0}_{1}_{2}_{3}_{4}.grib2".format(*filename_args)
+                if not exists(filename):
+                    filename_args = (self.ensemble_name, member, self.ml_model, self.variable,
+                                     forecast_date.strftime("%Y%m%d") + "f{0:02d}".format(dt))
+                    filename = self.path + self.run_date.strftime("%Y%m%d") + \
+                               "/{0}_{1}_{2}_{3}_{4}.grib2".format(*filename_args)
                 grbs = pygrib.open(filename)
                 if self.lon is None:
                     self.lat, self.lon = grbs[self.message_number].latlons()
