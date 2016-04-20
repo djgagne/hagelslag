@@ -5,14 +5,63 @@ import argparse
 from hagelslag.data.WRFModelGrid import WRFModelGrid
 from hagelslag.processing import Hysteresis
 from multiprocessing import Pool
+from scipy.ndimage import label, find_objects, gaussian_filter
 
 
 def main():
+    wrf_vars = ["U", "V", "W", "TEMP", "GPH", "PRES", "HGT", "REFL_10CM",
+                "QVAPOR", "QRAIN", "QICE", "QSNOW", "QGRAUP", "QHAIL", "QCLOUD",
+                "QNRAIN", "QNICE", "QNSNOW", "QNGRAUPEL", "QNHAIL", "QNCLOUD",
+                "QICE2", "QNICE2", "QVGRAUPEL", "QNGRAUPEL2", "QVGRAUPEL2", "V_ICE",
+                "D_ICE", "RHO_ICE"]
     parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--path", help="Path to wrfout files")
+    parser.add_argument("-o", "--out", help="Path where WRF object netCDF files are written")
+    parser.add_argument("-v", "--var", default="REFL_10CM", help="Variable for object finding")
+    parser.add_argument("-u", "--up", default=50, type=float, help="Upper threshold for hysteresis")
+    parser.add_argument("-l", "--low", default=10, type=float, help="Lower threshold for hysteresis")
+    parser.add_argument("-s", "--smooth", default=0, type=int, help="Smoothing radius")
+    parser.add_argument("-a", "--area", default=16, type=int, help="Minimum object size")
+    parser.add_argument("-d", "--dom", default="d01", help="WRF domain")
+    parser.add_argument("-e", "--ext", default=",".join(wrf_vars),
+                        help="Variables to be extracted from WRF as comma separated list")
     args = parser.parse_args()
     return
 
 
+def find_wrf_objects(valid_date, variable, upper_threshold, lower_threshold, smoothing, min_size, domain, path):
+    wrf_grid = WRFModelGrid(valid_date, variable, domain, path)
+    var_data = wrf_grid.load_full_grid()[0]
+    if len(var_data.shape) == 4:
+        var_data = var_data.max(axis=0)
+    hyst = Hysteresis(lower_threshold, upper_threshold)
+    if smoothing > 0:
+        label_grid = hyst.label(gaussian_filter(var_data, smoothing, mode="constant"))
+    else:
+        label_grid = hyst.label(var_data)
+    filtered_grid = hyst.size_filter(label_grid, min_size)
+    object_slices = find_objects(filtered_grid, filtered_grid.max())
+    return object_slices
+
+
+def extract_wrf_boxes(object_slices, valid_date, wrf_vars, domain, wrf_path, out_path):
+    out_filename = out_path + "wrfobjects_{0}_{1}.nc".format(domain, valid_date.strftime("%Y-%m-%d_%H%M%S"))
+    out_data = Dataset(out_filename, mode="w")
+    for o, object_slice in enumerate(object_slices):
+        grp = out_data.createGroup("wrf_object_{0:04d}".format(o))
+        grp.createDimension("time", 1)
+        grp.createDimension("south_north", object_slice[0].stop - object_slice[0].start)
+        grp.createDimension("west_east", object_slice[1].stop - object_slice[1].start)
+    for wrf_var in wrf_vars:
+        wrf_data = WRFModelGrid(valid_date, wrf_var, domain, wrf_path)
+        for o, object_slice in enumerate(object_slices):
+            var_data = wrf_data.load_data_box(object_slice[0], object_slice[1])
+            var = out_data.groups["wrf_object_{0:04d}".format(o)].createVariable(wrf_var, "f4",
+                                                                                 ("time", "south_north", "west_east"),
+                                                                                 zlib=True)
+            var[:] = var_data
+    out_data.close()
+    return
 
 
 if __name__ == "__main__":
