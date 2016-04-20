@@ -229,13 +229,13 @@ class EnsembleMemberProduct(object):
         return grib_objects
 
     def write_grib2_files(self, grib_objects, path):
-        for time in self.times.to_pydatetime():
+        for t, time in enumerate(self.times.to_pydatetime()):
             grib_objects[time].end()
             filename = path  + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
                                                                   self.member,
                                                                   self.model_name.replace(" ", "-"),
                                                                   self.variable,
-                                                                  time.strftime("%Y%m%d%H%M")
+                                                                  self.run_date.strftime("%Y%m%d%H") + "f{0:02d}".format(self.forecast_hours[t])
                                                                   )
             fo = open(filename, "wb")
             fo.write(grib_objects[time].msg)
