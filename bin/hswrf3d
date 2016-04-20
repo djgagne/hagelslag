@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+import numpy as np
+from netCDF4 import Dataset
+import argparse
+from hagelslag.data.WRFModelGrid import WRFModelGrid
+from hagelslag.processing import Hysteresis
+from multiprocessing import Pool
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    return
+
+
+
+
+if __name__ == "__main__":
+    main()

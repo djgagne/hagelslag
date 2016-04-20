@@ -3,6 +3,7 @@ import numpy as np
 from pandas import DatetimeIndex
 from datetime import timedelta
 
+
 class NCARModelGrid(ModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the NCAR ensemble.
@@ -26,18 +27,32 @@ class NCARModelGrid(ModelGrid):
             filenames.append("{0}{1}/{2}_surrogate_{1}.nc".format(self.path,
                                                                   run_date.strftime("%Y%m%d%H"),
                                                                   self.member))
+            load_var = variable
         else:
             for hour in self.forecast_hours:
                 valid_time = run_date + timedelta(hours=hour)
-                filenames.append("{0}{1}/wrf_rundir/{2}/wrfout_d02_{3}:00:00".format(self.path,
-                                                                                             run_date.strftime("%Y%m%d%H"),
-                                                                                             self.member.replace("mem", "ens_"),
-                                                                                             valid_time.strftime("%Y-%m-%d_%H")
-                                                                                             ))
-                #filenames.append("{0}{1}/post_rundir/{2}/fhr_{3:d}/WRFTWO{3:02d}.nc".format(self.path,
-                #                                                                            run_date.strftime("%Y%m%d%H"),
-                #                                                                            self.member.replace("mem", "mem_"),
-                #                                                                            int(hour)))
+                if variable in ["UBSHR1", "VBSHR1", "UBSHR6", "VBSHR6", "PWAT", "SRH3", "LCL_HEIGHT", "CAPE_SFC",
+                                "CIN_SFC", "MUCAPE"]:
+                    filenames.append("{0}{1}/post_rundir/{2}/fhr_{3:d}/WRFTWO{3:02d}.nc".format(self.path,
+                                                                                                run_date.strftime(
+                                                                                                    "%Y%m%d%H"),
+                                                                                                self.member.replace(
+                                                                                                    "mem", "mem_"),
+                                                                                                int(hour)))
+                else:
+                    filenames.append("{0}{1}/wrf_rundir/{2}/wrfout_d02_{3}:00:00".format(self.path,
+                                                                                         run_date.strftime("%Y%m%d%H"),
+                                                                                         self.member.replace("mem",
+                                                                                                             "ens_"),
+                                                                                         valid_time.strftime(
+                                                                                             "%Y-%m-%d_%H")))
+            if variable == "SRH3":
+                load_var = "SR_HELICITY_3KM"
+            elif variable == "CAPE_SFC":
+                load_var = "SBCAPE"
+            elif variable == "CIN_SFC":
+                load_var = "SBCINH"
+            else:
+                load_var = variable
         print filenames
-        super(NCARModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
-
+        super(NCARModelGrid, self).__init__(filenames, run_date, start_date, end_date, load_var)
