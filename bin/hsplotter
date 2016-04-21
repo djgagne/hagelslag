@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -114,7 +116,7 @@ def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), con
 
 def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing, thresholds, stride, out_path,
                                          figsize=(10, 6),
-                                         contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1)),
+                                         contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1))),
                                          cmap="RdPu"):
     for threshold in thresholds:
         plt.figure(figsize=figsize)
