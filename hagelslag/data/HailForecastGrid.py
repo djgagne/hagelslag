@@ -3,7 +3,7 @@ import pandas as pd
 from pyproj import Proj
 import pygrib
 from scipy.spatial import cKDTree
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import maximum_filter, gaussian_filter
 from skimage.morphology import disk
 from os.path import exists
 
@@ -40,7 +40,7 @@ class HailForecastGrid(object):
                            "/{0}_{1}_{2}_{3}_{4}.grib2".format(*filename_args)
                 if not exists(filename):
                     filename_args = (self.ensemble_name, member, self.ml_model, self.variable,
-                                     forecast_date.strftime("%Y%m%d") + "f{0:02d}".format(dt))
+                                     self.run_date.strftime("%Y%m%d%H") + "f{0:02d}".format(dt))
                     filename = self.path + self.run_date.strftime("%Y%m%d") + \
                                "/{0}_{1}_{2}_{3}_{4}.grib2".format(*filename_args)
                 grbs = pygrib.open(filename)
@@ -48,7 +48,9 @@ class HailForecastGrid(object):
                     self.lat, self.lon = grbs[self.message_number].latlons()
                     self.projparams = grbs[self.message_number].projparams
                     self.proj = Proj(grbs[self.message_number].projparams)
-                    self.x, self.y = self.proj(self.lon, self.lat) / 1000.0
+                    self.x, self.y = self.proj(self.lon, self.lat)
+                    self.x /= 1000.0
+                    self.y /= 1000.0
                     self.dx = grbs[self.message_number]['DxInMetres'] / 1000.0
                 data = grbs[self.message_number].values
                 data *= 1000.0
@@ -56,7 +58,8 @@ class HailForecastGrid(object):
                 if self.data is None:
                     self.data = np.ma.empty((len(self.members), len(self.forecast_dates),
                                              data.shape[0], data.shape[1]), dtype=float)
-                self.data[f, m] = data
+                    self.data.set_fill_value(0)
+                self.data[m, f] = data
                 grbs.close()
         return
 
@@ -81,12 +84,19 @@ class HailForecastGrid(object):
         neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
         neighbor_prob = np.zeros(neighbor_lons.shape)
         for m in range(len(self.members)):
-            period_max = self.data[m].max(axis=0)
-            valid_i, valid_j = np.where(period_max >= threshold)
-            var_kd_tree = cKDTree(np.vstack((self.x[valid_i, valid_j], self.y[valid_i, valid_j])))
-            nearest_counts = np.array([len(c) for c in
-                                       neighbor_kd_tree.query_ball_tree(var_kd_tree, radius, p=2, eps=0)])
-            neighbor_prob += nearest_counts.reshape(neighbor_prob.shape)
+            period_max = self.data[m].max(axis=0, fill_value=0)
+            period_max[period_max.mask == True] = 0
+            period_max = maximum_filter(period_max, footprint=disk(int(radius / self.dx)), mode='constant')
+            valid_i, valid_j = np.ma.where(period_max >= threshold)
+            print(m, len(valid_i))
+            if len(valid_i) > 0:
+                var_kd_tree = cKDTree(np.vstack((self.x[valid_i, valid_j], self.y[valid_i, valid_j])).T)
+                nearest_counts = np.array([len(c) for c in
+                                          neighbor_kd_tree.query_ball_tree(var_kd_tree, radius, p=2, eps=0)])
+                neighbor_prob += nearest_counts.reshape(neighbor_prob.shape)
+        print("Max counts", neighbor_prob.max())
         neighbor_prob /= float(neighbor_total * len(self.members))
+        print("Max counts divided", neighbor_prob.max(), neighbor_total, len(self.members))
         neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / self.dx / stride))
+        print("Max counts smoothed", neighbor_prob.max(), smoothing, self.dx, stride, int(smoothing/self.dx/stride))
         return neighbor_prob, neighbor_lons, neighbor_lats

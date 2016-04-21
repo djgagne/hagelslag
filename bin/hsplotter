@@ -28,12 +28,16 @@ def main():
     neighbor_smoothing = 42.0
     thresholds = np.array([25, 50])
     stride = 10
+    print("Loading data")
     forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
                                         ensemble_members, args.var, args.grib, args.path)
+    print("Get basemaps")
     bmap_sub = get_sub_basemap(forecast_grid, stride)
     bmap_full = get_full_basemap(forecast_grid)
+    print("Plot neighborhood probability")
     plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing, thresholds,
                                          stride, args.out)
+    print("Plot ensemble max")
     plot_period_ensemble_max(forecast_grid, bmap_full, args.out)
     return
 
@@ -47,7 +51,7 @@ def load_hail_forecasts(run_date, start_date, end_date, ensemble_name, ml_model,
 
 
 def get_sub_basemap(forecast_grid, stride=14):
-    bmap = Basemap(projection=forecast_grid.projparams["lcc"], resolution="l",
+    bmap = Basemap(projection=forecast_grid.projparams["proj"], resolution="l",
                    rsphere=forecast_grid.projparams["a"],
                    lon_0=forecast_grid.projparams["lon_0"],
                    lat_0=forecast_grid.projparams["lat_0"],
@@ -61,7 +65,7 @@ def get_sub_basemap(forecast_grid, stride=14):
 
 
 def get_full_basemap(forecast_grid):
-    bmap = Basemap(projection=forecast_grid.projparams["lcc"], resolution="l",
+    bmap = Basemap(projection=forecast_grid.projparams["proj"], resolution="l",
                    rsphere=forecast_grid.projparams["a"],
                    lon_0=forecast_grid.projparams["lon_0"],
                    lat_0=forecast_grid.projparams["lat_0"],
@@ -84,7 +88,7 @@ def plot_hourly_neighborhood_probability():
 
 def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), contours=np.arange(5, 75, 5),
                              cmap="inferno"):
-    ens_max = forecast_grid.data.max(axis=0).max(axis=0)
+    ens_max = forecast_grid.data.max(axis=0, fill_value=0).max(axis=0, fill_value=0)
     plt.figure(figsize=figsize)
     bmap.drawstates()
     bmap.drawcountries()
@@ -94,14 +98,14 @@ def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), con
     plt.title("{0} {1} Ensemble Maximum {2} (mm) Valid {3}".format(forecast_grid.ensemble_name,
                                                                    forecast_grid.ml_model.replace("-", " "),
                                                                    forecast_grid.variable.capitalize(),
-                                                                   forecast_grid.start_date.strftime("%D %b %Y")),
+                                                                   forecast_grid.start_date.strftime("%d %b %Y")),
               fontweight="bold",
               fontsize=12)
-    plt.colorbar(orientation="horizontal", shrink=0.9, fraction=0.1, pad=0.02)
+    plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
     plt.savefig(out_path + "{0}_{1}_period_ens_max_{2}_{3}.png".format(forecast_grid.ensemble_name,
                                                                        forecast_grid.ml_model,
-                                                                       forecast_grid.start_date.strftime("%Y%m%d%H%M"),
-                                                                       forecast_grid.end_date.strftime("%Y%m%d%H%M")
+                                                                       forecast_grid.start_date.strftime("%Y%m%d%H"),
+                                                                       forecast_grid.end_date.strftime("%Y%m%d%H")
                                                                        ),
                 bbox_inches="tight", dpi=300)
     plt.close()
@@ -110,7 +114,7 @@ def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), con
 
 def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing, thresholds, stride, out_path,
                                          figsize=(10, 6),
-                                         contours=np.arange(0.1, 1.1, 0.1),
+                                         contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1)),
                                          cmap="RdPu"):
     for threshold in thresholds:
         plt.figure(figsize=figsize)
@@ -121,25 +125,25 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         bmap.drawcoastlines()
         bmap.drawcountries()
         plt.contourf(n_x, n_y, neighbor_prob, contours, extend="max", cmap=cmap)
-        plt.colorbar(orientation="horizontal", shrink=0.9, fraction=0.1, pad=0.02)
-        plt.title("{0} {1} Ens. Neighbor Prob. of {2}>{3:d} mm, R={4:d} km, $\sigma$={5:d} km, Valid {4}".format(
+        plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+        plt.title("{0} {1} Ens. Neighbor Prob. of {2}>{3:d} mm\nR={4:d} km, $\sigma$={5:d} km, Valid {6}".format(
             forecast_grid.ensemble_name,
             forecast_grid.ml_model.replace("-", " "),
             forecast_grid.variable.capitalize(),
             int(threshold),
             int(radius),
             int(smoothing),
-            forecast_grid.start_date.strftime("%D %b %Y")),
+            forecast_grid.start_date.strftime("%d %b %Y")),
             fontweight="bold",
-            fontsize=12)
+            fontsize=10)
         filename = out_path + "{0}_{1}_period_neighbor_prob_{2:d}_r_{3:d}_s_{4:d}_{5}_{6}.png".format(
             forecast_grid.ensemble_name,
             forecast_grid.ml_model,
             int(threshold),
             int(radius),
             int(smoothing),
-            forecast_grid.start_date.strftime("%Y%m%d%H%M"),
-            forecast_grid.end_date.strftime("%Y%m%d%H%M"))
+            forecast_grid.start_date.strftime("%Y%m%d%H"),
+            forecast_grid.end_date.strftime("%Y%m%d%H"))
         plt.savefig(filename,
                     bbox_inches="tight", dpi=300)
         plt.close()

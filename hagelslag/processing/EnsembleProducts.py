@@ -103,7 +103,7 @@ class EnsembleMemberProduct(object):
                         rankings = np.argsort(step["properties"]["timesteps"])[mask == 1]
                         i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                         j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
-                        if rankings.size > 0:
+                        if rankings.size > 0 and forecast_params[0] > 0.1 and forecast_params[2] > 1 and forecast_params[2] < 100:
                             raw_samples = np.sort(gamma.rvs(forecast_params[0], loc=forecast_params[1],
                                                             scale=forecast_params[2],
                                                             size=(num_samples, rankings.size)),
@@ -112,7 +112,7 @@ class EnsembleMemberProduct(object):
                             #                             size=(num_samples, rankings.size))
                             if self.percentiles is None:
                                 samples = raw_samples.mean(axis=0)
-                                if condition is None or condition >= self.condition_threshold:
+                                if condition >= self.condition_threshold:
                                     self.data[t, i, j] = samples
                             else:
                                 for p, percentile in enumerate(self.percentiles):
