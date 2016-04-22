@@ -127,8 +127,8 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
     if bootstrap_sets is not None:
         for b, b_set in enumerate(bootstrap_sets):
             perf_curves = np.dstack([b_roc.performance_curve().values for b_roc in b_set])
-            pod_range = np.percentile(perf_curves[:,0], ci, axis=1)
-            sr_range = np.percentile(1 - perf_curves[:,1], ci, axis=1)
+            pod_range = np.nanpercentile(perf_curves[:, 0], ci, axis=1)
+            sr_range = np.nanpercentile(1 - perf_curves[:, 1], ci, axis=1)
             pod_poly = np.concatenate((pod_range[1], pod_range[0, ::-1]))
             sr_poly = np.concatenate((sr_range[1], sr_range[0, ::-1]))
             pod_poly[np.isnan(pod_poly)] = 0
