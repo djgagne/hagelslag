@@ -2,15 +2,19 @@ import numpy as np
 
 
 class ContingencyTable(object):
-    """Initializes a contingency table of the following form:
-                       Event
-                       Yes No
-        Forecast    Yes  a  b
-                    No   c  d
+    """
+    Initializes a binary contingency table and generates many skill scores.
+
+    Args:
+        a: true positives
+        b: false positives
+        c: false negatives
+        d: true negatives
 
     Attributes:
         table (numpy.ndarray): contingency table
         N: total number of items in table
+
     """
     def __init__(self, a, b, c, d):
         self.table = np.array([[a, b], [c, d]], dtype=float)
@@ -27,35 +31,47 @@ class ContingencyTable(object):
         """
         Add two contingency tables together and return a combined one.
 
-        :param other:
-        :return:
+        Args:
+            other: Another contingency table
+
+        Returns:
+            Sum of contingency tables
         """
         sum_ct = ContingencyTable(*(self.table + other.table).tolist())
         return sum_ct
 
     def pod(self):
-        """Returns Probability of Detection (POD) or Hit Rate.
-           Formula:  a/(a+c)"""
+        """
+        Probability of Detection (POD) or Hit Rate.
+        Formula:  a/(a+c)
+        """
         return self.table[0, 0] / (self.table[0, 0] + self.table[1, 0])
 
     def foh(self):
-        """Returns Frequency of Hits (FOH) or Success Ratio.
-           Formula:  a/(a+b)"""
+        """
+        Frequency of Hits (FOH) or Success Ratio.
+        Formula:  a/(a+b)
+        """
         return self.table[0, 0] / (self.table[0, 0] + self.table[0, 1])
 
     def far(self):
-        """Returns False Alarm Ratio (FAR).
-           Formula:  b/(a+b)"""
+        """
+        False Alarm Ratio (FAR).
+        Formula:  b/(a+b)
+        """
         return self.table[0, 1] / (self.table[0, 0] + self.table[0, 1])
 
     def pofd(self):
-        """Returns Probability of False Detection (POFD).
-           b/(b+d)"""
+        """
+        Probability of False Detection (POFD).
+        b/(b+d)
+        """
         return self.table[0, 1] / (self.table[0, 1] + self.table[1, 1])
 
     def fom(self):
-        """Returns Frequency of Misses (FOM).
-           Formula:  c/(a+c)."""
+        """
+        Frequency of Misses (FOM).
+        Formula:  c/(a+c)."""
         return self.table[1, 0] / (self.table[0, 0] + self.table[1, 0])
 
     def dfr(self):
@@ -74,7 +90,9 @@ class ContingencyTable(object):
         return self.table[1, 1] / (self.table[1, 0] + self.table[1, 1])
 
     def bias(self):
-        """Returns Frequency Bias.  Formula:  (a+b)/(a+c)"""
+        """
+        Frequency Bias.
+        Formula:  (a+b)/(a+c)"""
         return (self.table[0, 0] + self.table[0, 1]) / (self.table[0, 0] + self.table[1, 0])
 
     def accuracy(self):

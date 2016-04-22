@@ -11,7 +11,6 @@ import os
 from glob import glob
 import json
 from datetime import timedelta
-from multiprocessing import Queue, Pool
 import traceback
 
 try:
@@ -19,8 +18,6 @@ try:
     grib_support = True
 except ImportError("ncepgrib2 not available"):
     grib_support = False
-
-
 
 
 class EnsembleMemberProduct(object):
@@ -59,8 +56,8 @@ class EnsembleMemberProduct(object):
     def load_data(self, num_samples=1000, percentiles=None):
         """
         Args:
-            num_samples:
-            percentiles:
+            num_samples: Number of random samples at each grid point
+            percentiles: Which percentiles to extract from the random samples
 
         Returns:
         """
@@ -103,13 +100,11 @@ class EnsembleMemberProduct(object):
                         rankings = np.argsort(step["properties"]["timesteps"])[mask == 1]
                         i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
                         j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
-                        if rankings.size > 0 and forecast_params[0] > 0.1 and forecast_params[2] > 1 and forecast_params[2] < 100:
+                        if rankings.size > 0 and forecast_params[0] > 0.1 and 1 < forecast_params[2] < 100:
                             raw_samples = np.sort(gamma.rvs(forecast_params[0], loc=forecast_params[1],
                                                             scale=forecast_params[2],
                                                             size=(num_samples, rankings.size)),
                                                   axis=1)
-                            #raw_samples *= bernoulli.rvs(condition,
-                            #                             size=(num_samples, rankings.size))
                             if self.percentiles is None:
                                 samples = raw_samples.mean(axis=0)
                                 if condition >= self.condition_threshold:
@@ -136,7 +131,18 @@ class EnsembleMemberProduct(object):
                 tfo.close()
         else:
             self.track_forecasts = []
+
     def neighborhood_probability(self, threshold, radius):
+        """
+        Calculate a probability based on the number of grid points in an area that exceed a threshold.
+
+        Args:
+            threshold:
+            radius:
+
+        Returns:
+
+        """
         weights = disk(radius, dtype=np.uint8)
         thresh_data = np.zeros(self.data.shape[1:], dtype=np.uint8)
         neighbor_prob = np.zeros(self.data.shape, dtype=np.float32)
@@ -168,7 +174,7 @@ class EnsembleMemberProduct(object):
         Encodes member percentile data to GRIB2 format.
 
         Returns:
-            Series of
+            Series of GRIB2 messages
         """
         lscale = 1e6
         grib_id_start = [7, 0, 14, 14, 2]
@@ -180,12 +186,12 @@ class EnsembleMemberProduct(object):
         if sw_lon < 0:
             sw_lon += 360
         gdtmp1 = [1, 0, self.proj_dict['a'], 0, float(self.proj_dict['a']), 0, float(self.proj_dict['b']),
-                           self.data.shape[-1], self.data.shape[-2], self.grid_dict["sw_lat"] * lscale,
-                           sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
-                           lon_0 * lscale,
-                           self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
-                           self.proj_dict["lat_1"] * lscale,
-                           self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
+                  self.data.shape[-1], self.data.shape[-2], self.grid_dict["sw_lat"] * lscale,
+                  sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
+                  lon_0 * lscale,
+                  self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
+                  self.proj_dict["lat_1"] * lscale,
+                  self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
         pdtmp1 = np.array([1,                # parameter category Moisture
                            31,               # parameter number Hail
                            4,                # Type of generating process Ensemble Forecast
@@ -204,11 +210,10 @@ class EnsembleMemberProduct(object):
                            0,                # Derived forecast type
                            self.num_samples  # Number of ensemble members
                            ], dtype=np.int32)
-        #pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)
         grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
         drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
         for t, time in enumerate(self.times):
-            time_list = list(time.utctimetuple()[0:6])
+            time_list = list(self.run_date.utctimetuple()[0:6])
             if grib_objects[time] is None:
                 grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
@@ -231,15 +236,17 @@ class EnsembleMemberProduct(object):
     def write_grib2_files(self, grib_objects, path):
         for t, time in enumerate(self.times.to_pydatetime()):
             grib_objects[time].end()
-            filename = path  + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
-                                                                  self.member,
-                                                                  self.model_name.replace(" ", "-"),
-                                                                  self.variable,
-                                                                  self.run_date.strftime("%Y%m%d%H") + "f{0:02d}".format(self.forecast_hours[t])
-                                                                  )
+            filename = path + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
+                                                                 self.member,
+                                                                 self.model_name.replace(" ", "-"),
+                                                                 self.variable,
+                                                                 self.run_date.strftime("%Y%m%d%H") +
+                                                                 "f{0:02d}".format(self.forecast_hours[t])
+                                                                 )
             fo = open(filename, "wb")
             fo.write(grib_objects[time].msg)
             fo.close()
+
 
 class EnsembleProducts(object):
     """
@@ -596,10 +603,11 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                 pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
                 drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
                 data = self.data[m, t].astype(np.float32) / 1000.0
-                masked_data = np.ma.array(data, mask=data<=0)
+                masked_data = np.ma.array(data, mask=data <= 0)
                 grbe.addfield(1, pdtmp1, 0, drtmp1, masked_data)
                 grbe.end()
-                filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name.replace(" ", "-"), member, var_type,
+                filename = path + "{0}_{1}_mlhail_{2}_{3}.grib2".format(self.ensemble_name.replace(" ", "-"), member,
+                                                                        var_type,
                                                                         time.to_datetime().strftime("%Y%m%d%H%M"))
                 print("Writing to " + filename)
                 grib_file = open(filename, "wb")

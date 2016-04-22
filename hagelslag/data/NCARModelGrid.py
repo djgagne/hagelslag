@@ -54,5 +54,4 @@ class NCARModelGrid(ModelGrid):
                 load_var = "SBCINH"
             else:
                 load_var = variable
-        print filenames
         super(NCARModelGrid, self).__init__(filenames, run_date, start_date, end_date, load_var)

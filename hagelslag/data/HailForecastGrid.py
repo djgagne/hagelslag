@@ -7,6 +7,7 @@ from scipy.ndimage import maximum_filter, gaussian_filter
 from skimage.morphology import disk
 from os.path import exists
 
+
 class HailForecastGrid(object):
     def __init__(self, run_date, start_date, end_date, ensemble_name, ml_model, members,
                  variable, message_number, path):
