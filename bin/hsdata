@@ -60,6 +60,10 @@ def process_ensemble_member(run_date, member, config):
         print("Starting", run_date, member)
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
+        if hasattr(config, "mask_file"):
+            mask_file = config.mask_file
+        else:
+            mask_file = None
         track_proc = TrackProcessor(run_date,
                                     start_date,
                                     end_date,
@@ -76,7 +80,8 @@ def process_ensemble_member(run_date, member, config):
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
-                                    single_step=config.single_step)
+                                    single_step=config.single_step,
+                                    mask_file=mask_file)
         if track_proc.model_grid.data is None:
             print("No model output available for {0} {1}.".format(run_date, member))
             return

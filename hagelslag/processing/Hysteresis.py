@@ -43,8 +43,9 @@ class Hysteresis(object):
                 output_grid[index] = label_num
                 for i in range(index[0] - 1, index[0] + 2):
                     for j in range(index[1] - 1, index[1] + 2):
-                        if (input_grid[i, j] > self.low_thresh) and (output_grid[i, j] == unset):
-                            stack.append((i, j))
+                        if 0 <= i < output_grid.shape[0] and 0 <= j < output_grid.shape[1]:
+                            if (input_grid[i, j] > self.low_thresh) and (output_grid[i, j] == unset):
+                                stack.append((i, j))
         return output_grid
 
     @staticmethod
@@ -64,8 +65,8 @@ class Hysteresis(object):
         j = 1
         for i, s in enumerate(slices):
             box = labeled_grid[s]
-            size = np.count_nonzero(box.flatten() == i + 1)
+            size = np.count_nonzero(box.ravel() == (i + 1))
             if size >= min_size and box.shape[0] > 1 and box.shape[1] > 1:
-                out_grid[np.nonzero(labeled_grid == i + 1)] = j
+                out_grid[np.where(labeled_grid == i + 1)] = j
                 j += 1
         return out_grid
