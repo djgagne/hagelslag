@@ -7,3 +7,4 @@ h5py
 netCDF4
 basemap
 scikit-image
+pygrib

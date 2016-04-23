@@ -22,7 +22,8 @@ else:
                 "scikit-learn>=0.16",
                 "basemap",
                 "scikit-image",
-                "pyproj"]
+                "pyproj",
+                "pygrib"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
@@ -36,7 +37,7 @@ if __name__ == "__main__":
           license="MIT",
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
-          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval"],
+          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsplotter"],
           keywords=["hail", "verification", "tracking", "weather", "meteorology", "machine learning"],
           classifiers=classifiers,
           install_requires=requires)

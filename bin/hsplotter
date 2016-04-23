@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import argparse
+from hagelslag.data.HailForecastGrid import HailForecastGrid
+from mpl_toolkits.basemap import Basemap
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r", "--run", help="Date of the model run.")
+    parser.add_argument("-s", "--start", help="Start Date of the model run time steps.")
+    parser.add_argument("-e", "--end", help="End Date of the model run time steps.")
+    parser.add_argument("-n", "--ens", help="Name of the ensemble.")
+    parser.add_argument("-m", "--model", help="Name of the machine learning model")
+    parser.add_argument("-b", "--members", help="Comma-separated list of members.")
+    parser.add_argument("-v", "--var", default="hail", help="Variable being plotted.")
+    parser.add_argument("-g", "--grib", type=int, default=1, help="GRIB message number.")
+    parser.add_argument("-p", "--path", help="Path to GRIB files")
+    parser.add_argument("-o", "--out", help="Path where figures are saved.")
+    args = parser.parse_args()
+    run_date = pd.Timestamp(args.run).to_pydatetime()
+    start_date = pd.Timestamp(args.start).to_pydatetime()
+    end_date = pd.Timestamp(args.end).to_pydatetime()
+    ensemble_members = args.members.split(",")
+    neighbor_radius = 42.0
+    neighbor_smoothing = 42.0
+    thresholds = np.array([25, 50])
+    stride = 10
+    print("Loading data")
+    forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
+                                        ensemble_members, args.var, args.grib, args.path)
+    print("Get basemaps")
+    bmap_sub = get_sub_basemap(forecast_grid, stride)
+    bmap_full = get_full_basemap(forecast_grid)
+    print("Plot neighborhood probability")
+    plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing, thresholds,
+                                         stride, args.out)
+    print("Plot ensemble max")
+    plot_period_ensemble_max(forecast_grid, bmap_full, args.out)
+    return
+
+
+def load_hail_forecasts(run_date, start_date, end_date, ensemble_name, ml_model, members, variable,
+                        message_number, path):
+    forecast_grid = HailForecastGrid(run_date, start_date, end_date, ensemble_name, ml_model, members,
+                                     variable, message_number, path)
+    forecast_grid.load_data()
+    return forecast_grid
+
+
+def get_sub_basemap(forecast_grid, stride=14):
+    bmap = Basemap(projection=forecast_grid.projparams["proj"], resolution="l",
+                   rsphere=forecast_grid.projparams["a"],
+                   lon_0=forecast_grid.projparams["lon_0"],
+                   lat_0=forecast_grid.projparams["lat_0"],
+                   lat_1=forecast_grid.projparams["lat_1"],
+                   lat_2=forecast_grid.projparams["lat_2"],
+                   llcrnrlon=forecast_grid.lon[0, 0],
+                   llcrnrlat=forecast_grid.lat[0, 0],
+                   urcrnrlon=forecast_grid.lon[::stride, ::stride][-1, -1],
+                   urcrnrlat=forecast_grid.lat[::stride, ::stride][-1, -1])
+    return bmap
+
+
+def get_full_basemap(forecast_grid):
+    bmap = Basemap(projection=forecast_grid.projparams["proj"], resolution="l",
+                   rsphere=forecast_grid.projparams["a"],
+                   lon_0=forecast_grid.projparams["lon_0"],
+                   lat_0=forecast_grid.projparams["lat_0"],
+                   lat_1=forecast_grid.projparams["lat_1"],
+                   lat_2=forecast_grid.projparams["lat_2"],
+                   llcrnrlon=forecast_grid.lon[0, 0],
+                   llcrnrlat=forecast_grid.lat[0, 0],
+                   urcrnrlon=forecast_grid.lon[-1, -1],
+                   urcrnrlat=forecast_grid.lat[-1, -1])
+    return bmap
+
+
+def plot_hourly_ensemble_max():
+    return
+
+
+def plot_hourly_neighborhood_probability():
+    return
+
+
+def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), contours=np.arange(5, 75, 5),
+                             cmap="inferno"):
+    ens_max = forecast_grid.data.max(axis=0, fill_value=0).max(axis=0, fill_value=0)
+    plt.figure(figsize=figsize)
+    bmap.drawstates()
+    bmap.drawcountries()
+    bmap.drawcoastlines()
+    x, y = bmap(forecast_grid.lon, forecast_grid.lat)
+    plt.contourf(x, y, ens_max, contours, cmap=cmap, extend="max")
+    plt.title("{0} {1} Ensemble Maximum {2} (mm) Valid {3}".format(forecast_grid.ensemble_name,
+                                                                   forecast_grid.ml_model.replace("-", " "),
+                                                                   forecast_grid.variable.capitalize(),
+                                                                   forecast_grid.start_date.strftime("%d %b %Y")),
+              fontweight="bold",
+              fontsize=12)
+    plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+    plt.savefig(out_path + "{0}_{1}_period_ens_max_{2}_{3}.png".format(forecast_grid.ensemble_name,
+                                                                       forecast_grid.ml_model,
+                                                                       forecast_grid.start_date.strftime("%Y%m%d%H"),
+                                                                       forecast_grid.end_date.strftime("%Y%m%d%H")
+                                                                       ),
+                bbox_inches="tight", dpi=300)
+    plt.close()
+    return
+
+
+def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing, thresholds, stride, out_path,
+                                         figsize=(10, 6),
+                                         contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1))),
+                                         cmap="RdPu"):
+    for threshold in thresholds:
+        plt.figure(figsize=figsize)
+        neighbor_prob, n_lon, n_lat = forecast_grid.period_neighborhood_probability(radius,
+                                                                                    smoothing, threshold, stride)
+        n_x, n_y = bmap(n_lon, n_lat)
+        bmap.drawstates()
+        bmap.drawcoastlines()
+        bmap.drawcountries()
+        plt.contourf(n_x, n_y, neighbor_prob, contours, extend="max", cmap=cmap)
+        plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+        plt.title("{0} {1} Ens. Neighbor Prob. of {2}>{3:d} mm\nR={4:d} km, $\sigma$={5:d} km, Valid {6}".format(
+            forecast_grid.ensemble_name,
+            forecast_grid.ml_model.replace("-", " "),
+            forecast_grid.variable.capitalize(),
+            int(threshold),
+            int(radius),
+            int(smoothing),
+            forecast_grid.start_date.strftime("%d %b %Y")),
+            fontweight="bold",
+            fontsize=10)
+        filename = out_path + "{0}_{1}_period_neighbor_prob_{2:d}_r_{3:d}_s_{4:d}_{5}_{6}.png".format(
+            forecast_grid.ensemble_name,
+            forecast_grid.ml_model,
+            int(threshold),
+            int(radius),
+            int(smoothing),
+            forecast_grid.start_date.strftime("%Y%m%d%H"),
+            forecast_grid.end_date.strftime("%Y%m%d%H"))
+        plt.savefig(filename,
+                    bbox_inches="tight", dpi=300)
+        plt.close()
+    return
+
+
+if __name__ == "__main__":
+    main()

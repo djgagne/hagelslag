@@ -10,6 +10,7 @@ from glob import glob
 import pandas as pd
 from datetime import timedelta
 from scipy.stats import gamma
+from netCDF4 import Dataset
 
 
 class TrackProcessor(object):
@@ -17,23 +18,26 @@ class TrackProcessor(object):
     TrackProcessor identifies local maxima in a convection-allowing model run and links them in time to form
     storm tracks. A similar procedure is applied to the observations, and the two sets of tracks are matched.
     Storm and environmental attributes are extracted from within the identified track areas.
-
-    :param run_date: Datetime model run was initialized
-    :param start_date: Datetime for the beginning of storm extraction.
-    :param end_date: Datetime for the ending of storm extraction.
-    :param ensemble_name: Name of the ensemble being used.
-    :param ensemble_member: name of the ensemble member being used.
-    :param variable: model variable being used for extraction.
-    :param model_path: path to the ensemble output.
-    :param model_map_file: File containing model map projection information.
-    :param model_watershed_params: tuple of parameters used for EnhancedWatershed
-    :param object_matcher_params: tuple of parameters used for ObjectMatcher.
-    :param track_matcher_params: tuple of parameters for TrackMatcher.
-    :param size_filter: minimum size of model objects
-    :param gaussian_window: number of grid points
-    :param mrms_path: Path to MRMS netCDF files
-    :param mrms_variable: MRMS variable being used
-    :param mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
+    
+    Args:
+        run_date: Datetime model run was initialized
+        start_date: Datetime for the beginning of storm extraction.
+        end_date: Datetime for the ending of storm extraction.
+        ensemble_name: Name of the ensemble being used.
+        ensemble_member: name of the ensemble member being used.
+        variable: model variable being used for extraction.
+        model_path: path to the ensemble output.
+        model_map_file: File containing model map projection information.
+        model_watershed_params: tuple of parameters used for EnhancedWatershed
+        object_matcher_params: tuple of parameters used for ObjectMatcher.
+        track_matcher_params: tuple of parameters for TrackMatcher.
+        size_filter: minimum size of model objects
+        gaussian_window: number of grid points
+        mrms_path: Path to MRMS netCDF files
+        mrms_variable: MRMS variable being used
+        mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
+        single_step: Whether model timesteps are in separate files or aggregated into one file.
+        mask_file: netCDF filename containing a mask of valid grid points on the model domain.
     """
     def __init__(self,
                  run_date,
@@ -52,7 +56,8 @@ class TrackProcessor(object):
                  mrms_path=None,
                  mrms_variable=None,
                  mrms_watershed_params=None,
-                 single_step=True):
+                 single_step=True,
+                 mask_file=None):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -82,23 +87,34 @@ class TrackProcessor(object):
         else:
             self.mrms_grid = None
             self.mrms_ew = None
+        self.mask_file = mask_file
+        self.mask = None
+        if self.mask_file is not None:
+            mask_data = Dataset(self.mask_file)
+            self.mask = mask_data.variables["usa_mask"][:]
+            mask_data.close()
         return
     
     def find_model_tracks(self):
         """
         Identify storms at each model time step and link them together with object matching.
 
-        :return: list of STObjects containing model track information.
+        Returns:
+            List of STObjects containing model track information.
         """
         model_objects = []
         tracked_model_objects = []
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
-            print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member, self.run_date.strftime("%Y%m%d%H"), hour))
-            hour_labels = self.model_ew.size_filter(self.model_ew.label(gaussian_filter(self.model_grid.data[h],
-                                                                                        self.gaussian_window)), 
-                                                    self.size_filter)
-            hour_labels[self.model_grid.data[h] < self.model_ew.min_thresh] = 0
+            print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
+                                                                         self.run_date.strftime("%Y%m%d%H"), hour))
+            if self.mask is not None:
+                model_data = self.model_grid.data[h] * self.mask
+            else:
+                model_data = self.model_grid.data[h]
+            hour_labels = self.model_ew.label(gaussian_filter(model_data, self.gaussian_window))
+            hour_labels[model_data < self.model_ew.min_thresh] = 0
+            hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
             obj_slices = find_objects(hour_labels)
             num_slices = len(obj_slices)
             model_objects.append([])
@@ -161,7 +177,8 @@ class TrackProcessor(object):
         """
         Identify objects from MRMS timesteps and link them together with object matching.
 
-        :return: list of STObjects containing MESH track information.
+        Returns:
+            List of STObjects containing MESH track information.
         """
         obs_objects = []
         tracked_obs_objects = []
@@ -239,10 +256,11 @@ class TrackProcessor(object):
         reduce the chance of the storm contaminating the environmental values. Examples of potential variables include
         CAPE, shear, temperature, and dewpoint.
 
-        :param tracked_model_objects: List of STObjects describing each forecasted storm
-        :param storm_variables: List of storm variable names
-        :param potential_variables: List of potential variable names.
-        :param tendency_variables: List of tendency variables
+        Args:
+            tracked_model_objects: List of STObjects describing each forecasted storm
+            storm_variables: List of storm variable names
+            potential_variables: List of potential variable names.
+            tendency_variables: List of tendency variables
         """
         model_grids = {}
         for storm_var in storm_variables:
@@ -290,10 +308,10 @@ class TrackProcessor(object):
         track timestep. If the duration of the forecast and observed tracks differ, then interpolation is used for the
         intermediate timesteps.
 
-        :param model_tracks: List of model track STObjects
-        :param obs_tracks: List of observed STObjects
-        :param track_pairings: list of tuples containing the indices of the paired (forecast, observed) tracks
-        :return:
+        Args:
+            model_tracks: List of model track STObjects
+            obs_tracks: List of observed STObjects
+            track_pairings: list of tuples containing the indices of the paired (forecast, observed) tracks
         """
         unpaired = range(len(model_tracks))
         for p, pair in enumerate(track_pairings):
@@ -318,7 +336,6 @@ class TrackProcessor(object):
             print pair[0], "model", model_track.observations
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
-        return
 
     def match_size_distributions(self, model_tracks, obs_tracks, track_pairings):
         def match_single_track_dist(model_track, obs_track):
@@ -365,10 +382,13 @@ class TrackProcessor(object):
         Calculates spatial and temporal translation errors between matched
         forecast and observed tracks.
 
-        :param model_tracks: List of model track STObjects
-        :param obs_tracks: List of observed track STObjects
-        :param track_pairings: List of tuples pairing forecast and observed tracks.
-        :return: pandas DataFrame containing different track errors
+        Args:
+            model_tracks: List of model track STObjects
+            obs_tracks: List of observed track STObjects
+            track_pairings: List of tuples pairing forecast and observed tracks.
+
+        Returns:
+            pandas DataFrame containing different track errors
         """
         columns = ['obs_track_id',
                    'translation_error_x',

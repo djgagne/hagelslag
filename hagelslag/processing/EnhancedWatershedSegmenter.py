@@ -21,17 +21,12 @@ class EnhancedWatershed(object):
     It includes a size criteria and creates foothills around each object to keep them distinct. The object is used to store
     the quantization and size parameters. It can be used to watershed multiple grids.
 
-    :param min_thresh: minimum pixel value for pixel to be part of a region
-    :type min_thresh: int
-    :param data_increment: quantization interval. Use 1 if you don't want to quantize
-    :type data_increment: int
-    :param max_thresh: values greater than maxThresh are treated as the maximum threshold
-    :type max_thresh: int
-    :param size_threshold_pixels: clusters smaller than this threshold are ignored.
-    :type size_threshold_pixels: int
-    :param delta: maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.
-    :type delta: int
-
+    Attributes:
+        min_thresh (int): minimum pixel value for pixel to be part of a region
+        data_increment (int): quantization interval. Use 1 if you don't want to quantize
+        max_thresh (int): values greater than maxThresh are treated as the maximum threshold
+        size_threshold_pixels (int): clusters smaller than this threshold are ignored.
+        delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.
     """
     def __init__(self, min_thresh, data_increment, max_thresh, size_threshold_pixels, delta):
         self.min_thresh = min_thresh
@@ -47,10 +42,12 @@ class EnhancedWatershed(object):
     def label(self, input_grid):
         """
         Labels input grid using enhanced watershed algorithm.
-         
-        :param input_grid: Grid to be labeled.
-        :type input_grid: numpy array
-        :rtype: labeled numpy array
+
+        Args:
+            input_grid (numpy.ndarray): Grid to be labeled.
+
+        Returns:
+            Array of labeled pixels
         """
         marked = self.find_local_maxima(input_grid)
         marked = np.where(marked >= 0, 1, 0)
@@ -62,7 +59,11 @@ class EnhancedWatershed(object):
         """
         Removes labeled objects that are smaller than minSize, and relabels the remaining objects.
 
-        :param labeled_grid: Grid that has been labeled
+        Args:
+            labeled_grid: Grid that has been labeled
+            min_size: Minimium object size.
+        Returns:
+            Labeled array with re-numbered objects to account for those that have been removed
         """
         out_grid = np.zeros(labeled_grid.shape,dtype=int)
         slices = find_objects(labeled_grid)
@@ -79,7 +80,11 @@ class EnhancedWatershed(object):
         """
         Finds the local maxima in the inputGrid and perform region growing to identify objects.
 
-        :param input_grid: Input grid
+        Args:
+            input_grid: Raw input data.
+
+        Returns:
+            array with labeled objects.
         """
         pixels, q_data = self.quantize(input_grid)
         centers = OrderedDict()
@@ -141,12 +146,16 @@ class EnhancedWatershed(object):
         """
         Grow a region at a certain bin level and check if the region has reached the maximum size.
 
-        :param q_data:
-        :param marked:
-        :param center:
-        :param bin_lower:
-        :param foothills:
-        :return:
+        Args:
+            q_data: Quantized data array
+            marked: Array marking points that are objects
+            center: Coordinates of the center pixel of the region being grown
+            bin_lower: Intensity level of lower bin being evaluated
+            foothills: List of points that are associated with a center but fall outside the the size or
+                intensity criteria
+        Returns:
+            True if the object is finished growing and False if the object should be grown again at the next
+            threshold level.
         """
         as_bin = []
         as_glob = []
@@ -190,13 +199,13 @@ class EnhancedWatershed(object):
         future searches. Also searches neighboring points to foothill points to determine
         if they should also be considered foothills.
 
-        :param q_data: Quantized data
-        :param marked: Marked
-        :param bin_num: Current bin being searched
-        :param bin_lower: Next bin being searched
-        :param centers: dictionary of local maxima considered to be object centers
-        :param foothills: List of foothill points being removed.
-        :return:
+        Args:
+            q_data: Quantized data
+            marked: Marked
+            bin_num: Current bin being searched
+            bin_lower: Next bin being searched
+            centers: dictionary of local maxima considered to be object centers
+            foothills: List of foothill points being removed.
         """
         hills = []
         for foot in foothills:
@@ -231,9 +240,11 @@ class EnhancedWatershed(object):
         """
         Quantize a grid into discrete steps based on input parameters.
 
-        :param input_grid: 2-d array of values
-        :type input_grid: numpy.ndarray
-        :return: Dictionary of value pointing to pixel locations, and quantized 2-d array of data
+        Args:
+            input_grid: 2-d array of values
+
+        Returns:
+            Dictionary of value pointing to pixel locations, and quantized 2-d array of data
         """
         pixels = {}
         for i in range(self.max_bin+1):

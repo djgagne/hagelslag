@@ -60,6 +60,10 @@ def process_ensemble_member(run_date, member, config):
         print("Starting", run_date, member)
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
+        if hasattr(config, "mask_file"):
+            mask_file = config.mask_file
+        else:
+            mask_file = None
         track_proc = TrackProcessor(run_date,
                                     start_date,
                                     end_date,
@@ -76,7 +80,8 @@ def process_ensemble_member(run_date, member, config):
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
-                                    single_step=config.single_step)
+                                    single_step=config.single_step,
+                                    mask_file=mask_file)
         if track_proc.model_grid.data is None:
             print("No model output available for {0} {1}.".format(run_date, member))
             return
@@ -113,14 +118,17 @@ def process_ensemble_member(run_date, member, config):
                 #    except:
                 #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
                 for table_name, table_data in obs_data.iteritems():
-                    table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                                     "obs",
-                                                                                     member,
-                                                                                     run_date.strftime("%Y%m%d")),
+                    csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                                  "obs",
+                                                                                  member,
+                                                                                  run_date.strftime("%Y%m%d"))
+                    table_data.to_csv(csv_filename,
                                       na_rep="nan",
                                       float_format="%0.5f",
                                       index=False)
+                    os.chmod(csv_filename, 0o666)
 
+                    
             else:
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                          track_proc.model_grid.proj)
@@ -131,13 +139,15 @@ def process_ensemble_member(run_date, member, config):
         else:
             forecast_data = {}
         for table_name, table_data in forecast_data.iteritems():
-            table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                             config.ensemble_name,
-                                                                             member,
-                                                                             run_date.strftime("%Y%m%d")),
+            csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                          config.ensemble_name,
+                                                                          member,
+                                                                          run_date.strftime("%Y%m%d"))
+            table_data.to_csv(csv_filename,
                               na_rep="nan",
                               float_format="%0.5f",
                               index=False)
+            os.chmod(csv_filename, 0o666)
     except Exception as e:
         print(traceback.format_exc())
         raise e
@@ -391,6 +401,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
             if not os.access(config.geojson_path + "/".join(full_path), os.R_OK):
                 try:
                     os.mkdir(config.geojson_path + "/".join(full_path))
+                    os.chmod(config.geojson_path + "/".join(full_path), 0o777)
                 except OSError:
                     print("directory already created")
 
@@ -406,7 +417,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
         if config.train and track_errors is not None:
             json_metadata['obs_track_id'] = obs_track_id
         forecast_track.to_geojson(json_filename, proj, json_metadata)
-
+        os.chmod(json_filename, 0o666)
 
 def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairings, forecast_tracks):
     """
@@ -509,6 +520,8 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
             if not os.access(config.geojson_path + "/".join(full_path), os.R_OK):
                 try:
                     os.mkdir(config.geojson_path + "/".join(full_path))
+                    os.chmod(config.geojson_path + "/".join(full_path),0o777)
+
                 except OSError:
                     print "directory already created"
 
@@ -521,6 +534,7 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
                              ensemble_member=member,
                              duration=duration)
         obs_track.to_geojson(json_filename, proj, json_metadata)
+        os.chmod(json_filename, 0o666)
     return
 
 if __name__ == "__main__":

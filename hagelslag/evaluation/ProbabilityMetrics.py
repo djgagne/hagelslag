@@ -137,6 +137,7 @@ class DistributedROC(object):
         """
         pod = self.contingency_tables["TP"] / (self.contingency_tables["TP"] + self.contingency_tables["FN"])
         far = self.contingency_tables["FP"] / (self.contingency_tables["FP"] + self.contingency_tables["TP"])
+        far[(self.contingency_tables["FP"] + self.contingency_tables["TP"]) == 0] = np.nan
         return pd.DataFrame({"POD": pod, "FAR": far, "Thresholds": self.thresholds},
                             columns=["POD", "FAR", "Thresholds"])
 
