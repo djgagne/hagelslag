@@ -93,6 +93,7 @@ class EnsembleMemberProduct(object):
                         condition = step["properties"][full_condition_name]
                     else:
                         condition = None
+                    print(forecast_params, condition, self.condition_threshold)
                     forecast_time = self.run_date + timedelta(hours=times[s])
                     if forecast_time in self.times:
                         t = np.where(self.times == forecast_time)[0][0]
@@ -116,7 +117,7 @@ class EnsembleMemberProduct(object):
                                     else:
                                         self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
                                 samples = raw_samples.mean(axis=0)
-                                if condition is None or condition >= self.condition_threshold:
+                                if condition >= self.condition_threshold:
                                     self.data[t, i, j] = samples
 
     def load_track_data(self):
