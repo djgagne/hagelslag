@@ -186,7 +186,7 @@ class TrackModeler(object):
             if group_data.shape[0] > 0:
                 predictions[group] = group_data[metadata_cols]
                 for m, model_name in enumerate(model_names):
-                    predictions[group][model_name] = self.condition_models[group][model_name].predict_proba(
+                    predictions[group].loc[:, model_name] = self.condition_models[group][model_name].predict_proba(
                         group_data[input_columns])[:, 1]
         return predictions
 
@@ -226,7 +226,7 @@ class TrackModeler(object):
                         group_data[input_columns])
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
-                        predictions[group][model_name][model_name.replace(" ", "-") + "_" + pred_col] = \
+                        predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
         return predictions
 
@@ -300,7 +300,7 @@ class TrackModeler(object):
                         idx = np.where(output_values == pc)[0][0]
                         pred_pdf[:, idx] = pred_vals[:, pcv]
                     for pcn, pred_col_name in enumerate(pred_col_names):
-                        predictions[group][model_name][pred_col_name] = pred_pdf[:, pcn]
+                        predictions[group][model_name].loc[:, pred_col_name] = pred_pdf[:, pcn]
         return predictions
 
     def fit_track_models(self,
@@ -376,7 +376,7 @@ class TrackModeler(object):
                             idx = np.where(pc == output_values)[0][0]
                             pred_pdf[:, idx] = pred_vals[:, pcv]
                         for pcn, pred_col_name in enumerate(pred_col_names):
-                            predictions[model_type][group][model_name][pred_col_name] = pred_pdf[:, pcn]
+                            predictions[model_type][group][model_name].loc[:, pred_col_name] = pred_pdf[:, pcn]
         return predictions
 
     def save_models(self, model_path):
