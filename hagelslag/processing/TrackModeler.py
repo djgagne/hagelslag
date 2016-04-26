@@ -55,11 +55,13 @@ class TrackModeler(object):
                                         end=self.end_dates[mode],
                                         freq="1D")
             run_date_str = [d.strftime("%Y%m%d") for d in run_dates.date]
+            print(run_date_str)
             all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                             "*total_" + self.ensemble_name + "*." + format))
             all_step_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                            "*step_" + self.ensemble_name + "*." + format))
             total_track_files = []
+            print(all_total_track_files)
             for track_file in all_total_track_files:
                 file_date = track_file.split("_")[-1][:-4]
                 if file_date in run_date_str:
