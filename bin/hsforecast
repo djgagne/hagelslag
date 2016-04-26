@@ -493,7 +493,10 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                 ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
                 grib_objects = ep.encode_grib2()
                 if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
-                    os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
+                    try:
+                        os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
+                    except OSError:
+                        pass
                 ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("/%Y%m%d/"))
         else:
             print("No model runs on " + run_date)
