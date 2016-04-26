@@ -1,7 +1,7 @@
 from netCDF4 import Dataset
 import numpy as np
 from pandas import DatetimeIndex, Timestamp
-
+from os.path import exists
 
 class ModelGrid(object):
     """
@@ -46,10 +46,9 @@ class ModelGrid(object):
 
         """
         for filename in self.filenames:
-            try:
+            if exists(filename):
                 self.file_objects.append(Dataset(filename))
-            except RuntimeError:
-                print("Warning: File {0} not found.".format(filename))
+            else:
                 self.file_objects.append(None)
 
     def load_data_old(self):
@@ -112,7 +111,7 @@ class ModelGrid(object):
         elif len(self.file_objects) > 1:
             var_name, z_index = self.format_var_name(self.variable, self.file_objects[0].variables.keys())
             y_dim, x_dim = self.file_objects[0].variables[var_name].shape[-2:]
-            data = np.zeros((len(self.file_objects), y_dim, x_dim), dtype=np.float32)
+            data = np.zeros((len(self.valid_dates), y_dim, x_dim), dtype=np.float32)
             for f, file_object in enumerate(self.file_objects):
                 if file_object is not None:
                     if z_index is None:
