@@ -206,16 +206,17 @@ class MRMSGrid(object):
             Array of interpolated data
         """
         out_data = np.zeros((self.data.shape[0], in_lon.shape[0], in_lon.shape[1]))
-        in_tree = cKDTree(np.vstack(in_lat.ravel(), in_lon.ravel()).T)
+        in_tree = cKDTree(np.vstack((in_lat.ravel(), in_lon.ravel())).T)
         out_indices = np.indices(out_data.shape[1:])
         for d in range(self.data.shape[0]):
             nz_points = np.where(self.data[d] > 0)
-            nz_vals = self.data[d][nz_points]
-            original_points = cKDTree(np.vstack((self.lat[nz_points[0]], self.lat[nz_points[1]])).T)
-            all_neighbors = in_tree.query_ball_tree(original_points, radius, p=2, eps=0)
-            for n, neighbors in enumerate(all_neighbors):
-                if len(neighbors) > 0:
-                    out_data[d, out_indices[0].ravel()[n], out_indices[1].ravel()[n]] = nz_vals[neighbors].max()
+            if len(nz_points[0]) > 0:
+                nz_vals = self.data[d][nz_points]
+                original_points = cKDTree(np.vstack((self.lat[nz_points[0]], self.lon[nz_points[1]])).T)
+                all_neighbors = in_tree.query_ball_tree(original_points, radius, p=2, eps=0)
+                for n, neighbors in enumerate(all_neighbors):
+                    if len(neighbors) > 0:
+                        out_data[d, out_indices[0].ravel()[n], out_indices[1].ravel()[n]] = nz_vals[neighbors].max()
         return out_data
 
     def interpolate_to_netcdf(self, in_lon, in_lat, out_path, date_unit="seconds since 1970-01-01T00:00",
