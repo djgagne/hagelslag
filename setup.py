@@ -37,7 +37,7 @@ if __name__ == "__main__":
           license="MIT",
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
-          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsplotter"],
+          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsplotter", "bin/hswrf3d"],
           keywords=["hail", "verification", "tracking", "weather", "meteorology", "machine learning"],
           classifiers=classifiers,
           install_requires=requires)

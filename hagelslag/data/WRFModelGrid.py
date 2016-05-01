@@ -40,6 +40,10 @@ class WRFModelGrid(object):
     def calc_patch_grid(self):
         patch_files = sorted(glob(self.path + "{0}/{0}_".format(self.wrf_filename) + "[0-9]" * 5))
         patch_0 = Dataset(patch_files[0])
+        if self.variable in patch_0.variables.keys():
+            dimension_names = patch_0.variables[self.variable].dimensions
+        else:
+            dimension_names = ("time", "bottom_top", "south_north", "west_east")
         patch_attributes = ["WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION", "BOTTOM-TOP_GRID_DIMENSION",
                             "WEST-EAST_PATCH_START_UNSTAG", "WEST-EAST_PATCH_END_UNSTAG",
                             "SOUTH-NORTH_PATCH_START_UNSTAG", "SOUTH-NORTH_PATCH_END_UNSTAG"]
@@ -63,10 +67,37 @@ class WRFModelGrid(object):
                                                   patch_info["SOUTH-NORTH_GRID_DIMENSION"] +
                                                   patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"],
                                                   patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"])
-        return patch_grid, (1,
-                            patch_info["BOTTOM-TOP_GRID_DIMENSION"] - 1,
-                            patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
-                            patch_info["WEST-EAST_GRID_DIMENSION"] - 1)
+        if len(dimension_names) == 4:
+            grid_dim = (1,
+                        patch_info["BOTTOM-TOP_GRID_DIMENSION"] - 1,
+                        patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
+                        patch_info["WEST-EAST_GRID_DIMENSION"] - 1)
+        else:
+            grid_dim = (1,
+                        patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
+                        patch_info["WEST-EAST_GRID_DIMENSION"] - 1)
+        return patch_grid, grid_dim 
+   
+    def load_time_var(self, time_var="XTIME"):
+        var_attrs = dict()
+        var_val = 0
+        if self.patch_files:
+            patch_file_list = sorted(glob(self.path + "{0}/{0}_".format(self.wrf_filename) + "[0-9]" * 5))
+            patch_zero = Dataset(patch_file_list[0])
+            var_list = patch_zero.variables.keys()
+            if time_var in var_list:
+                for attr in patch_zero.variables[time_var].ncattrs():
+                    var_attrs[attr] = getattr(patch_zero.variables[time_var], attr)
+                var_val = patch_zero.variables[time_var][:]        
+            patch_zero.close()
+        else:
+            wrf_data = Dataset(self.path + self.wrf_filename)
+            if time_var in var_list:
+                for attr in wrf_data.variables[time_var].ncattrs():
+                    var_attrs[attr] = getattr(wrf_data.variables[time_var], attr)
+                var_val = wrf_data.variables[time_var][:]   
+            wrf_data.close()
+        return var_val, var_attrs 
 
     def load_full_grid(self):
         var_data = None
@@ -74,8 +105,18 @@ class WRFModelGrid(object):
             patch_file_list = sorted(glob(self.path + "{0}/{0}_".format(self.wrf_filename) + "[0-9]" * 5))
             patch_zero = Dataset(patch_file_list[0])
             var_list = patch_zero.variables.keys()
+            var_attrs = dict()
             if self.variable in var_list:
                 is_stag = np.array(["stag" in x for x in patch_zero.variables[self.variable].dimensions])
+                for attr in patch_zero.variables[self.variable].ncattrs():
+                    if attr == "coordinates":
+                        var_attrs[attr] = getattr(patch_zero.variables[self.variable], attr)
+                        if "_U" in var_attrs[attr]:
+                            var_attrs[attr] = var_attrs[attr].replace("_U", "")
+                        elif "_V" in var_attrs[attr]:
+                            var_attrs[attr] = var_attrs[attr].replace("_V", "")
+                    else:
+                        var_attrs[attr] = getattr(patch_zero.variables[self.variable], attr)
                 patch_zero.close()
                 if np.any(is_stag):
                     grid_dim_arr = np.array(self.grid_dim)
@@ -128,7 +169,17 @@ class WRFModelGrid(object):
             wrf_data = Dataset(self.path + self.wrf_filename)
             is_stag = np.array(["stag" in x for x in wrf_data.variables[self.variable].dimensions])
             if self.variable in wrf_data.variables.keys():
-                var_data = wrf_data.variables[self.variable][:]
+                for attr in wrf_data.variables[self.variable].ncattrs():
+                    if attr == "coordinates":
+                        var_attrs[attr] = getattr(wrf_data.variables[self.variable], attr)
+                        if "_U" in var_attrs[attr]:
+                            var_attrs[attr] = var_attrs[attr].replace("_U", "")
+                        elif "_V" in var_attrs[attr]:
+                            var_attrs[attr] = var_attrs[attr].replace("_V", "")
+                    else:
+                        var_attrs[attr] = getattr(wrf_data.variables[self.variable], attr)
+
+                var_data = wrf_data.variables[self.variable][:] 
                 if np.any(is_stag):
                     stag_dim = np.where(is_stag)[0][0]
                     if stag_dim == 1:
@@ -139,4 +190,4 @@ class WRFModelGrid(object):
                         var_data = 0.5 * (var_data[:, :, :, :-1] + var_data[:, :, :, 1:])
             wrf_data.close()
 
-        return var_data
+        return var_data, var_attrs
