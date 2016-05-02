@@ -15,12 +15,9 @@ class WRFModelGrid(object):
         self.path = path
         self.wrf_filename = "wrfout_{0}_{1}".format(self.domain, self.forecast_date.strftime("%Y-%m-%d_%H:%M:%S"))
         self.patch_files = False
-        self.patch_grid = None
-        self.grid_dim = None
         if exists(self.path + self.wrf_filename):
             if isdir(self.path + self.wrf_filename):
                 self.patch_files = True
-                self.patch_grid, self.grid_dim = self.calc_patch_grid()
         else:
             raise IOError(self.path + self.wrf_filename + " not found.")
         return
@@ -37,47 +34,6 @@ class WRFModelGrid(object):
         wrf_data.close()
         return attributes
 
-    def calc_patch_grid(self):
-        patch_files = sorted(glob(self.path + "{0}/{0}_".format(self.wrf_filename) + "[0-9]" * 5))
-        patch_0 = Dataset(patch_files[0])
-        if self.variable in patch_0.variables.keys():
-            dimension_names = patch_0.variables[self.variable].dimensions
-        else:
-            dimension_names = ("time", "bottom_top", "south_north", "west_east")
-        patch_attributes = ["WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION", "BOTTOM-TOP_GRID_DIMENSION",
-                            "WEST-EAST_PATCH_START_UNSTAG", "WEST-EAST_PATCH_END_UNSTAG",
-                            "SOUTH-NORTH_PATCH_START_UNSTAG", "SOUTH-NORTH_PATCH_END_UNSTAG"]
-        patch_info = {}
-        for attribute in patch_attributes:
-            patch_info[attribute] = getattr(patch_0, attribute)
-        patch_0.close()
-        patch_grid = dict()
-        patch_grid["west_east_start"] = np.arange(0,
-                                                  patch_info["WEST-EAST_GRID_DIMENSION"] - 1,
-                                                  patch_info["WEST-EAST_PATCH_END_UNSTAG"])
-
-        patch_grid["west_east_end"] = np.arange(patch_info["WEST-EAST_PATCH_END_UNSTAG"],
-                                                patch_info["WEST-EAST_GRID_DIMENSION"] + 
-                                                patch_info["WEST-EAST_PATCH_END_UNSTAG"],
-                                                patch_info["WEST-EAST_PATCH_END_UNSTAG"])
-        patch_grid["south_north_start"] = np.arange(0,
-                                                    patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
-                                                    patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"])
-        patch_grid["south_north_end"] = np.arange(patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"],
-                                                  patch_info["SOUTH-NORTH_GRID_DIMENSION"] +
-                                                  patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"],
-                                                  patch_info["SOUTH-NORTH_PATCH_END_UNSTAG"])
-        if len(dimension_names) == 4:
-            grid_dim = (1,
-                        patch_info["BOTTOM-TOP_GRID_DIMENSION"] - 1,
-                        patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
-                        patch_info["WEST-EAST_GRID_DIMENSION"] - 1)
-        else:
-            grid_dim = (1,
-                        patch_info["SOUTH-NORTH_GRID_DIMENSION"] - 1,
-                        patch_info["WEST-EAST_GRID_DIMENSION"] - 1)
-        return patch_grid, grid_dim 
-   
     def load_time_var(self, time_var="XTIME"):
         var_attrs = dict()
         var_val = 0
@@ -107,6 +63,7 @@ class WRFModelGrid(object):
             var_list = patch_zero.variables.keys()
             var_attrs = dict()
             if self.variable in var_list:
+                dimension_names = patch_zero.variables[self.variable].dimensions
                 is_stag = np.array(["stag" in x for x in patch_zero.variables[self.variable].dimensions])
                 for attr in patch_zero.variables[self.variable].ncattrs():
                     if attr == "coordinates":
@@ -117,14 +74,23 @@ class WRFModelGrid(object):
                             var_attrs[attr] = var_attrs[attr].replace("_V", "")
                     else:
                         var_attrs[attr] = getattr(patch_zero.variables[self.variable], attr)
+                if len(dimension_names) == 4:
+                    grid_dim = (1,
+                                getattr(patch_zero, "BOTTOM-TOP_GRID_DIMENSION") - 1,
+                                getattr(patch_zero, "SOUTH-NORTH_GRID_DIMENSION") - 1,
+                                getattr(patch_zero, "WEST-EAST_GRID_DIMENSION") - 1)
+                else:
+                    grid_dim = (1,
+                                getattr(patch_zero, "SOUTH-NORTH_GRID_DIMENSION") - 1,
+                                getattr(patch_zero, "WEST-EAST_GRID_DIMENSION") - 1)
                 patch_zero.close()
                 if np.any(is_stag):
-                    grid_dim_arr = np.array(self.grid_dim)
+                    grid_dim_arr = np.array(grid_dim)
                     grid_dim_arr[is_stag] += 1
                     var_data = np.zeros(grid_dim_arr, dtype=np.float32)
                     stag_dim = np.where(is_stag)[0][0]
                 else:
-                    var_data = np.zeros(self.grid_dim, dtype=np.float32)
+                    var_data = np.zeros(grid_dim, dtype=np.float32)
                     stag_dim = None
                 for p, patch_file in enumerate(patch_file_list):
                     wrf_patch_file = Dataset(patch_file)

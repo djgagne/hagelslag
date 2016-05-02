@@ -12,7 +12,7 @@ import traceback
 from mpi4py import MPI
 
 def main():
-    wrf_vars = ["XLAT", "XLONG", "T2", "Q2", "U10", "V10", "PSFC", "U", "V", "W", "TEMP", "GPH", 
+    wrf_vars = ["TEMP", "XLAT", "XLONG", "T2", "Q2", "U10", "V10", "PSFC", "U", "V", "W", "GPH", 
                 "PRES", "HGT", "REFL_10CM",
                 "QVAPOR", "QRAIN", "QICE", "QSNOW", "QGRAUP", "QHAIL", "QCLOUD",
                 "QNRAIN", "QNICE", "QNSNOW", "QNGRAUPEL", "QNHAIL", "QNCLOUD",
@@ -148,8 +148,8 @@ def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date,
         else:
             wrf_file_obj.variable = wrf_var
             wrf_var_grid, var_attrs = wrf_file_obj.load_full_grid()
-        var_attrs["long_name"] = var_attrs["description"]
         if wrf_var_grid is not None:
+            var_attrs["long_name"] = var_attrs["description"]
             for o, object_slice in enumerate(object_slices):
                 if len(wrf_var_grid.shape) == 4:
                     var_data = wrf_var_grid[:, :, object_slice[0], object_slice[1]]
