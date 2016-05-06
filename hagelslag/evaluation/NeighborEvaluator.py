@@ -86,8 +86,10 @@ class NeighborEvaluator(object):
                     print("Loading forecasts {0} {1} {2} {3} {4}".format(self.run_date, self.model_name,
                                                                          self.forecast_variable, size_threshold,
                                                                          smoothing_radius))
-                    self.hourly_forecasts[hour_var] = forecast_data.variables[hour_var][:]
-                    self.period_forecasts[period_var] = forecast_data.variables[period_var][:]
+                    if hour_var in forecast_data.variables.keys():
+                        self.hourly_forecasts[hour_var] = forecast_data.variables[hour_var][:]
+                    if period_var in forecast_data.variables.keys():
+                        self.period_forecasts[period_var] = forecast_data.variables[period_var][:]
         forecast_data.close()
 
     def load_obs(self,  mask_threshold=0.5):

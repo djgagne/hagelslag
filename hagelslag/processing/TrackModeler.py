@@ -61,7 +61,6 @@ class TrackModeler(object):
             all_step_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                            "*step_" + self.ensemble_name + "*." + format))
             total_track_files = []
-            print(all_total_track_files)
             for track_file in all_total_track_files:
                 file_date = track_file.split("_")[-1][:-4]
                 if file_date in run_date_str:
@@ -120,7 +119,6 @@ class TrackModeler(object):
             print group
             group_data = self.data["train"]["total_group"].loc[
                 self.data["train"]["total_group"][self.group_col] == group]
-            print(group_data.columns)
             group_data = group_data.dropna()
             group_data.reset_index(drop=True, inplace=True)
             copulas[group] = {}
@@ -189,7 +187,7 @@ class TrackModeler(object):
                 predictions[group] = group_data[metadata_cols]
                 for m, model_name in enumerate(model_names):
                     predictions[group].loc[:, model_name] = self.condition_models[group][model_name].predict_proba(
-                        group_data[input_columns])[:, 1]
+                        group_data.loc[:, input_columns])[:, 1]
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
