@@ -96,10 +96,10 @@ class EnsembleMemberProduct(object):
                     forecast_time = self.run_date + timedelta(hours=times[s])
                     if forecast_time in self.times:
                         t = np.where(self.times == forecast_time)[0][0]
-                        mask = np.array(step["properties"]["masks"], dtype=int)
-                        rankings = np.argsort(step["properties"]["timesteps"])[mask == 1]
-                        i = np.array(step["properties"]["i"], dtype=int)[mask == 1][rankings]
-                        j = np.array(step["properties"]["j"], dtype=int)[mask == 1][rankings]
+                        mask = np.array(step["properties"]["masks"], dtype=int).ravel()
+                        rankings = np.argsort(np.array(step["properties"]["timesteps"]).ravel()[mask==1])
+                        i = np.array(step["properties"]["i"], dtype=int).ravel()[mask == 1][rankings]
+                        j = np.array(step["properties"]["j"], dtype=int).ravel()[mask == 1][rankings]
                         if rankings.size > 0 and forecast_params[0] > 0.1 and 1 < forecast_params[2] < 100:
                             raw_samples = np.sort(gamma.rvs(forecast_params[0], loc=forecast_params[1],
                                                             scale=forecast_params[2],
@@ -112,9 +112,11 @@ class EnsembleMemberProduct(object):
                             else:
                                 for p, percentile in enumerate(self.percentiles):
                                     if percentile != "mean":
-                                        self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile, axis=0)
+                                        if condition >= self.condition_threshold:
+                                            self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile, axis=0)
                                     else:
-                                        self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
+                                        if condition >= self.condition_threshold:
+                                            self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
                                 samples = raw_samples.mean(axis=0)
                                 if condition >= self.condition_threshold:
                                     self.data[t, i, j] = samples

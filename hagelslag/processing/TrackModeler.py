@@ -211,7 +211,8 @@ class TrackModeler(object):
                 self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                               (log_labels - log_means) / log_sds)
 
-    def predict_size_distribution_models(self, model_names, input_columns, metadata_cols, data_mode="forecast"):
+    def predict_size_distribution_models(self, model_names, input_columns, metadata_cols, 
+                                         data_mode="forecast", output_columns=None, location=6):
         groups = self.size_distribution_models.keys()
         predictions = {}
         for group in groups:
@@ -225,6 +226,12 @@ class TrackModeler(object):
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
                         group_data[input_columns])
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
+                    if "Location" not in output_columns:
+                        multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
+                        multi_predictions_temp[:, 0] = multi_predictions[:, 0]
+                        multi_predictions_temp[:, 1] = location
+                        multi_predictions_temp[:, 2] = multi_predictions[:, 1]
+                        multi_predictions = multi_predictions_temp
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
