@@ -93,7 +93,6 @@ class EnsembleMemberProduct(object):
                         condition = step["properties"][full_condition_name]
                     else:
                         condition = None
-                    print(forecast_params, condition, self.condition_threshold)
                     forecast_time = self.run_date + timedelta(hours=times[s])
                     if forecast_time in self.times:
                         t = np.where(self.times == forecast_time)[0][0]
@@ -648,9 +647,13 @@ class EnsembleConsensus(object):
             out_data = Dataset(filename, "r+")
         else:
             out_data = Dataset(filename, "w")
-            for d, dim in enumerate(["time", "y", "x"]):
-                out_data.createDimension(dim, self.data.shape[d])
-
+            if len(self.data.shape) == 2:
+                for d, dim in enumerate(["y", "x"]):
+                    out_data.createDimension(dim, self.data.shape[d])
+            else:
+                for d, dim in enumerate(["y", "x"]):
+                    out_data.createDimension(dim, self.data.shape[d+1])
+            out_data.createDimension("time", len(self.times))
             time_var = out_data.createVariable("time", "i8", ("time",))
             time_var[:] = date2num(self.times.to_pydatetime(), time_units)
             time_var.units = time_units
