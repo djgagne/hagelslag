@@ -17,14 +17,14 @@ def main():
                 "QVAPOR", "QRAIN", "QICE", "QSNOW", "QGRAUP", "QHAIL", "QCLOUD",
                 "QNRAIN", "QNICE", "QNSNOW", "QNGRAUPEL", "QNHAIL", "QNCLOUD",
                 "QICE2", "QNICE2", "QVGRAUPEL", "QNGRAUPEL2", "QVGRAUPEL2", "V_ICE",
-                "D_ICE", "RHO_ICE", "CLDFRA"]
+                "D_ICE", "RHO_ICE"]
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--path", help="Path to wrfout files")
     parser.add_argument("-o", "--out", help="Path where WRF object netCDF files are written")
     parser.add_argument("-v", "--var", default="REFL_10CM", help="Variable for object finding")
-    parser.add_argument("-u", "--up", default=50, type=float, help="Upper threshold for hysteresis")
+    parser.add_argument("-u", "--up", default=45, type=float, help="Upper threshold for hysteresis")
     parser.add_argument("-l", "--low", default=20, type=float, help="Lower threshold for hysteresis")
-    parser.add_argument("-s", "--smooth", default=2, type=int, help="Smoothing radius")
+    parser.add_argument("-s", "--smooth", default=1, type=int, help="Smoothing radius")
     parser.add_argument("-a", "--area", default=16, type=int, help="Minimum object size")
     parser.add_argument("-d", "--dom", default="d01", help="WRF domain")
     parser.add_argument("-n", "--nprocs", default=1, type=int, help="Number of processors")
