@@ -161,8 +161,7 @@ def make_forecasts(track_modeler, config):
     print("Size Distribution Forecasts")
     forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
                                                                        config.size_distribution_input_columns,
-                                                                       config.metadata_columns,
-                                                                       )
+                                                                       config.metadata_columns)
     print("Track forecasts")
     forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
                                                             config.track_input_columns,
