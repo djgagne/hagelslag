@@ -4,12 +4,12 @@ import numpy as np
 import argparse
 from hagelslag.data.WRFModelGrid import WRFModelGrid
 from hagelslag.processing import Hysteresis
-from multiprocessing import Pool
 from scipy.ndimage import find_objects, gaussian_filter
 from glob import glob
 from datetime import datetime
 import traceback
 from mpi4py import MPI
+
 
 def main():
     wrf_vars = ["TEMP", "XLAT", "XLONG", "T2", "Q2", "U10", "V10", "PSFC", "U", "V", "W", "GPH", 
@@ -31,15 +31,8 @@ def main():
     parser.add_argument("-e", "--ext", default=",".join(wrf_vars),
                         help="Variables to be extracted from WRF as comma separated list")
     args = parser.parse_args()
-    #pool = Pool(args.nprocs)
     wrf_files = [a.replace(args.path, "") for a in sorted(glob(args.path + "wrfout_{0}_*".format(args.dom)))]
     wrf_vars = args.ext.split(",")
-    #for wrf_file in wrf_files:
-    #    valid_date = datetime.strptime(wrf_file[11:], "%Y-%m-%d_%H:%M:%S")
-    #    pool.apply_async(extract_wrf_timestep, (valid_date, args.var, args.up, args.low, args.smooth, args.area,
-    #                                            args.dom, args.path, wrf_vars, args.out))
-    #pool.close()
-    #pool.join()
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -94,27 +87,49 @@ def find_wrf_objects(valid_date, variable, upper_threshold, lower_threshold, smo
 
 def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date, 
                       wrf_vars, domain, wrf_path, out_path, time_var, time_attrs):
-    out_filename = out_path + "wrfobjects_{0}_{1}.nc".format(domain, valid_date.strftime("%Y-%m-%d_%H%M%S"))
-    out_data = Dataset(out_filename, mode="w")
-    for attribute in global_attributes.keys():
-        setattr(out_data, attribute, global_attributes[attribute])
-    setattr(out_data, "Conventions", "CF-1.6 ")
+
     for o, object_slice in enumerate(object_slices):
-        grp = out_data.createGroup("wrf_object_{0:04d}".format(o))
-        grp.createDimension("time", 1)
-        grp.createDimension("south_north", object_slice[0].stop - object_slice[0].start)
-        grp.createDimension("west_east", object_slice[1].stop - object_slice[1].start)
-        grp.createDimension("bottom_top", grid_shape[1])
+        out_filename = out_path + "wrfobjects_{0}_{1}_{2:04d}.nc".format(domain,
+                                                                         valid_date.strftime("%Y-%m-%d_%H%M%S"),
+                                                                         o)
+        out_data = Dataset(out_filename, mode="w")
+        for attribute in global_attributes.keys():
+            setattr(out_data, attribute, global_attributes[attribute])
+        setattr(out_data, "Conventions", "CF-1.6")
+        out_data.createDimension("time", 1)
+        out_data.createDimension("south_north", object_slice[0].stop - object_slice[0].start)
+        out_data.createDimension("west_east", object_slice[1].stop - object_slice[1].start)
+        out_data.createDimension("bottom_top", grid_shape[1])
         
-        setattr(grp, "SOUTH_NORTH_BOX_START_C", object_slice[0].start)
-        setattr(grp, "SOUTH_NORTH_BOX_END_C", object_slice[0].stop)
-        setattr(grp, "WEST_EAST_BOX_START_C", object_slice[1].start)
-        setattr(grp, "WEST_EAST_BOX_END_C", object_slice[1].stop)
-        
-        tv = grp.createVariable("XTIME", "i4", ("time",))
-        tv[:] = time_var
-        for k, v in time_attrs.items():
-            setattr(tv, k, v)
+        setattr(out_data, "SOUTH_NORTH_BOX_START_C", object_slice[0].start)
+        setattr(out_data, "SOUTH_NORTH_BOX_END_C", object_slice[0].stop)
+        setattr(out_data, "WEST_EAST_BOX_START_C", object_slice[1].start)
+        setattr(out_data, "WEST_EAST_BOX_END_C", object_slice[1].stop)
+
+        for t_var_name in ["XTIME", "time"]:
+            tv = out_data.createVariable(t_var_name, "i4", ("time",))
+            tv[:] = time_var
+            for k, v in time_attrs.items():
+                setattr(tv, k, v)
+            tv.long_name = "time"
+            tv.standard_name = "time"
+        if "DX" in global_attributes.keys():
+            dx = global_attributes["DX"]
+        else:
+            dx = 3000.0
+        x_var = out_data.createVariable("x", "f4", ("west_east",))
+        x_var[:] = np.arange(object_slice[1].start * dx, object_slice[1].stop * dx, dx)
+        x_var.units = "m"
+        x_var.long_name = "x"
+        x_var.standard_name = "x"
+        x_var.axis = "X"
+        y_var = out_data.createVariable("y", "f4", ("south_north",))
+        y_var[:] = np.arange(object_slice[0].start * dx, object_slice[1].stop * dx, dx)
+        y_var.units = "m"
+        y_var.long_name = "y"
+        y_var.standard_name = "y"
+        y_var.axis = "Y"
+        out_data.close()
     wrf_file_obj = WRFModelGrid(valid_date, wrf_vars[0], domain, wrf_path)
     for wrf_var in wrf_vars:
         print("Extracting {0} at {1}".format(wrf_var, valid_date.strftime("%Y-%m-%d_%H:%M:%S")))
@@ -151,25 +166,36 @@ def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date,
         if wrf_var_grid is not None:
             var_attrs["long_name"] = var_attrs["description"]
             for o, object_slice in enumerate(object_slices):
+                out_filename = out_path + "wrfobjects_{0}_{1}_{2:04d}.nc".format(domain,
+                                                                                 valid_date.strftime("%Y-%m-%d_%H%M%S"),
+                                                                                 o)
+                out_data = Dataset(out_filename, mode="a")
+                if wrf_var == "GPH":
+                    z_var = out_data.createVariable("z", "f4", ("bottom_top", "south_north", "west_east"), zlib=True)
+                    z_var[:] = wrf_var_grid[0, :, object_slice[0], object_slice[1]]
+                    z_var.long_name = "z"
+                    z_var.standard_name = "z"
+                    z_var.units = "m"
+                    z_var.axis = "Z"
+                    z_var.positive = "up"
                 if len(wrf_var_grid.shape) == 4:
                     var_data = wrf_var_grid[:, :, object_slice[0], object_slice[1]]
-                    var = out_data.groups["wrf_object_{0:04d}".format(o)].createVariable(wrf_var, "f4",
-                                                                                         ("time", "bottom_top",
-                                                                                          "south_north", "west_east"),
-                                                                                         zlib=True)
+                    var = out_data.createVariable(wrf_var, "f4",
+                                                  ("time", "bottom_top",
+                                                   "south_north", "west_east"),
+                                                  zlib=True)
                     var[:] = var_data
                 else:
                     var_data = wrf_var_grid[:, object_slice[0], object_slice[1]]
-                    var = out_data.groups["wrf_object_{0:04d}".format(o)].createVariable(wrf_var, "f4",
-                                                                                         ("time",
-                                                                                          "south_north", "west_east"),
-                                                                                         zlib=True)
+                    var = out_data.createVariable(wrf_var, "f4",
+                                                  ("time",
+                                                   "south_north", "west_east"),
+                                                  zlib=True)
                     var[:] = var_data
                 for k, v in var_attrs.items():
                     setattr(var, k, v)
+                out_data.close()
             del wrf_var_grid
-        out_data.sync()
-    out_data.close()
     return
 
 
