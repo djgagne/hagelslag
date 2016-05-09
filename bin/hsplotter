@@ -7,7 +7,7 @@ import pandas as pd
 import argparse
 from hagelslag.data.HailForecastGrid import HailForecastGrid
 from mpl_toolkits.basemap import Basemap
-
+from matplotlib.colors import LinearSegmentedColormap
 
 def main():
     parser = argparse.ArgumentParser()
@@ -88,15 +88,18 @@ def plot_hourly_neighborhood_probability():
     return
 
 
-def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), contours=np.arange(5, 75, 5),
+def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
                              cmap="inferno"):
+    cmap = plt.get_cmap("Paired")
+    colors = cmap(np.linspace(0, 0.5, cmap.N // 2))
+    cmap2 = LinearSegmentedColormap.from_list("Lower Half Paired", colors)
     ens_max = forecast_grid.data.max(axis=0, fill_value=0).max(axis=0, fill_value=0)
     plt.figure(figsize=figsize)
     bmap.drawstates()
     bmap.drawcountries()
     bmap.drawcoastlines()
     x, y = bmap(forecast_grid.lon, forecast_grid.lat)
-    plt.contourf(x, y, ens_max, contours, cmap=cmap, extend="max")
+    plt.contourf(x, y, ens_max, contours, cmap=cmap2, extend="max")
     plt.title("{0} {1} Ensemble Maximum {2} (mm) Valid {3}".format(forecast_grid.ensemble_name,
                                                                    forecast_grid.ml_model.replace("-", " "),
                                                                    forecast_grid.variable.capitalize(),
