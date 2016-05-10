@@ -5,6 +5,7 @@ import argparse
 from os.path import exists
 from multiprocessing import Pool
 from glob import glob
+from datetime import datetime
 
 
 def main():
@@ -12,10 +13,14 @@ def main():
     parser.add_argument("-d", "--csv", help="CSV data file directory")
     parser.add_argument("-j", "--json", help="JSON forecast file directory")
     parser.add_argument("-o", "--out", help="Output path")
+    parser.add_argument("-s", "--start", help="Start run date in YYYYMMDD format")
+    parser.add_argument("-e", "--end", help="End run date in YYYYMMDD format")
     parser.add_argument("-c", "--cond", help="Condition model list (comma separated)")
-    parser.add_argument("-s", "--dist", help="Size distribution model list (comma separated)")
+    parser.add_argument("-m", "--dist", help="Size distribution model list (comma separated)")
     parser.add_argument("-p", "--proc", type=int, help="Number of processors")
     args = parser.parse_args()
+    start_date = datetime.strptime(args.start, "%Y%m%d")
+    end_date = datetime.strptime(args.end, "%Y%m%d")
     condition_models = args.cond.split(",")
     dist_models = args.dist.split(",")
     pool = Pool(args.proc)
@@ -29,9 +34,11 @@ def main():
         return
     csv_files = sorted(glob(args.csv + "track_step_*.csv"))
     for csv_file in csv_files:
-        pool.apply_async(merge_input_csv_forecast_json,
-                         (csv_file, args.json, condition_models, dist_models),
-                         callback=output_combined_files)
+        run_date = datetime.strptime(csv_file[:-4].split("_")[-1], "%Y%m%d")
+        if start_date <= run_date <= end_date:
+            pool.apply_async(merge_input_csv_forecast_json,
+                             (csv_file, args.json, condition_models, dist_models),
+                             callback=output_combined_files)
     pool.close()
     pool.join()
     return
