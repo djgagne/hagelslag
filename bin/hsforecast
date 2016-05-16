@@ -107,10 +107,15 @@ def train_models(track_modeler, config):
 
     """
     track_modeler.load_data(mode="train", format=config.data_format)
+    if hasattr(config, "size_distribution_calibrate"):
+        calibrate = config.size_distribution_calibrate
+    else:
+        calibrate = False
     track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
                                                config.size_distribution_input_columns,
-                                               output_columns=config.size_distribution_output_columns)
+                                               output_columns=config.size_distribution_output_columns,
+                                               calibrate=calibrate)
     track_modeler.fit_condition_models(config.condition_model_names,
                                        config.condition_model_objs,
                                        config.condition_input_columns,
@@ -154,14 +159,20 @@ def make_forecasts(track_modeler, config):
     forecasts["condition"] = track_modeler.predict_condition_models(config.condition_model_names,
                                                                     config.condition_input_columns,
                                                                     config.metadata_columns)
+
+    print("Size Distribution Forecasts")
+    if hasattr(config, "size_distribution_calibrate"):
+        calibrate = config.size_distribution_calibrate
+    else:
+        calibrate = False
+    forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
+                                                                       config.size_distribution_input_columns,
+                                                                       config.metadata_columns,
+                                                                       calibrate=calibrate)
     print("Size forecasts")
     forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
                                                           config.size_input_columns,
                                                           config.metadata_columns)
-    print("Size Distribution Forecasts")
-    forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
-                                                                       config.size_distribution_input_columns,
-                                                                       config.metadata_columns)
     print("Track forecasts")
     forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
                                                             config.track_input_columns,

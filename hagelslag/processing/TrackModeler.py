@@ -6,6 +6,7 @@ import os
 from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
+from sklearn.linear_model import LinearRegression
 
 
 class TrackModeler(object):
@@ -191,7 +192,7 @@ class TrackModeler(object):
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
-                                     output_columns=None):
+                                     output_columns=None, calibrate=False):
         if output_columns is None:
             output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
@@ -200,6 +201,9 @@ class TrackModeler(object):
             group_data.dropna(inplace=True)
             group_data = group_data[group_data[output_columns[-1]] > 0]
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
+            if calibrate:
+                self.size_distribution_models[group]["cal_shape"] = {}
+                self.size_distribution_models[group]["cal_scale"] = {}
             log_labels = np.log(group_data[output_columns].values)
             log_means = log_labels.mean(axis=0)
             log_sds = log_labels.std(axis=0)
@@ -210,9 +214,19 @@ class TrackModeler(object):
                 self.size_distribution_models[group]["multi"][model_name] = deepcopy(model_objs[m])
                 self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                               (log_labels - log_means) / log_sds)
+                if calibrate:
+                    training_predictions = self.size_distribution_models[
+                        group]["multi"][model_name].predict(group_data[input_columns])
+                    self.size_distribution_models[group]["cal_shape"] = LinearRegression()
+                    self.size_distribution_models[group]["cal_shape"].fit(training_predictions[:, 0:1],
+                                                                          (log_labels[:, 0] - log_means[0]) / log_sds[
+                                                                              0])
+                    self.size_distribution_models[group]["cal_scale"].fit(training_predictions[:, 1:],
+                                                                          (log_labels[:, 1] - log_means[1]) / log_sds[
+                                                                              1])
 
-    def predict_size_distribution_models(self, model_names, input_columns, metadata_cols, 
-                                         data_mode="forecast", location=6):
+    def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
+                                         data_mode="forecast", location=6, calibrate=False):
         groups = self.size_distribution_models.keys()
         predictions = {}
         for group in groups:
@@ -225,6 +239,11 @@ class TrackModeler(object):
                     predictions[group][model_name] = group_data[metadata_cols]
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
                         group_data[input_columns])
+                    if calibrate:
+                        multi_predictions[:, 0] = self.size_distribution_models[group]["cal_shape"].predict(
+                            multi_predictions[:, 0:1])
+                        multi_predictions[:, 1] = self.size_distribution_models[group]["cal_scale"].predict(
+                            multi_predictions[:, 1:])
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
                     if multi_predictions.shape[1] == 2:
                         multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
