@@ -198,12 +198,12 @@ class TrackModeler(object):
         groups = np.unique(self.data["train"]["member"][self.group_col])
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            group_data.dropna(inplace=True)
+            group_data = group_data.dropna()
             group_data = group_data[group_data[output_columns[-1]] > 0]
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
-                self.size_distribution_models[group]["cal_shape"] = {}
-                self.size_distribution_models[group]["cal_scale"] = {}
+                self.size_distribution_models[group]["calshape"] = {}
+                self.size_distribution_models[group]["calscale"] = {}
             log_labels = np.log(group_data[output_columns].values)
             log_means = log_labels.mean(axis=0)
             log_sds = log_labels.std(axis=0)
@@ -217,11 +217,12 @@ class TrackModeler(object):
                 if calibrate:
                     training_predictions = self.size_distribution_models[
                         group]["multi"][model_name].predict(group_data[input_columns])
-                    self.size_distribution_models[group]["cal_shape"] = LinearRegression()
-                    self.size_distribution_models[group]["cal_shape"].fit(training_predictions[:, 0:1],
+                    self.size_distribution_models[group]["calshape"][model_name] = LinearRegression()
+                    self.size_distribution_models[group]["calshape"][model_name].fit(training_predictions[:, 0:1],
                                                                           (log_labels[:, 0] - log_means[0]) / log_sds[
                                                                               0])
-                    self.size_distribution_models[group]["cal_scale"].fit(training_predictions[:, 1:],
+                    self.size_distribution_models[group]["calscale"][model_name] = LinearRegression()
+                    self.size_distribution_models[group]["calscale"][model_name].fit(training_predictions[:, 1:],
                                                                           (log_labels[:, 1] - log_means[1]) / log_sds[
                                                                               1])
 
@@ -240,9 +241,9 @@ class TrackModeler(object):
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
                         group_data[input_columns])
                     if calibrate:
-                        multi_predictions[:, 0] = self.size_distribution_models[group]["cal_shape"].predict(
+                        multi_predictions[:, 0] = self.size_distribution_models[group]["calshape"][model_name].predict(
                             multi_predictions[:, 0:1])
-                        multi_predictions[:, 1] = self.size_distribution_models[group]["cal_scale"].predict(
+                        multi_predictions[:, 1] = self.size_distribution_models[group]["calscale"][model_name].predict(
                             multi_predictions[:, 1:])
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
                     if multi_predictions.shape[1] == 2:
