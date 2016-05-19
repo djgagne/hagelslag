@@ -17,6 +17,7 @@ def main():
     parser.add_argument("-e", "--end", help="End run date in YYYYMMDD format")
     parser.add_argument("-c", "--cond", help="Condition model list (comma separated)")
     parser.add_argument("-m", "--dist", help="Size distribution model list (comma separated)")
+    parser.add_argument("-n", "--ens", default="SSEF", help="Ensemble system name.")
     parser.add_argument("-p", "--proc", type=int, help="Number of processors")
     args = parser.parse_args()
     start_date = datetime.strptime(args.start, "%Y%m%d")
@@ -32,7 +33,7 @@ def main():
         else:
             output[0].to_csv(out_file, mode="w", index_label="Step_ID")
         return
-    csv_files = sorted(glob(args.csv + "track_step_NCAR_*.csv"))
+    csv_files = sorted(glob(args.csv + "track_step_{0}_*.csv".format(args.ens)))
     for csv_file in csv_files:
         run_date = datetime.strptime(csv_file[:-4].split("_")[-1], "%Y%m%d")
         if start_date <= run_date <= end_date:
@@ -94,7 +95,6 @@ def merge_input_csv_forecast_json(input_csv_file, forecast_json_path, condition_
                 for dist_model in dist_models_ns:
                     pred_data.loc[step_id, [dist_model + "_" + p
                                             for p in gamma_params]] = step["properties"]["dist_" + dist_model]
-        print pred_data
         out_data = input_data.merge(pred_data, left_index=True, right_index=True)
         return out_data, ens_name, ens_member
     except Exception as e:
