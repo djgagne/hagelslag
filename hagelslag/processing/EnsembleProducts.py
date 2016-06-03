@@ -5,13 +5,14 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
 from scipy.stats import gamma, bernoulli
+from scipy.spatial import cKDTree
 from skimage.morphology import disk
 from netCDF4 import Dataset, date2num
 import os
 from glob import glob
 import json
 from datetime import timedelta
-import traceback
+
 
 try:
     from ncepgrib2 import Grib2Encode, dump
@@ -170,6 +171,21 @@ class EnsembleMemberProduct(object):
         neighborhood_prob[neighborhood_prob < 1] = 0
         neighborhood_prob /= weights.sum()
         return neighborhood_prob
+
+    def period_surrogate_severe_prob(self, threshold, radius, sigma, stagger):
+        i_grid, j_grid = np.indices(self.data.shape[1:])
+        max_data = self.data.max(axis=0)
+        max_points = np.array(np.where(max_data >= threshold)).T
+        max_tree = cKDTree(max_points)
+        stagger_points = np.vstack((i_grid[::stagger, ::stagger].ravel(), j_grid[::stagger, ::stagger].ravel())).T
+        valid_stagger_points = np.zeros(stagger_points.shape[0])
+        stagger_tree = cKDTree(stagger_points)
+        hit_points = np.unique(np.concatenate(max_tree.query_ball_tree(stagger_tree, radius)))
+        valid_stagger_points[hit_points] += 1
+        surrogate_grid = valid_stagger_points.reshape(i_grid[::stagger, ::stagger].shape)
+        surrogate_grid = gaussian_filter(surrogate_grid, sigma)
+        return surrogate_grid
+
 
     def encode_grib2(self):
         """
