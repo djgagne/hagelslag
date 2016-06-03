@@ -45,11 +45,9 @@ class TrackModeler(object):
         The two sets are combined using merge operations on the Track IDs. Additional member information is gathered
         from the appropriate member file.
 
-        Args
-            mode: str
-                "train" or "forecast"
-            format: str
-                file format being used. Default is "csv"
+        Args:
+            mode: "train" or "forecast"
+            format:  file format being used. Default is "csv"
         """
         if mode in self.data.keys():
             run_dates = pd.DatetimeIndex(start=self.start_dates[mode],
@@ -101,12 +99,9 @@ class TrackModeler(object):
         Distributions are written to a pickle file for later use.
 
         Args:
-            output_file: str
-                Pickle file
-            model_names:
-                Names of the tracking models
-            label_columns:
-                Names of the data columns used for labeling
+            output_file: Pickle file
+            model_names: Names of the tracking models
+            label_columns: Names of the data columns used for labeling
 
         Returns:
 
@@ -138,17 +133,11 @@ class TrackModeler(object):
         Fit machine learning models to predict whether or not hail will occur.
 
         Args:
-            model_names: list
-                List of strings with the names for the particular machine learning models
-            model_objs: list
-                scikit-learn style machine learning model objects.
-            input_columns: list
-                list of the names of the columns used as input for the machine learning model
-            output_column: str
-                name of the column used for labeling whether or not the event occurs
-            output_threshold: float
-                splitting threshold to determine if event has occurred. Default 0.0
-        Returns:
+            model_names: List of strings with the names for the particular machine learning models
+            model_objs: scikit-learn style machine learning model objects.
+            input_columns: list of the names of the columns used as input for the machine learning model
+            output_column: name of the column used for labeling whether or not the event occurs
+            output_threshold: splitting threshold to determine if event has occurred. Default 0.0
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
@@ -174,11 +163,14 @@ class TrackModeler(object):
         """
         Apply condition models to forecast data.
 
-        :param model_names:
-        :param input_columns:
-        :param metadata_cols:
-        :param data_mode:
-        :return:
+        Args:
+            model_names: List of names associated with each condition model used for prediction
+            input_columns: List of columns in data used as input into the model
+            metadata_cols: Columns from input data that should be included in the data frame with the predictions.
+            data_mode: Which data subset to pull from for the predictions, "forecast" by default
+
+        Returns:
+            A dictionary of data frames containing probabilities of the event and specified metadata
         """
         groups = self.condition_models.keys()
         predictions = {}
@@ -193,6 +185,16 @@ class TrackModeler(object):
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
                                      output_columns=None, calibrate=False):
+        """
+        Fits multitask machine learning models to predict the parameters of a size distribution
+
+        Args:
+            model_names: List of machine learning model names
+            model_objs: scikit-learn style machine learning model objects
+            input_columns: Training data columns used as input for ML model
+            output_columns: Training data columns used for prediction
+            calibrate: Whether or not to fit a log-linear regression to predictions from ML model
+        """
         if output_columns is None:
             output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
@@ -228,6 +230,20 @@ class TrackModeler(object):
 
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
                                          data_mode="forecast", location=6, calibrate=False):
+        """
+        Make predictions using fitted size distribution models.
+
+        Args:
+            model_names: Name of the models for predictions
+            input_columns: Data columns used for input into ML models
+            metadata_cols: Columns from input data that should be included in the data frame with the predictions.
+            data_mode: Set of data used as input for prediction models
+            location: Value of fixed location parameter
+            calibrate: Whether or not to apply calibration model
+
+        Returns:
+            Predictions in dictionary of data frames grouped by group type
+        """
         groups = self.size_distribution_models.keys()
         predictions = {}
         for group in groups:
@@ -267,14 +283,16 @@ class TrackModeler(object):
         """
         Fit size models to produce discrete pdfs of forecast hail sizes.
 
-        :param model_names:
-        :param model_objs:
-        :param input_columns:
-        :param output_column:
-        :param output_start:
-        :param output_step:
-        :param output_stop:
-        :return:
+        Args:
+            model_names:
+            model_objs:
+
+        Keyword Args:
+            input_columns:
+            output_column:
+            output_start:
+            output_step:
+            output_stop:
         """
         print("Fitting size models")
         groups = self.data["train"]["member"][self.group_col].unique()
@@ -303,11 +321,11 @@ class TrackModeler(object):
         """
         Apply size models to forecast data.
 
-        :param model_names:
-        :param input_columns:
-        :param metadata_cols:
-        :param data_mode:
-        :return:
+        Args:
+            model_names:
+            input_columns:
+            metadata_cols:
+            data_mode:
         """
         groups = self.size_models.keys()
         predictions = {}
@@ -340,12 +358,11 @@ class TrackModeler(object):
         """
         Fit machine learning models to predict track error offsets.
 
-        :param model_names:
-        :param model_objs:
-        :param input_columns:
-        :param output_columns:
-        :param output_ranges:
-        :return:
+            model_names:
+            model_objs:
+            input_columns:
+            output_columns:
+            output_ranges:
         """
         print("Fitting track models")
         groups = self.data["train"]["member"][self.group_col].unique()
@@ -377,11 +394,13 @@ class TrackModeler(object):
         """
         Predict track offsets on forecast data.
 
-        :param model_names:
-        :param input_columns:
-        :param metadata_cols:
-        :param data_mode:
-        :return:
+        Args:
+            model_names:
+            input_columns:
+            metadata_cols:
+            data_mode:
+
+        Returns:
         """
         predictions = {}
         for model_type, track_model_set in self.track_models.iteritems():
@@ -410,8 +429,6 @@ class TrackModeler(object):
         """
         Save machine learning models to pickle files.
 
-        :param model_path:
-        :return:
         """
         for group, condition_model_set in self.condition_models.iteritems():
             for model_name, model_obj in condition_model_set.iteritems():
@@ -460,8 +477,6 @@ class TrackModeler(object):
         """
         Load models from pickle files.
 
-        :param model_path:
-        :return:
         """
         condition_model_files = sorted(glob(model_path + "*_condition.pkl"))
         if len(condition_model_files) > 0:
@@ -589,39 +604,40 @@ class TrackModeler(object):
         return
 
     def output_forecasts_json_parallel(self, forecasts,
-                                      condition_model_names,
-                                      size_model_names,
-                                      dist_model_names,
-                                      track_model_names,
-                                      json_data_path,
-                                      out_path,
-                                      num_procs):
+                                       condition_model_names,
+                                       size_model_names,
+                                       dist_model_names,
+                                       track_model_names,
+                                       json_data_path,
+                                       out_path,
+                                       num_procs):
         pool = Pool(num_procs)
         total_tracks = self.data["forecast"]["total_group"]
         for r in total_tracks.index:
-            track_id = total_tracks.loc[r, "Track_ID"]
+            track_id = total_tracks.loc[r, "Track_ID"].copy()
             print(track_id)
             track_num = track_id.split("_")[-1]
-            ensemble_name = total_tracks.loc[r, "Ensemble_Name"]
-            member = total_tracks.loc[r, "Ensemble_Member"]
-            group = total_tracks.loc[r, self.group_col]
+            ensemble_name = total_tracks.loc[r, "Ensemble_Name"].copy()
+            member = total_tracks.loc[r, "Ensemble_Member"].copy()
+            group = total_tracks.loc[r, self.group_col].copy()
             run_date = track_id.split("_")[-4][:8]
             step_forecasts = {}
             for ml_model in condition_model_names:
                 step_forecasts["condition_" + ml_model.replace(" ", "-")] = forecasts["condition"][group].loc[
-                    forecasts["condition"][group]["Track_ID"] == track_id, ml_model]
+                    forecasts["condition"][group]["Track_ID"] == track_id, ml_model].copy()
             for ml_model in size_model_names:
                 step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
-                    forecasts["size"][group][ml_model]["Track_ID"] == track_id]
+                    forecasts["size"][group][ml_model]["Track_ID"] == track_id].copy()
             for ml_model in dist_model_names:
                 step_forecasts["dist_" + ml_model.replace(" ", "-")] = forecasts["dist"][group][ml_model].loc[
-                    forecasts["dist"][group][ml_model]["Track_ID"] == track_id]
+                    forecasts["dist"][group][ml_model]["Track_ID"] == track_id].copy()
             for model_type in forecasts["track"].keys():
                 for ml_model in track_model_names:
                     mframe = forecasts["track"][model_type][group][ml_model]
                     step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
-                        mframe["Track_ID"] == track_id]
-            pool.apply_async(output_forecast, (step_forecasts, run_date, ensemble_name, member, track_num, json_data_path,
+                        mframe["Track_ID"] == track_id].copy()
+            pool.apply_async(output_forecast, (step_forecasts, run_date, ensemble_name, member, track_num,
+                                               json_data_path,
                                                out_path))
         pool.close()
         pool.join()
