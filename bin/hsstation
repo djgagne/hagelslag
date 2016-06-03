@@ -46,7 +46,7 @@ def read_config_file(filename):
 def load_mesonet_station_info(filename, valid_date):
     valid_datetime = np.datetime64(valid_date)
     mesonet_info = pd.read_csv(filename, parse_dates=["datc", "datd"])
-    mesonet_info = mesonet_info.loc[(mesonet_info["datc"] < valid_datetime) & (valid_datetime < mesonet_info["datd"])]
+    mesonet_info = mesonet_info.loc[(mesonet_info["datc"].values < valid_datetime) & (valid_datetime < mesonet_info["datd"].values)]
     mesonet_info.reset_index(inplace=True)
     return mesonet_info
 
@@ -60,7 +60,6 @@ def load_mesonet_nc_files(start_date, end_date, variables, stations, path):
         for station in stations:
             all_hours.append(obs_hour)
             all_stations.append(station)
-
     obs_data = pd.DataFrame(index=range(len(all_hours)), columns=["Valid_Date", "Station_ID"] + variables)
     obs_data["Valid_Date"] = all_hours
     obs_data["Station_ID"] = all_stations
@@ -73,10 +72,10 @@ def load_mesonet_nc_files(start_date, end_date, variables, stations, path):
         valid_dates = np.intersect1d(obs_hours.values, meso_dates.values)
         valid_stations = np.intersect1d(stations, station_names)
         for variable in variables:
-            var_frame = pd.DataFrame(meso_file_data.variables[variable][:], index=station_names, columns=meso_dates)
+            var_frame = pd.DataFrame(meso_file_data.variables[variable][:].T, columns=station_names, index=meso_dates)
             obs_data.loc[np.in1d(obs_data["Valid_Date"], valid_dates) &
-                         np.in1d(obs_data["Station_ID"], valid_stations)] = var_frame.loc[valid_stations,
-                                                                                          valid_dates].values.T.ravel()
+                         np.in1d(obs_data["Station_ID"], valid_stations), variable] = var_frame.loc[valid_dates,
+                                                                                                    valid_stations].values.ravel()
         meso_file_data.close()
     return obs_data
 
@@ -97,6 +96,7 @@ def extract_model_run(run_date, ensemble_member, **kwargs):
 
     """
     try:
+        print("Starting {0} {1}".format(run_date, ensemble_member))
         ensemble_name = kwargs["ensemble_name"]
         if type(run_date) != datetime:
             run_date = run_date.to_pydatetime()
@@ -141,51 +141,47 @@ def extract_model_run(run_date, ensemble_member, **kwargs):
                     neighbor_columns.append("{0}_R_{1:d}_C_{2:d}".format(var, r, c))
         neighbor_data = pd.DataFrame(index=np.arange(num_timesteps * nearest_row.size),
                                      columns=metadata_cols + neighbor_columns)
-        site_data["Run_Date"][:] = run_date
-        site_data["Run_Date"][:] = run_date
-        site_data["Valid_Date"][:] = np.repeat(valid_dates, nearest_row.size)
-        site_data["Forecast_Hour"][:] = np.repeat(np.arange(start_hour, end_hour + 1), nearest_row.size)
+        site_data["Run_Date"] = run_date
+        site_data["Valid_Date"] = np.repeat(valid_dates, nearest_row.size)
+        site_data["Forecast_Hour"] = np.repeat(np.arange(start_hour, end_hour + 1), nearest_row.size)
         site_data["Station_ID"] = np.tile(mesonet_info["stid"].values, (num_timesteps,))
         site_data.loc[:,
         ["Lon", "Lat", "Elevation"]] = np.tile(mesonet_info[["elon", "nlat", "elev"]].values,
                                                (num_timesteps, 1))
-        site_data["Ensemble_Name"][:] = ensemble_name
-        site_data["Ensemble_Member"][:] = ensemble_member
-        site_data["Row"][:] = np.tile(nearest_row, (num_timesteps,))
-        site_data["Col"][:] = np.tile(nearest_col, (num_timesteps,))
+        site_data["Ensemble_Name"] = ensemble_name
+        site_data["Ensemble_Member"] = ensemble_member
+        site_data["Row"] = np.tile(nearest_row, (num_timesteps,))
+        site_data["Col"] = np.tile(nearest_col, (num_timesteps,))
         for m_col in metadata_cols:
             neighbor_data[m_col] = site_data[m_col]
         for variable in np.union1d(site_variables, neighbor_variables):
-            print("Extracting {0} from {1} {2}".format(variable, run_date.strftime("%Ym%d"), ensemble_member))
+            print("Extracting {0} from {1} {2}".format(variable, run_date.strftime("%Y%m%d"), ensemble_member))
             mo = ModelOutput(ensemble_name, ensemble_member, run_date, variable, start_date, end_date, ens_path,
                              single_step=single_step)
             mo.load_data()
             if variable in site_variables:
                 site_data[variable] = mo.data[:, nearest_row, nearest_col].ravel()
             if variable in neighbor_variables:
-                n_var_i_start = len(metadata_cols) + neighbor_variables.index(variable) * (neighbor_radius * 2 + 1)
-                n_var_i_stop = n_var_i_start + (neighbor_radius * 2 + 1) + 1
-                for t in range(num_timesteps):
-                    for s in range(num_sites):
-                        neighbor_data.iloc[t * num_sites + s,
-                        n_var_i_start:n_var_i_stop] = mo.data[:,
-                                                      nearest_row[s] - neighbor_radius:
-                                                      nearest_row[s] + neighbor_radius + 1,
-                                                      nearest_col[s] - neighbor_radius:
-                                                      nearest_col[s] + neighbor_radius + 1
-                                                      ].ravel()
+                n_var_i_start = len(metadata_cols) + neighbor_variables.index(variable) * (neighbor_radius * 2 + 1) ** 2
+                n_var_i_stop = n_var_i_start + (neighbor_radius * 2 + 1) ** 2 
+                for s in range(num_sites):
+                    neighbor_data.iloc[np.arange(num_timesteps) * num_sites + s,
+                                       n_var_i_start:n_var_i_stop] = mo.data[:,
+                                                                             nearest_row[s] - neighbor_radius:
+                                                                             nearest_row[s] + neighbor_radius + 1,
+                                                                             nearest_col[s] - neighbor_radius:
+                                                                             nearest_col[s] + neighbor_radius + 1
+                                                                             ].reshape(num_timesteps, n_var_i_stop - n_var_i_start)
             del mo
-        neighbor_data = neighbor_data.convert_objects(convert_dates=True, convert_numeric=True)
-        site_data = site_data.convert_objects(convert_dates=True, convert_numeric=True)
-        obs_data = load_mesonet_nc_files(start_date, end_date, obs_vars, site_data["stid"].values, obs_path)
+        obs_data = load_mesonet_nc_files(start_date, end_date, obs_vars, mesonet_info["stid"].values, obs_path)
         for obs_var in obs_vars:
             site_data[obs_var] = obs_data[obs_var]
             neighbor_data[obs_var] = obs_data[obs_var]
         site_data.to_csv(out_path + "site_data_{0}_{1}_{2}.csv".format(ensemble_name, ensemble_member,
-                                                                       run_date.strftime("%Y%m%d")), index=False)
+                                                                       run_date.strftime("%Y%m%d")), index=False, na_rep="nan")
         neighbor_data.to_csv(out_path + "neighbor_data_{0}_{1}_{2}.csv".format(ensemble_name, ensemble_member,
                                                                                run_date.strftime("%Y%m%d")),
-                             index=False)
+                             index=False, na_rep="nan")
     except Exception as e:
         print(traceback.format_exc())
         raise e
