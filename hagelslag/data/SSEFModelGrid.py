@@ -3,7 +3,7 @@ from glob import glob
 import pandas as pd
 import numpy as np
 import os
-
+from os.path import exists
 
 class SSEFModelGrid(ModelGrid):
     """
@@ -25,6 +25,8 @@ class SSEFModelGrid(ModelGrid):
                                    (end_date - run_date).total_seconds() / 3600 + 1)
         if single_step:
             full_path = self.path + "/".join([member, run_date.strftime("%Y%m%d"), "0000Z", "data2d"]) + "/"
+            if not exists(full_path):
+                full_path = self.path + "/".join([run_date.strftime("%Y%m%d"), member, "0000Z", "data2d"]) + "/"
         else:
             full_path = self.path + "/".join([member, run_date.strftime("%Y%m%d")]) + "/"
         potential_filenames = []

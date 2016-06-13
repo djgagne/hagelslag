@@ -108,11 +108,12 @@ def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date,
 
         for t_var_name in ["XTIME", "time"]:
             tv = out_data.createVariable(t_var_name, "i4", ("time",))
-            tv[:] = time_var
+            tv[:] = time_var * 60
             for k, v in time_attrs.items():
                 setattr(tv, k, v)
             tv.long_name = "time"
             tv.standard_name = "time"
+            tv.units = tv.units.replace("minutes", "seconds")
         if "DX" in global_attributes.keys():
             dx = global_attributes["DX"]
         else:
@@ -124,7 +125,7 @@ def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date,
         x_var.standard_name = "x"
         x_var.axis = "X"
         y_var = out_data.createVariable("y", "f4", ("south_north",))
-        y_var[:] = np.arange(object_slice[0].start * dx, object_slice[1].stop * dx, dx)
+        y_var[:] = np.arange(object_slice[0].start * dx, object_slice[0].stop * dx, dx)
         y_var.units = "m"
         y_var.long_name = "y"
         y_var.standard_name = "y"

@@ -114,7 +114,9 @@ def extract_model_run(run_date, ensemble_member, **kwargs):
         obs_path = kwargs["obs_path"]
         obs_vars = kwargs["obs_vars"]
         out_path = kwargs["out_path"]
-        if not exists(ens_path + ensemble_member + "/" + run_date.strftime("%Y%m%d")):
+        reg_path_exists = exists(ens_path + ensemble_member + "/" + run_date.strftime("%Y%m%d"))
+        alt_path_exists = exists(ens_path + run_date.strftime("%Y%m%d") + "/" + ensemble_member)
+        if not reg_path_exists and not alt_path_exists:
             print(ensemble_member + " " + run_date.strftime("%Y%m%d") + " not found.")
             return
         mesonet_info = load_mesonet_station_info(kwargs["station_info_file"], run_date)
