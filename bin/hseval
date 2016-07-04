@@ -22,7 +22,7 @@ def main():
     parser.add_argument("-o", "--obj", action="store_true", help="Perform object-based evaluation.")
     parser.add_argument("-g", "--grid", action="store_true", help="Perform grid-based evaluation.")
     parser.add_argument("-n", "--neighbor", action="store_true", help="Perform neighborhood probability evaluation.")
-    parser.add_argument("-r", "--reduced", actuaion="store_true", help="Perform reduced (coarse-grid) neighborhood probability evaluation.")
+    parser.add_argument("-r", "--reduced", action="store_true", help="Perform reduced (coarse-grid) neighborhood probability evaluation.")
     parser.add_argument("-p", "--proc", type=int, default=1, help="Number of processors.")
     args = parser.parse_args()
     required = ["ensemble_name", "ensemble_members", "start_date", "end_date", "start_hour", "end_hour", "window_sizes",
@@ -350,7 +350,7 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, ensemble_name, 
 def evaluate_reduced_neighborhood(config, num_procs):
     pool = Pool(num_procs)
     run_dates = pd.DatetimeIndex(sorted(os.listdir(config.neighbor_path)))
-    for run_date in run_dates:
+    for run_date in run_dates.to_pydatetime():
         print(run_date)
         pool.apply_async(evaluate_reduced_neighborhood_run, (run_date, config.start_hour, config.end_hour,
                                                              config.ensemble_name, config.ensemble_members,
@@ -359,7 +359,8 @@ def evaluate_reduced_neighborhood(config, num_procs):
                                                              config.neighbor_thresholds["dist"], config.obs_thresholds,
                                                              config.stride, config.neighbor_radius, config.neighbor_sigma,
                                                              config.ensemble_path, config.ml_grid_path, config.mrms_path,
-                                                             config.coarse_neighbor_out_path, config.map_file, config.us_mask_file))
+                                                             config.coarse_neighbor_out_path, config.map_file, config.us_mask_file, 
+                                                             config.single_step))
     pool.close()
     pool.join()
     return
@@ -369,7 +370,7 @@ def evaluate_reduced_neighborhood_run(run_date, start_hour, end_hour,
                                       ensemble_name, ensemble_members, ensemble_variables, ml_models,
                                       ml_variable, mrms_variable, ensemble_thresholds, ml_thresholds, obs_thresholds,
                                       stride, radius, sigma, ensemble_path, ml_grid_path, mrms_path, out_path,
-                                      map_file, mask_file):
+                                      map_file, mask_file, single_step):
     try:
         start_date = run_date + timedelta(hours=start_hour)
         end_date = run_date + timedelta(hours=end_hour)
@@ -393,25 +394,26 @@ def evaluate_reduced_neighborhood_run(run_date, start_hour, end_hour,
         eval_data["Start_Date"] = pd.Timestamp(start_date)
         eval_data["End_Date"] = pd.Timestamp(end_date)
         for threshold in obs_thresholds:
-            print("Loading MRMS " + run_date)
+            print("Loading MRMS " + run_date.strftime("%Y%m%d"))
             eval_data[mrms_variable + "_{0:d}".format(threshold)] = mrms_data.period_neighborhood_probability(radius, 0, threshold, stride, mo.x, mo.y, mo.dx).ravel()
         for ens_var in ensemble_variables:
             for member in ensemble_members:
-                ens_data = ModelOutput(ensemble_name, member, run_date, ens_var, start_date, end_date, ensemble-path)
+                ens_data = ModelOutput(ensemble_name, member, run_date, ens_var, start_date, end_date, ensemble_path, single_step)
                 ens_data.load_data()
                 for ens_thresh in ensemble_thresholds[ens_var]:
-                    print("Evaluating {0} {1} {2} {3:d} {4}".format(ensemble_name, ens_var, member, ens_thresh, run_date.strftime("%Y%m%d"))
+                    print("Evaluating {0} {1} {2} {3:d} {4}".format(ensemble_name, ens_var, member, ens_thresh, run_date.strftime("%Y%m%d")))
                     col_name = "{0}_{1}_{2}_{3:d}".format(ensemble_name, ens_var, member, ens_thresh)
                     eval_data[col_name] = ens_data.period_neighborhood_probability(radius, sigma, threshold, stride, mo.x, mo.y, mo.dx).ravel()
             for ens_thresh in ensemble_thresholds[ens_var]:
                 col_names = ["{0}_{1}_{2}_{3:d}".format(ensemble_name, ens_var, m, ens_thresh) for m in ensemble_members]
                 mean_col = "{0}_{1}_mean_{2:d}".format(ensemble_name, ens_var, ens_thresh)
                 eval_data[mean_col] = eval_data[col_names].mean(axis=1)
+            eval_data.to_csv(out_path + "coarse_neighbor_eval_{0}_{1}.csv".format(ensemble_name, run_date.strftime("%Y%m%d")), index=False, na_rep="NaN")
         for ml_model in ml_models:
-            ml_data = HailForecastGrid(run_date, start_date, end_date, ensemble_name, ml_model, ensemble_members, ml_variable, 1, ml_grid_path)
+            ml_data = HailForecastGrid(run_date, start_date, end_date, ensemble_name, ml_model.replace(" ", "-"), ensemble_members, ml_variable, 1, ml_grid_path)
             ml_data.load_data()
             for ml_thresh in ml_thresholds:
-                print("Evaluating {0} {1} {2:d} {3}".format(ensemble_name, ml_model, ml_thresh, run_date.strftime("%Y%m%d"))
+                print("Evaluating {0} {1} {2:d} {3}".format(ensemble_name, ml_model, ml_thresh, run_date.strftime("%Y%m%d")))
                 ml_neighbor_prob = ml_data.period_neighborhood_probability(radius, sigma, ml_thresh, stride)
                 for m, member in enumerate(ensemble_members):
                     col_name = "{0}_{1}_{2}_{3:d}".format(ensemble_name, ml_model.replace(" ", "-"), member, ml_thresh)

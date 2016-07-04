@@ -103,7 +103,7 @@ class MRMSGrid(object):
         valid_i, valid_j = np.ma.where(period_max >= threshold)
         if len(valid_i) > 0:
             var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j], y[valid_i, valid_j])).T)
-            exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius)))
+            exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
             exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
             neighbor_prob[exceed_i, exceed_j] = 1
             if smoothing > 0:
