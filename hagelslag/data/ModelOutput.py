@@ -148,7 +148,7 @@ class ModelOutput(object):
 
         Args:
             radius: circular radius from each point in km
-            smoothing: width of Gaussian smoother in km
+            smoothing: standard deviation of Gaussian smoother in grid points
             threshold: intensity of exceedance
             stride: number of grid points to skip for reduced neighborhood grid
 
@@ -164,14 +164,16 @@ class ModelOutput(object):
         neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
         neighbor_prob = np.zeros((neighbor_x.shape[0], neighbor_x.shape[1]))
         period_max = self.data.max(axis=0)
-        valid_i, valid_j = np.ma.where(period_max >= threshold)
+        valid_i, valid_j = np.where(period_max >= threshold)
+        print self.variable, len(valid_i)
         if len(valid_i) > 0:
-            var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j], y[valid_i, valid_j])).T)
+            var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j] / 1000.0, y[valid_i, valid_j] / 1000.0)).T)
             exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
+            print "Exceed points", len(exceed_points)
             exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
             neighbor_prob[exceed_i, exceed_j] = 1
             if smoothing > 0:
-                neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / dx / 1000.0 / stride))
+                neighbor_prob = gaussian_filter(neighbor_prob, smoothing)
         return neighbor_prob
 
 

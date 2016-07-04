@@ -395,22 +395,25 @@ def evaluate_reduced_neighborhood_run(run_date, start_hour, end_hour,
         eval_data["End_Date"] = pd.Timestamp(end_date)
         for threshold in obs_thresholds:
             print("Loading MRMS " + run_date.strftime("%Y%m%d"))
-            eval_data[mrms_variable + "_{0:d}".format(threshold)] = mrms_data.period_neighborhood_probability(radius, 0, threshold, stride, mo.x, mo.y, mo.dx).ravel()
+            eval_data[mrms_variable + "_{0:d}".format(threshold)] = mrms_data.period_neighborhood_probability(radius, 0, threshold, stride, 
+                                                                                                              mo.x / 1000.0, mo.y / 1000.0, 
+                                                                                                              mo.dx / 1000.0).ravel()
         for ens_var in ensemble_variables:
             for member in ensemble_members:
                 ens_data = ModelOutput(ensemble_name, member, run_date, ens_var, start_date, end_date, ensemble_path, single_step)
                 ens_data.load_data()
+                print ens_var, ens_data.data.max()
                 for ens_thresh in ensemble_thresholds[ens_var]:
                     print("Evaluating {0} {1} {2} {3:d} {4}".format(ensemble_name, ens_var, member, ens_thresh, run_date.strftime("%Y%m%d")))
                     col_name = "{0}_{1}_{2}_{3:d}".format(ensemble_name, ens_var, member, ens_thresh)
-                    eval_data[col_name] = ens_data.period_neighborhood_probability(radius, sigma, threshold, stride, mo.x, mo.y, mo.dx).ravel()
+                    eval_data[col_name] = ens_data.period_neighborhood_probability(radius, sigma, ens_thresh, stride, mo.x, mo.y, mo.dx).ravel()
             for ens_thresh in ensemble_thresholds[ens_var]:
                 col_names = ["{0}_{1}_{2}_{3:d}".format(ensemble_name, ens_var, m, ens_thresh) for m in ensemble_members]
                 mean_col = "{0}_{1}_mean_{2:d}".format(ensemble_name, ens_var, ens_thresh)
                 eval_data[mean_col] = eval_data[col_names].mean(axis=1)
             eval_data.to_csv(out_path + "coarse_neighbor_eval_{0}_{1}.csv".format(ensemble_name, run_date.strftime("%Y%m%d")), index=False, na_rep="NaN")
         for ml_model in ml_models:
-            ml_data = HailForecastGrid(run_date, start_date, end_date, ensemble_name, ml_model.replace(" ", "-"), ensemble_members, ml_variable, 1, ml_grid_path)
+            ml_data = HailForecastGrid(run_date, start_date, end_date, ensemble_name, ml_model.replace(" ", "-"), ensemble_members, ml_variable, 2, ml_grid_path)
             ml_data.load_data()
             for ml_thresh in ml_thresholds:
                 print("Evaluating {0} {1} {2:d} {3}".format(ensemble_name, ml_model, ml_thresh, run_date.strftime("%Y%m%d")))

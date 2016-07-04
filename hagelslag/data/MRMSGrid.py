@@ -100,7 +100,7 @@ class MRMSGrid(object):
         neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
         neighbor_prob = np.zeros((neighbor_x.shape[0], neighbor_x.shape[1]))
         period_max = self.data.max(axis=0)
-        valid_i, valid_j = np.ma.where(period_max >= threshold)
+        valid_i, valid_j = np.where(period_max >= threshold)
         if len(valid_i) > 0:
             var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j], y[valid_i, valid_j])).T)
             exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)

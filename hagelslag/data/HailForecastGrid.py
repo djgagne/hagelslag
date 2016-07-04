@@ -116,5 +116,5 @@ class HailForecastGrid(object):
                 exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
                 neighbor_prob[m][exceed_i, exceed_j] = 1
                 if smoothing > 0:
-                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], int(smoothing / self.dx / stride))
+                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], smoothing)
         return neighbor_prob
