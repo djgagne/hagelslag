@@ -170,7 +170,8 @@ class ModelOutput(object):
             exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius)))
             exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
             neighbor_prob[exceed_i, exceed_j] = 1
-            neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / dx / 1000.0 / stride))
+            if smoothing > 0:
+                neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / dx / 1000.0 / stride))
         return neighbor_prob
 
 

@@ -116,5 +116,6 @@ class HailForecastGrid(object):
                 exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius)))
                 exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
                 neighbor_prob[m][exceed_i, exceed_j] = 1
-                neighbor_prob[m] = gaussian_filter(neighbor_prob[m], int(smoothing / self.dx / stride))
+                if smoothing > 0:
+                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], int(smoothing / self.dx / stride))
         return neighbor_prob
