@@ -25,7 +25,7 @@ class STObject(object):
     :type start_time: int
     :param end_time: The last time of the object existence.
     :type end_time: int
-    :param step: number of hours between timesteeps
+    :param step: number of hours between timesteps
     :param dx: grid spacing
     :param u: storm motion in x-direction
     :param v: storm motion in y-direction

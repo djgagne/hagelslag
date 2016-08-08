@@ -1,5 +1,4 @@
 import numpy as np
-from STObject import STObject
 from hagelslag.util.munkres import Munkres
 
 
