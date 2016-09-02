@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import timedelta
 from scipy.stats import gamma
 from netCDF4 import Dataset
+import pdb
 
 
 class TrackProcessor(object):
@@ -78,6 +79,7 @@ class TrackProcessor(object):
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, single_step=self.single_step)
         self.model_grid.load_data()
+	#pdb.set_trace()
         self.model_grid.load_map_info(model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
@@ -119,9 +121,13 @@ class TrackProcessor(object):
             num_slices = len(obj_slices)
             model_objects.append([])
             if num_slices > 0:
-                for sl in obj_slices:   
+                for s, sl in enumerate(obj_slices):   
                     model_objects[-1].append(STObject(self.model_grid.data[h][sl],
-                                                      np.where(hour_labels[sl] > 0, 1, 0),
+                                                      #np.where(hour_labels[sl] > 0, 1, 0),
+						# For some objects (especially long, diagonal ones), the rectangular
+						# slice encompasses part of other objects (i.e. non-zero elements of slice).
+						# We don't want them in our mask.
+                                                      np.where(hour_labels[sl] == s+1, 1, 0),
                                                       self.model_grid.x[sl], 
                                                       self.model_grid.y[sl], 
                                                       self.model_grid.i[sl], 

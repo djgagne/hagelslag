@@ -1,4 +1,5 @@
 from SSEFModelGrid import SSEFModelGrid
+from VSEModelGrid import VSEModelGrid
 from NCARModelGrid import NCARModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
@@ -113,6 +114,16 @@ class ModelOutput(object):
                                single_step=self.single_step)
             self.data, self.units = mg.load_data()
             mg.close()
+        elif self.ensemble_name.upper() == "VSE":
+            mg = VSEModelGrid(self.member_name,
+                               self.run_date,
+                               self.variable,
+                               self.start_date,
+                               self.end_date,
+                               self.path,
+                               single_step=self.single_step)
+            self.data, self.units = mg.load_data()
+            mg.close()
         else:
             print(self.ensemble_name + " not supported.")
 
@@ -131,7 +142,7 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
-        elif self.ensemble_name.upper() == "NCAR":
+        elif self.ensemble_name.upper() == "NCAR" or self.ensemble_name.upper() == "VSE":
             proj_dict, grid_dict = read_ncar_map_file(map_file)
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
@@ -139,5 +150,3 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
-
-
