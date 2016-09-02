@@ -4,6 +4,8 @@ from NCARModelGrid import NCARModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
 import numpy as np
+from scipy.spatial import cKDTree
+from scipy.ndimage import gaussian_filter
 
 
 class ModelOutput(object):
@@ -150,3 +152,36 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
+
+    def period_neighborhood_probability(self, radius, smoothing, threshold, stride, x=None, y=None, dx=None):
+        """
+        Calculate the neighborhood probability over the full period of the forecast
+
+        Args:
+            radius: circular radius from each point in km
+            smoothing: width of Gaussian smoother in km
+            threshold: intensity of exceedance
+            stride: number of grid points to skip for reduced neighborhood grid
+
+        Returns:
+            neighborhood probabilities
+        """
+        if x is None:
+            x = self.x
+            y = self.y
+            dx = self.dx
+        neighbor_x = x[::stride, ::stride] / 1000.0
+        neighbor_y = y[::stride, ::stride] / 1000.0
+        neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
+        neighbor_prob = np.zeros((neighbor_x.shape[0], neighbor_x.shape[1]))
+        period_max = self.data.max(axis=0)
+        valid_i, valid_j = np.ma.where(period_max >= threshold)
+        if len(valid_i) > 0:
+            var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j], y[valid_i, valid_j])).T)
+            exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
+            exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
+            neighbor_prob[exceed_i, exceed_j] = 1
+            if smoothing > 0:
+                neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / dx / 1000.0 / stride))
+        return neighbor_prob
+

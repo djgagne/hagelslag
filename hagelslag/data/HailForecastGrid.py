@@ -3,12 +3,36 @@ import pandas as pd
 from pyproj import Proj
 import pygrib
 from scipy.spatial import cKDTree
-from scipy.ndimage import maximum_filter, gaussian_filter
-from skimage.morphology import disk
+from scipy.ndimage import gaussian_filter
 from os.path import exists
 
 
 class HailForecastGrid(object):
+    """
+    HailForecastGrid loads and stores gridded machine learning hail forecasts from GRIB2 files. It can load
+    an arbitrary number of members and timesteps at once.
+
+    Attributes:
+        run_date (datetime.datetime): Date of the initial time of the model run
+        start_date (datetime.datetime): Date of the initial forecast time being loaded
+        end_date (datetime.datetime): Date of the final forecast time being loaded
+        forecast_dates (pandas.DatetimeIndex): All forecast times
+        ensemble_name (str): Name of the NWP ensemble being used
+        ml_model (str): Name of the machine learning model being loaded
+        variable (str): Name of the machine learning model variable being forecast
+        message_number (int): Field in the GRIB2 file to load. The first field in the file has message number 1.
+        path (str): Path to top-level GRIB2 directory. Assumes files are stored in directories by run_date
+        data (ndarray): Hail forecast data with dimensions (member, time, y, x)
+        lon (ndarray): 2D array of longitudes
+        lat (ndarray): 2D array of latitudes
+        x (ndarray): 2d array of x-coordinate values in km
+        y (ndarray): 2d array of y-coordinate values in km
+        i (ndarray): 2d array of row indices
+        j (ndarray): 2d array of column indices
+        dx (float): distance between grid points
+        proj (Proj): a pyproj projection object used for converting lat-lon points to x-y coordinate values
+        projparams (dict): PROJ4 parameters describing map projection
+    """
     def __init__(self, run_date, start_date, end_date, ensemble_name, ml_model, members,
                  variable, message_number, path):
         self.run_date = run_date
@@ -26,6 +50,8 @@ class HailForecastGrid(object):
         self.lat = None
         self.x = None
         self.y = None
+        self.i = None
+        self.j = None
         self.dx = None
         self.proj = None
         self.projparams = None
@@ -53,14 +79,13 @@ class HailForecastGrid(object):
                     self.x /= 1000.0
                     self.y /= 1000.0
                     self.dx = grbs[self.message_number]['DxInMetres'] / 1000.0
+                    self.i, self.j = np.indices(self.lon.shape)
                 data = grbs[self.message_number].values
                 data *= 1000.0
-                data.set_fill_value(0)
                 if self.data is None:
-                    self.data = np.ma.empty((len(self.members), len(self.forecast_dates),
-                                             data.shape[0], data.shape[1]), dtype=float)
-                    self.data.set_fill_value(0)
-                self.data[m, f] = data
+                    self.data = np.empty((len(self.members), len(self.forecast_dates),
+                                          data.shape[0], data.shape[1]), dtype=float)
+                self.data[m, f] = data.filled(0)
                 grbs.close()
         return
 
@@ -75,29 +100,21 @@ class HailForecastGrid(object):
             stride: number of grid points to skip for reduced neighborhood grid
 
         Returns:
-            (neighborhood probablities, longitudes, latitudes)
+            (neighborhood probabilities)
         """
-        neighbor_total = disk(int(radius / self.dx)).sum()
-        neighbor_lons = self.lon[::stride, ::stride]
-        neighbor_lats = self.lat[::stride, ::stride]
         neighbor_x = self.x[::stride, ::stride]
         neighbor_y = self.y[::stride, ::stride]
         neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
-        neighbor_prob = np.zeros(neighbor_lons.shape)
+        neighbor_prob = np.zeros((self.data.shape[0], neighbor_x.shape[0], neighbor_x.shape[1]))
         for m in range(len(self.members)):
-            period_max = self.data[m].max(axis=0, fill_value=0)
-            period_max[period_max.mask == True] = 0
-            period_max = maximum_filter(period_max, footprint=disk(int(radius / self.dx)), mode='constant')
-            valid_i, valid_j = np.ma.where(period_max >= threshold)
+            period_max = self.data[m].max(axis=0)
+            valid_i, valid_j = np.where(period_max >= threshold)
             print(m, len(valid_i))
             if len(valid_i) > 0:
                 var_kd_tree = cKDTree(np.vstack((self.x[valid_i, valid_j], self.y[valid_i, valid_j])).T)
-                nearest_counts = np.array([len(c) for c in
-                                          neighbor_kd_tree.query_ball_tree(var_kd_tree, radius, p=2, eps=0)])
-                neighbor_prob += nearest_counts.reshape(neighbor_prob.shape)
-        print("Max counts", neighbor_prob.max())
-        neighbor_prob /= float(neighbor_total * len(self.members))
-        print("Max counts divided", neighbor_prob.max(), neighbor_total, len(self.members))
-        neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / self.dx / stride))
-        print("Max counts smoothed", neighbor_prob.max(), smoothing, self.dx, stride, int(smoothing/self.dx/stride))
-        return neighbor_prob, neighbor_lons, neighbor_lats
+                exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
+                exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
+                neighbor_prob[m][exceed_i, exceed_j] = 1
+                if smoothing > 0:
+                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], int(smoothing / self.dx / stride))
+        return neighbor_prob

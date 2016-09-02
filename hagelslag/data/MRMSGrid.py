@@ -2,6 +2,8 @@ from netCDF4 import Dataset, num2date
 import pandas as pd
 import numpy as np
 import os
+from scipy.spatial import cKDTree
+from scipy.ndimage import gaussian_filter
 
 
 class MRMSGrid(object):
@@ -75,4 +77,35 @@ class MRMSGrid(object):
         self.data = np.array(data)
         self.data[self.data < 0] = 0
         self.data[self.data > 150] = 150
-        self.valid_dates = pd.DatetimeIndex(valid_dates) 
+        self.valid_dates = pd.DatetimeIndex(valid_dates)
+
+    def period_neighborhood_probability(self, radius, smoothing, threshold, stride, x, y, dx):
+        """
+        Calculate the neighborhood probability over the full period of the forecast
+
+        Args:
+            radius: circular radius from each point in km
+            smoothing: width of Gaussian smoother in km
+            threshold: intensity of exceedance
+            stride: number of grid points to skip for reduced neighborhood grid
+            x: x-coordinate array in km
+            y: y-coordinate array in km
+            dx: distance between grid points in km
+
+        Returns:
+            neighborhood probablities
+        """
+        neighbor_x = x[::stride, ::stride]
+        neighbor_y = y[::stride, ::stride]
+        neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
+        neighbor_prob = np.zeros((neighbor_x.shape[0], neighbor_x.shape[1]))
+        period_max = self.data.max(axis=0)
+        valid_i, valid_j = np.ma.where(period_max >= threshold)
+        if len(valid_i) > 0:
+            var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j], y[valid_i, valid_j])).T)
+            exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
+            exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
+            neighbor_prob[exceed_i, exceed_j] = 1
+            if smoothing > 0:
+                neighbor_prob = gaussian_filter(neighbor_prob, int(smoothing / dx / stride))
+        return neighbor_prob
