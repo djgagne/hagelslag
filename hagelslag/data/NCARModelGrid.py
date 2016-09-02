@@ -1,5 +1,6 @@
 from ModelGrid import ModelGrid
 import numpy as np
+import os
 from pandas import DatetimeIndex
 from datetime import timedelta
 
@@ -40,12 +41,23 @@ class NCARModelGrid(ModelGrid):
                                                                                                     "mem", "mem_"),
                                                                                                 int(hour)))
                 else:
-                    filenames.append("{0}{1}/wrf_rundir/{2}/wrfout_d02_{3}:00:00".format(self.path,
+		    potential_filename = "{0}{1}/wrf_rundir/{2}/wrfout_d02_{3}".format(self.path,
                                                                                          run_date.strftime("%Y%m%d%H"),
                                                                                          self.member.replace("mem",
                                                                                                              "ens_"),
                                                                                          valid_time.strftime(
-                                                                                             "%Y-%m-%d_%H")))
+                                                                                             "%Y-%m-%d_%H:%M:%S"))
+                    if os.access(potential_filename, os.R_OK): filenames.append(potential_filename)
+	            potential_filename = "{0}{2}/{1}/wrf/join/wrfout_d01_{3}".format(self.path,
+                                                                                         run_date.strftime("%Y%m%d%H"),
+                                                                                         self.member.replace("mem",
+                                                                                                             "ens_"),
+                                                                                         valid_time.strftime(
+                                                                                             "%Y-%m-%d_%H:%M:%S"))
+                    if os.access(potential_filename, os.R_OK): filenames.append(potential_filename)
+
+	    print "filenames: ",filenames
+
             if variable == "SRH3":
                 load_var = "SR_HELICITY_3KM"
             elif variable == "CAPE_SFC":

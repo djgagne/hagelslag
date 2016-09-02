@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import argparse
+import argparse, pdb
 from multiprocessing import Pool
 from hagelslag.util.Config import Config
 from hagelslag.processing.TrackProcessing import TrackProcessor
