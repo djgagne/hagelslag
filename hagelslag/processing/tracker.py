@@ -38,7 +38,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
             label_grid = labeler.size_filter(label_grid, min_area)
     else:
         label_grid = np.zeros(data.shape, dtype=int)
-        for t in range(len(data.shape[0])):
+        for t in range(data.shape[0]):
             label_grid[t] = labeler.label(data[t])
             if min_area > 1:
                 label_grid[t] = labeler.size_filter(label_grid[t], min_area)
@@ -86,7 +86,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, o
                                                       time,
                                                       time,
                                                       dx=dx,
-                                                      step=timestep))
+                                                      step=dt))
                     if t > 0:
                         dims = storm_objects[-1][-1].timesteps[0].shape
                         storm_objects[-1][-1].estimate_motion(time, data[t - 1], dims[1], dims[0])
@@ -111,7 +111,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, o
                                                   times,
                                                   times,
                                                   dx=dx,
-                                                  step=timestep))
+                                                  step=dt))
     return storm_objects
 
 
@@ -141,7 +141,7 @@ def track_storms(storm_objects, times, distance_components, distance_maxima, dis
         if len(past_time_objects) == 0:
             tracked_objects.extend(storm_objects[t])
         elif len(past_time_objects) > 0 and len(storm_objects[t]) > 0:
-            assignments = obj_matcher.match_objects(past_time_objects, storm_objects[t], time, times[t-1])
+            assignments = obj_matcher.match_objects(past_time_objects, storm_objects[t], times[t-1], times[t])
             unpaired = list(range(len(storm_objects[t])))
             for pair in assignments:
                 past_time_objects[pair[0]].extend(storm_objects[t][pair[1]])
