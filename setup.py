@@ -23,7 +23,8 @@ else:
                 "basemap",
                 "scikit-image",
                 "pyproj",
-                "pygrib"]
+                "pygrib",
+                "arrow>=0.8.0"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
