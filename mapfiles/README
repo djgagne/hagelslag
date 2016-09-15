@@ -1,0 +1,6 @@
+To make VSE_mask.nc
+run python ../hagelslag/util/create_model_grid_us_mask.py -m VSE.txt -s states/states.shp -o t.nc
+and  python ../hagelslag/util/create_model_grid_us_mask.py -m VSE.txt -s mexstates/mexstates.shp -o u.nc
+and merge them together
+ncea -y max t.nc u.nc VSE_mask.nc
+
