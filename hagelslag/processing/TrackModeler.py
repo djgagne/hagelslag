@@ -614,12 +614,12 @@ class TrackModeler(object):
         pool = Pool(num_procs)
         total_tracks = self.data["forecast"]["total_group"]
         for r in total_tracks.index:
-            track_id = total_tracks.loc[r, "Track_ID"].copy()
+            track_id = "{0}".format(total_tracks.loc[r, "Track_ID"])
             print(track_id)
             track_num = track_id.split("_")[-1]
-            ensemble_name = total_tracks.loc[r, "Ensemble_Name"].copy()
-            member = total_tracks.loc[r, "Ensemble_Member"].copy()
-            group = total_tracks.loc[r, self.group_col].copy()
+            ensemble_name = "{0}".format(total_tracks.loc[r, "Ensemble_Name"])
+            member = "{0}".format(total_tracks.loc[r, "Ensemble_Member"])
+            group = total_tracks.loc[r, self.group_col]
             run_date = track_id.split("_")[-4][:8]
             step_forecasts = {}
             for ml_model in condition_model_names:
