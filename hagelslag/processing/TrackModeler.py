@@ -625,17 +625,17 @@ class TrackModeler(object):
             for ml_model in condition_model_names:
                 step_forecasts["condition_" + ml_model.replace(" ", "-")] = forecasts["condition"][group].loc[
                     forecasts["condition"][group]["Track_ID"] == track_id, ml_model].copy()
-            for ml_model in size_model_names:
-                step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
-                    forecasts["size"][group][ml_model]["Track_ID"] == track_id].copy()
+            #for ml_model in size_model_names:
+            #    step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
+            #        forecasts["size"][group][ml_model]["Track_ID"] == track_id].copy()
             for ml_model in dist_model_names:
                 step_forecasts["dist_" + ml_model.replace(" ", "-")] = forecasts["dist"][group][ml_model].loc[
                     forecasts["dist"][group][ml_model]["Track_ID"] == track_id].copy()
-            for model_type in forecasts["track"].keys():
-                for ml_model in track_model_names:
-                    mframe = forecasts["track"][model_type][group][ml_model]
-                    step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
-                        mframe["Track_ID"] == track_id].copy()
+            #for model_type in forecasts["track"].keys():
+            #    for ml_model in track_model_names:
+            #        mframe = forecasts["track"][model_type][group][ml_model]
+            #        step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
+            #            mframe["Track_ID"] == track_id].copy()
             pool.apply_async(output_forecast, (step_forecasts, run_date, ensemble_name, member, track_num,
                                                json_data_path,
                                                out_path))
