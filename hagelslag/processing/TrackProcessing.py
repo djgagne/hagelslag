@@ -119,9 +119,9 @@ class TrackProcessor(object):
             num_slices = len(obj_slices)
             model_objects.append([])
             if num_slices > 0:
-                for sl in obj_slices:   
+                for s, sl in enumerate(obj_slices):
                     model_objects[-1].append(STObject(self.model_grid.data[h][sl],
-                                                      np.where(hour_labels[sl] > 0, 1, 0),
+                                                      np.where(hour_labels[sl] == s + 1, 1, 0),
                                                       self.model_grid.x[sl], 
                                                       self.model_grid.y[sl], 
                                                       self.model_grid.i[sl], 
