@@ -121,18 +121,18 @@ def train_models(track_modeler, config):
                                        config.condition_input_columns,
                                        config.condition_output_column,
                                        config.output_threshold)
-    track_modeler.fit_size_models(config.size_model_names,
-                                  config.size_model_objs,
-                                  config.size_input_columns,
-                                  config.size_output_column,
-                                  output_start=config.size_range_params[0],
-                                  output_stop=config.size_range_params[1],
-                                  output_step=config.size_range_params[2])
-    track_modeler.fit_track_models(config.track_model_names,
-                                   config.track_model_objs,
-                                   config.track_input_columns,
-                                   config.track_output_columns,
-                                   config.track_output_ranges)
+    #track_modeler.fit_size_models(config.size_model_names,
+    #                              config.size_model_objs,
+    #                              config.size_input_columns,
+    #                              config.size_output_column,
+    #                              output_start=config.size_range_params[0],
+    #                              output_stop=config.size_range_params[1],
+    #                              output_step=config.size_range_params[2])
+    #track_modeler.fit_track_models(config.track_model_names,
+    #                               config.track_model_objs,
+    #                               config.track_input_columns,
+    #                               config.track_output_columns,
+    #                               config.track_output_ranges)
     track_modeler.save_models(config.model_path)
     return
 
@@ -169,15 +169,15 @@ def make_forecasts(track_modeler, config):
                                                                        config.size_distribution_input_columns,
                                                                        config.metadata_columns,
                                                                        calibrate=calibrate)
-    print("Size forecasts")
-    forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
-                                                          config.size_input_columns,
-                                                          config.metadata_columns)
-    print("Track forecasts")
-    forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
-                                                            config.track_input_columns,
-                                                            config.metadata_columns,
-                                                            )
+    #print("Size forecasts")
+    #forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
+    #                                                      config.size_input_columns,
+    #                                                      config.metadata_columns)
+    #print("Track forecasts")
+    #forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
+    #                                                        config.track_input_columns,
+    #                                                        config.metadata_columns,
+    #                                                        )
 
     return forecasts
 
