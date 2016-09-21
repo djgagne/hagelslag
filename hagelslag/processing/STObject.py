@@ -4,6 +4,7 @@ from skimage.segmentation import find_boundaries
 from skimage.morphology import convex_hull_image
 import json
 import os
+import pdb
 
 class STObject(object):
     """
@@ -31,7 +32,7 @@ class STObject(object):
     :param v: storm motion in y-direction
     """
 
-    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
+    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None, id=None):
         if hasattr(grid, "shape") and len(grid.shape) == 2:
             self.timesteps = [grid]
             self.masks = [mask]
@@ -66,6 +67,7 @@ class STObject(object):
         else:
             self.u = np.zeros(len(self.timesteps))
             self.v = np.zeros(len(self.timesteps))
+        self.id = id
         self.dx = dx
         self.start_time = start_time
         self.end_time = end_time
@@ -206,6 +208,7 @@ class STObject(object):
         Get coordinates of object boundary in counter-clockwise order
         """
         ti = np.where(time == self.times)[0]
+	ti = ti[0] # avoid warning . Ahijevych
         com_x, com_y = self.center_of_mass(time)
         boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
@@ -227,7 +230,8 @@ class STObject(object):
         :param max_v: Maximum y-component of motion. Used to limit search area
         :return: u, v, and the minimum error.
         """
-        ti = np.where(time == self.times)[0]
+	#pdb.set_trace()
+        ti = np.where(time == self.times)[0][0]
         i_vals = self.i[ti][self.masks[ti] == 1]
         j_vals = self.j[ti][self.masks[ti] == 1]
         obj_vals = self.timesteps[ti][self.masks[ti] == 1]
@@ -250,9 +254,10 @@ class STObject(object):
                     min_error = error
                     best_u = u * self.dx
                     best_v = v * self.dx
-        if min_error > 60:
-            best_u = 0
-            best_v = 0
+	# 60 seems arbitrarily high
+        #if min_error > 60:
+        #    best_u = 0
+        #    best_v = 0
         self.u[ti] = best_u
         self.v[ti] = best_v
         return best_u, best_v, min_error
@@ -446,7 +451,7 @@ class STObject(object):
         file_obj.close()
         return
 
-
+import pdb
 def read_geojson(filename):
     """
     Reads a geojson file containing an STObject and initializes a new STObject from the information in the file.
@@ -469,7 +474,7 @@ def read_geojson(filename):
             else:
                 attribute_data[k].append(np.array(v))
     kwargs = {}
-    for kw in ["dx", "step", "u", "v"]:
+    for kw in ["dx", "step", "u", "v","id"]:
         if kw in data["properties"].keys():
             kwargs[kw] = data["properties"][kw]
     sto = STObject(main_data["timesteps"], main_data["masks"], main_data["x"], main_data["y"],
