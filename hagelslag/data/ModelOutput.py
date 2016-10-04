@@ -6,7 +6,7 @@ from hagelslag.util.derived_vars import relative_humidity_pressure_level, meltin
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
-
+import pdb
 
 class ModelOutput(object):
     """
@@ -145,7 +145,15 @@ class ModelOutput(object):
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
         elif self.ensemble_name.upper() == "NCAR" or self.ensemble_name.upper() == "VSE":
-            proj_dict, grid_dict = read_ncar_map_file(map_file)
+	    proj_dict, grid_dict = read_ncar_map_file(map_file)
+	    if self.member_name[0:3] == "1km":
+		grid_dict["dx"] = 1000
+		grid_dict["dy"] = 1000
+		grid_dict["sw_lon"] = 258.697
+		grid_dict["sw_lat"] = 23.999
+		grid_dict["ne_lon"] = 282.868269206236
+		grid_dict["ne_lat"] = 36.4822338520542 
+
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
             for m, v in mapping_data.iteritems():
