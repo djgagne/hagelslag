@@ -32,7 +32,7 @@ class EnhancedWatershed(object):
         self.min_thresh = min_thresh
         self.data_increment = data_increment
         self.max_thresh = max_thresh
-        self.min_size = size_threshold_pixels
+        self.max_size = size_threshold_pixels
         self.delta = delta
         self.max_bin = int((self.max_thresh - self.min_thresh) / self.data_increment)
         self.UNMARKED = -1
@@ -91,7 +91,7 @@ class EnhancedWatershed(object):
         for p in pixels.iterkeys():
             centers[p] = []
         marked = np.ones(q_data.shape, dtype=int) * self.UNMARKED
-        MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.min_size)))
+        MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.max_size)))
         MAX_INFL = 2 * MIN_INFL
         marked_so_far = []
         for b in sorted(pixels.keys(),reverse=True):
@@ -182,7 +182,7 @@ class EnhancedWatershed(object):
                         as_glob.append(pixel)
         if bin_lower == 0:
             will_be_considered_again = False
-        big_enough = len(marked_so_far) >= self.min_size
+        big_enough = len(marked_so_far) >= self.max_size
         if big_enough:
             foothills.append((center, as_glob))
         elif will_be_considered_again:
