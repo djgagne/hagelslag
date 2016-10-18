@@ -146,7 +146,7 @@ class ModelOutput(object):
             self.proj = get_proj_obj(proj_dict)
         elif self.ensemble_name.upper() == "NCAR" or self.ensemble_name.upper() == "VSE":
 	    proj_dict, grid_dict = read_ncar_map_file(map_file)
-	    if self.member_name[0:3] == "1km":
+	    if self.member_name[0:7] == "1km_pbl": # Don't just look at the first 3 characters. You have to differentiate '1km_pbl1' and '1km_on_3km_pbl1'
 		grid_dict["dx"] = 1000
 		grid_dict["dy"] = 1000
 		grid_dict["sw_lon"] = 258.697
