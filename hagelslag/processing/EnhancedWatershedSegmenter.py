@@ -34,7 +34,7 @@ class EnhancedWatershed(object):
         self.max_thresh = max_thresh
         self.min_size = size_threshold_pixels
         self.delta = delta
-        self.max_bin = (self.max_thresh - self.min_thresh) / self.data_increment
+        self.max_bin = int((self.max_thresh - self.min_thresh) / self.data_increment)
         self.UNMARKED = -1
         self.GLOBBED = -3
         self.TOOSMALL = -4
