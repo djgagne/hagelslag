@@ -48,6 +48,7 @@ class WRFModelGrid(object):
             patch_zero.close()
         else:
             wrf_data = Dataset(self.path + self.wrf_filename)
+            var_list = wrf_data.variables.keys()
             if time_var in var_list:
                 for attr in wrf_data.variables[time_var].ncattrs():
                     var_attrs[attr] = getattr(wrf_data.variables[time_var], attr)
@@ -57,11 +58,11 @@ class WRFModelGrid(object):
 
     def load_full_grid(self):
         var_data = None
+        var_attrs = dict()
         if self.patch_files:
             patch_file_list = sorted(glob(self.path + "{0}/{0}_".format(self.wrf_filename) + "[0-9]" * 5))
             patch_zero = Dataset(patch_file_list[0])
             var_list = patch_zero.variables.keys()
-            var_attrs = dict()
             if self.variable in var_list:
                 dimension_names = patch_zero.variables[self.variable].dimensions
                 is_stag = np.array(["stag" in x for x in patch_zero.variables[self.variable].dimensions])
