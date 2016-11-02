@@ -1,6 +1,6 @@
 from __future__ import division
-from SSEFModelGrid import SSEFModelGrid
-from NCARModelGrid import NCARModelGrid
+from .SSEFModelGrid import SSEFModelGrid
+from .NCARModelGrid import NCARModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
 import numpy as np
