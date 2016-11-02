@@ -332,8 +332,8 @@ class TrackProcessor(object):
                 model_track.observations = np.ones(model_track.times.shape) * obs_hail_sizes[0]
             elif model_track.times.size == 1:
                 model_track.observations = np.array([obs_hail_sizes.max()])
-            print pair[0], "obs",  obs_hail_sizes
-            print pair[0], "model", model_track.observations
+            print(pair[0], "obs",  obs_hail_sizes)
+            print(pair[0], "model", model_track.observations)
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
 

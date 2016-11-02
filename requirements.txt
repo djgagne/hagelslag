@@ -8,3 +8,4 @@ netCDF4
 basemap
 scikit-image
 pygrib
+arrow>=0.8

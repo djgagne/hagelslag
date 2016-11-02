@@ -1,3 +1,4 @@
+from __future__ import division
 from SSEFModelGrid import SSEFModelGrid
 from NCARModelGrid import NCARModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
@@ -37,8 +38,8 @@ class ModelOutput(object):
         self.variable = variable
         self.start_date = start_date
         self.end_date = end_date
-        self.start_hour = int((self.start_date - self.run_date).total_seconds()) / 3600
-        self.end_hour = int((self.end_date - self.run_date).total_seconds()) / 3600
+        self.start_hour = int((self.start_date - self.run_date).total_seconds()) // 3600
+        self.end_hour = int((self.end_date - self.run_date).total_seconds()) // 3600
         self.data = None
         self.valid_dates = None
         self.path = path
@@ -129,7 +130,7 @@ class ModelOutput(object):
             proj_dict, grid_dict = read_arps_map_file(map_file)
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
-            for m, v in mapping_data.iteritems():
+            for m, v in mapping_data.items():
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
@@ -137,7 +138,7 @@ class ModelOutput(object):
             proj_dict, grid_dict = read_ncar_map_file(map_file)
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
-            for m, v in mapping_data.iteritems():
+            for m, v in mapping_data.items():
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
@@ -165,11 +166,11 @@ class ModelOutput(object):
         neighbor_prob = np.zeros((neighbor_x.shape[0], neighbor_x.shape[1]))
         period_max = self.data.max(axis=0)
         valid_i, valid_j = np.where(period_max >= threshold)
-        print self.variable, len(valid_i)
+        print(self.variable, len(valid_i))
         if len(valid_i) > 0:
             var_kd_tree = cKDTree(np.vstack((x[valid_i, valid_j] / 1000.0, y[valid_i, valid_j] / 1000.0)).T)
             exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
-            print "Exceed points", len(exceed_points)
+            print("Exceed points", len(exceed_points))
             exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
             neighbor_prob[exceed_i, exceed_j] = 1
             if smoothing > 0:

@@ -8,9 +8,10 @@ def main():
                       [47, 2364, 170],
                       [54, 205, 3288]])
     mct = MulticlassContingencyTable(table, n_classes=table.shape[0],
-                                     class_names = np.arange(table.shape[0]).astype(str))
-    print mct.peirce_skill_score()
-    print mct.gerrity_score()
+                                     class_names=np.arange(table.shape[0]).astype(str))
+    print(mct.peirce_skill_score())
+    print(mct.gerrity_score())
+
 
 class MulticlassContingencyTable(object):
     """

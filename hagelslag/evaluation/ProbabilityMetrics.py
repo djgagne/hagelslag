@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from ContingencyTable import ContingencyTable
+from .ContingencyTable import ContingencyTable
 
 __author__ = "David John Gagne <djgagne@ou.edu>"
 
