@@ -78,13 +78,10 @@ class TrackProcessor(object):
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, single_step=self.single_step)
-        self.model_grid.load_data()
-        #pdb.set_trace()
         self.model_grid.load_map_info(model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
-            self.mrms_grid.load_data()
             self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
         else:
             self.mrms_grid = None
@@ -200,6 +197,7 @@ class TrackProcessor(object):
         obs_objects = []
         tracked_obs_objects = []
         if self.mrms_ew is not None:
+            self.mrms_grid.load_data()
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
