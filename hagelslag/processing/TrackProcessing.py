@@ -101,6 +101,7 @@ class TrackProcessor(object):
         Returns:
             List of STObjects containing model track information.
         """
+        self.model_grid.load_data()
         model_objects = []
         tracked_model_objects = []
         for h, hour in enumerate(self.hours):
