@@ -472,7 +472,7 @@ def read_geojson(filename):
             else:
                 attribute_data[k].append(np.array(v))
     kwargs = {}
-    for kw in ["dx", "step", "u", "v","id"]:
+    for kw in ["dx", "step", "u", "v"]:
         if kw in data["properties"].keys():
             kwargs[kw] = data["properties"][kw]
     sto = STObject(main_data["timesteps"], main_data["masks"], main_data["x"], main_data["y"],
