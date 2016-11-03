@@ -4,7 +4,6 @@ from skimage.segmentation import find_boundaries
 from skimage.morphology import convex_hull_image
 import json
 import os
-import pdb
 
 class STObject(object):
     """
@@ -32,7 +31,7 @@ class STObject(object):
     :param v: storm motion in y-direction
     """
 
-    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None, id=None):
+    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
         if hasattr(grid, "shape") and len(grid.shape) == 2:
             self.timesteps = [grid]
             self.masks = [mask]
@@ -67,7 +66,6 @@ class STObject(object):
         else:
             self.u = np.zeros(len(self.timesteps))
             self.v = np.zeros(len(self.timesteps))
-        self.id = id
         self.dx = dx
         self.start_time = start_time
         self.end_time = end_time
@@ -208,7 +206,7 @@ class STObject(object):
         Get coordinates of object boundary in counter-clockwise order
         """
         ti = np.where(time == self.times)[0]
-	ti = ti[0] # avoid warning . Ahijevych
+        #ti = ti[0] # avoid warning . Ahijevych
         com_x, com_y = self.center_of_mass(time)
         boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
@@ -230,8 +228,7 @@ class STObject(object):
         :param max_v: Maximum y-component of motion. Used to limit search area
         :return: u, v, and the minimum error.
         """
-	#pdb.set_trace()
-        ti = np.where(time == self.times)[0][0]
+        ti = np.where(time == self.times)[0]
         i_vals = self.i[ti][self.masks[ti] == 1]
         j_vals = self.j[ti][self.masks[ti] == 1]
         obj_vals = self.timesteps[ti][self.masks[ti] == 1]
@@ -249,12 +246,13 @@ class STObject(object):
                     shift_vals = intensity_grid[i_shift, j_shift]
                 else:
                     shift_vals = np.zeros(i_shift.shape)
+                # This isn't correlation; it is mean absolute error.
                 error = np.abs(shift_vals - obj_vals).mean()
                 if error < min_error:
                     min_error = error
                     best_u = u * self.dx
                     best_v = v * self.dx
-	# 60 seems arbitrarily high
+        # 60 seems arbitrarily high
         #if min_error > 60:
         #    best_u = 0
         #    best_v = 0
