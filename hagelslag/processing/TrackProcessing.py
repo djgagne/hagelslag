@@ -1,9 +1,9 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
-from EnhancedWatershedSegmenter import EnhancedWatershed
-from ObjectMatcher import ObjectMatcher, TrackMatcher
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
+from .ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
-from STObject import STObject, read_geojson
+from .STObject import STObject, read_geojson
 import numpy as np
 from scipy.interpolate import interp1d
 from glob import glob

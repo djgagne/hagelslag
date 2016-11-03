@@ -4,6 +4,14 @@ hagelslag.data package
 Submodules
 ----------
 
+hagelslag.data.HailForecastGrid module
+--------------------------------------
+
+.. automodule:: hagelslag.data.HailForecastGrid
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 hagelslag.data.MRMSGrid module
 ------------------------------
 
@@ -40,6 +48,14 @@ hagelslag.data.SSEFModelGrid module
 -----------------------------------
 
 .. automodule:: hagelslag.data.SSEFModelGrid
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hagelslag.data.WRFModelGrid module
+----------------------------------
+
+.. automodule:: hagelslag.data.WRFModelGrid
     :members:
     :undoc-members:
     :show-inheritance:
