@@ -15,7 +15,8 @@ creating a file handler that extends the ModelGrid class and then adding it to M
 
 Object Finding
 --------------
-.. codeblock:: python
+.. code-block:: python
+    
     from hagelslag.processing import EnhancedWatershed
     ew = EnhancedWatershed(min, step, max, area_threshold, delta)
 
