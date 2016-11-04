@@ -449,7 +449,6 @@ class STObject(object):
         file_obj.close()
         return
 
-import pdb
 def read_geojson(filename):
     """
     Reads a geojson file containing an STObject and initializes a new STObject from the information in the file.
