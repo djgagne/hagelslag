@@ -103,6 +103,9 @@ class TrackProcessor(object):
         self.model_grid.load_data()
         model_objects = []
         tracked_model_objects = []
+        if self.model_grid.data is None:
+            print("No model output found")
+            return tracked_model_objects
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
