@@ -19,7 +19,7 @@ class STObject(object):
     :type y: Numpy float array.
     :param i: Array of row indices from the full model domain.
     :type i: Numpy int array
-    :param j: Array of row indices from the full model domain.
+    :param j: Array of column indices from the full model domain.
     :type j: Numpy int array
     :param start_time: The first time of the object existence.
     :type start_time: int
