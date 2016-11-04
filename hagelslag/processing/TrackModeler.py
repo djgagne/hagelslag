@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import cPickle
+import pickle
 import json
 import os
 from copy import deepcopy
@@ -112,7 +112,7 @@ class TrackModeler(object):
         copulas = {}
         label_columns = list(label_columns)
         for group in groups:
-            print group
+            print(group)
             group_data = self.data["train"]["total_group"].loc[
                 self.data["train"]["total_group"][self.group_col] == group]
             group_data = group_data.dropna()
@@ -122,7 +122,7 @@ class TrackModeler(object):
             copulas[group]["cov"] = np.cov(group_data[label_columns].values.T)
             copulas[group]["model_names"] = list(model_names)
             del group_data
-        cPickle.dump(copulas, open(output_file, "w"), cPickle.HIGHEST_PROTOCOL)
+        pickle.dump(copulas, open(output_file, "w"), pickle.HIGHEST_PROTOCOL)
 
     def fit_condition_models(self, model_names,
                              model_objs,
@@ -212,7 +212,7 @@ class TrackModeler(object):
             self.size_distribution_models[group]['lognorm']['mean'] = log_means
             self.size_distribution_models[group]['lognorm']['sd'] = log_sds
             for m, model_name in enumerate(model_names):
-                print group, model_name
+                print(group, model_name)
                 self.size_distribution_models[group]["multi"][model_name] = deepcopy(model_objs[m])
                 self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                               (log_labels - log_means) / log_sds)
@@ -370,7 +370,7 @@ class TrackModeler(object):
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data["Duration_Step"] == 1]
-            for model_type, model_dict in self.track_models.iteritems():
+            for model_type, model_dict in self.track_models.items():
                 model_dict[group] = {}
                 output_data = group_data[output_columns[model_type]].values.astype(int)
                 output_data[output_data < output_ranges[model_type][0]] = output_ranges[model_type][0]
@@ -403,7 +403,7 @@ class TrackModeler(object):
         Returns:
         """
         predictions = {}
-        for model_type, track_model_set in self.track_models.iteritems():
+        for model_type, track_model_set in self.track_models.items():
             predictions[model_type] = {}
             groups = track_model_set.keys()
             for group in groups:
@@ -430,46 +430,46 @@ class TrackModeler(object):
         Save machine learning models to pickle files.
 
         """
-        for group, condition_model_set in self.condition_models.iteritems():
-            for model_name, model_obj in condition_model_set.iteritems():
+        for group, condition_model_set in self.condition_models.items():
+            for model_name, model_obj in condition_model_set.items():
                 out_filename = model_path + \
                                "{0}_{1}_condition.pkl".format(group,
                                                               model_name.replace(" ", "-"))
                 with open(out_filename, "w") as pickle_file:
-                    cPickle.dump(model_obj,
+                    pickle.dump(model_obj,
                                  pickle_file,
-                                 cPickle.HIGHEST_PROTOCOL)
-        for group, size_model_set in self.size_models.iteritems():
-            for model_name, model_obj in size_model_set.iteritems():
+                                 pickle.HIGHEST_PROTOCOL)
+        for group, size_model_set in self.size_models.items():
+            for model_name, model_obj in size_model_set.items():
                 out_filename = model_path + \
                                "{0}_{1}_size.pkl".format(group,
                                                          model_name.replace(" ", "-"))
                 with open(out_filename, "w") as pickle_file:
-                    cPickle.dump(model_obj,
+                    pickle.dump(model_obj,
                                  pickle_file,
-                                 cPickle.HIGHEST_PROTOCOL)
-        for group, dist_model_set in self.size_distribution_models.iteritems():
-            for model_type, model_objs in dist_model_set.iteritems():
-                for model_name, model_obj in model_objs.iteritems():
+                                 pickle.HIGHEST_PROTOCOL)
+        for group, dist_model_set in self.size_distribution_models.items():
+            for model_type, model_objs in dist_model_set.items():
+                for model_name, model_obj in model_objs.items():
                     out_filename = model_path + \
                         "{0}_{1}_{2}_sizedist.pkl".format(group,
                                                           model_name.replace(" ", "-"),
                                                           model_type)
                     with open(out_filename, "w") as pickle_file:
-                        cPickle.dump(model_obj,
+                        pickle.dump(model_obj,
                                      pickle_file,
-                                     cPickle.HIGHEST_PROTOCOL)
-        for model_type, track_type_models in self.track_models.iteritems():
-            for group, track_model_set in track_type_models.iteritems():
-                for model_name, model_obj in track_model_set.iteritems():
+                                     pickle.HIGHEST_PROTOCOL)
+        for model_type, track_type_models in self.track_models.items():
+            for group, track_model_set in track_type_models.items():
+                for model_name, model_obj in track_model_set.items():
                     out_filename = model_path + \
                                    "{0}_{1}_{2}_track.pkl".format(group,
                                                                   model_name.replace(" ", "-"),
                                                                   model_type)
                     with open(out_filename, "w") as pickle_file:
-                        cPickle.dump(model_obj,
+                        pickle.dump(model_obj,
                                      pickle_file,
-                                     cPickle.HIGHEST_PROTOCOL)
+                                     pickle.HIGHEST_PROTOCOL)
 
         return
 
@@ -486,7 +486,7 @@ class TrackModeler(object):
                     self.condition_models[model_comps[0]] = {}
                 model_name = model_comps[1].replace("-", " ")
                 with open(condition_model_file) as cmf:
-                    self.condition_models[model_comps[0]][model_name] = cPickle.load(cmf)
+                    self.condition_models[model_comps[0]][model_name] = pickle.load(cmf)
 
         size_model_files = sorted(glob(model_path + "*_size.pkl"))
         if len(size_model_files) > 0:
@@ -496,7 +496,7 @@ class TrackModeler(object):
                     self.size_models[model_comps[0]] = {}
                 model_name = model_comps[1].replace("-", " ")
                 with open(size_model_file) as smf:
-                    self.size_models[model_comps[0]][model_name] = cPickle.load(smf)
+                    self.size_models[model_comps[0]][model_name] = pickle.load(smf)
 
         size_dist_model_files = sorted(glob(model_path + "*_sizedist.pkl"))
         if len(size_dist_model_files) > 0:
@@ -508,7 +508,7 @@ class TrackModeler(object):
                     self.size_distribution_models[model_comps[0]][model_comps[2]] = {}
                 model_name = model_comps[1].replace("-", " ")
                 with open(dist_model_file) as dmf:
-                    self.size_distribution_models[model_comps[0]][model_comps[2]][model_name] = cPickle.load(dmf)
+                    self.size_distribution_models[model_comps[0]][model_comps[2]][model_name] = pickle.load(dmf)
 
         track_model_files = sorted(glob(model_path + "*_track.pkl"))
         if len(track_model_files) > 0:
@@ -522,7 +522,7 @@ class TrackModeler(object):
                 if group not in self.track_models[model_type].keys():
                     self.track_models[model_type][group] = {}
                 with open(track_model_file) as tmf:
-                    self.track_models[model_type][group][model_name] = cPickle.load(tmf)
+                    self.track_models[model_type][group][model_name] = pickle.load(tmf)
 
     def output_forecasts_json(self, forecasts,
                               condition_model_names,
@@ -576,11 +576,11 @@ class TrackModeler(object):
                 try:
                     track_obj = json.load(json_file_obj)
                 except:
-                    print full_json_path + " not found"
+                    print(full_json_path + " not found")
                     continue
             for f, feature in enumerate(track_obj['features']):
                 del feature['properties']['attributes']
-                for model_name, fdata in step_forecasts.iteritems():
+                for model_name, fdata in step_forecasts.items():
                     ml_model_name = model_name.split("_")[1]
                     if "condition" in model_name:
                         feature['properties'][model_name] = fdata.values[f]
@@ -597,7 +597,7 @@ class TrackModeler(object):
                     try:
                         os.mkdir(out_path + "/".join(full_path))
                     except OSError:
-                        print "directory already created"
+                        print("directory already created")
             out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
             with open(out_json_filename, "w") as out_json_obj:
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
@@ -659,7 +659,7 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
         return
     for f, feature in enumerate(track_obj['features']):
         del feature['properties']['attributes']
-        for model_name, fdata in step_forecasts.iteritems():
+        for model_name, fdata in step_forecasts.items():
             ml_model_name = model_name.split("_")[1]
             if "condition" in model_name:
                 feature['properties'][model_name] = fdata.values[f]
@@ -676,7 +676,7 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
             try:
                 os.mkdir(out_path + "/".join(full_path))
             except OSError:
-                print "directory already created"
+                print("directory already created")
     out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
     try:
         out_json_obj = open(out_json_filename, "w")

@@ -1,0 +1,605 @@
+#!/usr/bin/env python
+import argparse
+from multiprocessing import Pool
+from hagelslag.util.Config import Config
+from hagelslag.processing.TrackProcessing import TrackProcessor
+from datetime import timedelta
+import pandas as pd
+import numpy as np
+import os
+import traceback
+
+
+def main():
+    parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
+    parser.add_argument("config", help="Configuration file")
+    parser.add_argument("-r", "--rematch", action="store_true", help="Rematch existing forecast and observed tracks")
+    parser.add_argument("-o", "--obs", action="store_true", help="Process observed tracks only")
+    parser.add_argument("-p", "--proc", type=int, default=1,
+                        help="Number of processors")
+    args = parser.parse_args()
+    required = ['dates', 'start_hour', 'end_hour', 'ensemble_members',
+                'watershed_variable', 'model_path', "ensemble_name",
+                'model_watershed_params', 'object_matcher_params',
+                'track_matcher_params', 'size_filter', 'gaussian_window',
+                'mrms_path', 'mrms_watershed_params',
+                'storm_variables', 'potential_variables', "tendency_variables",
+                'variable_statistics', 'model_map_file',
+                'csv_path', 'geojson_path', 'train', 'single_step', "unique_matches", "label_type",
+                'closest_matches']
+    config = Config(args.config, required_attributes=required)
+    if args.proc > 1:
+        pool = Pool(args.proc)
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                if args.obs:
+                    pool.apply_async(process_observed_tracks, (run_date, member, config))
+                elif args.rematch:
+                    pool.apply_async(rematch_ensemble_tracks, (run_date, member, config))
+                else:
+                    pool.apply_async(process_ensemble_member, (run_date, member, config))
+        pool.close()
+        pool.join()
+    else:
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                if args.rematch:
+                    rematch_ensemble_tracks(run_date, member, config)
+                else:
+                    process_ensemble_member(run_date, member, config)
+    return
+
+
+def process_ensemble_member(run_date, member, config):
+    """
+    Find forecast and observed tracks for one run of a storm-scale ensemble member.
+
+    Args:
+        run_date: datetime object containing the date of the model run
+        member: name of the ensemble member
+        config: Config object containing model parameters
+    """
+    try:
+        print("Starting", run_date, member)
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        if hasattr(config, "mask_file"):
+            mask_file = config.mask_file
+        else:
+            mask_file = None
+        track_proc = TrackProcessor(run_date,
+                                    start_date,
+                                    end_date,
+                                    config.ensemble_name,
+                                    member,
+                                    config.watershed_variable,
+                                    config.model_path,
+                                    config.model_map_file,
+                                    config.model_watershed_params,
+                                    config.object_matcher_params,
+                                    config.track_matcher_params,
+                                    config.size_filter,
+                                    config.gaussian_window,
+                                    mrms_path=config.mrms_path,
+                                    mrms_variable=config.mrms_variable,
+                                    mrms_watershed_params=config.mrms_watershed_params,
+                                    single_step=config.single_step,
+                                    mask_file=mask_file)
+        print("Find model tracks", run_date, member)
+        model_tracks = track_proc.find_model_tracks()
+        print("Extract model attributes", run_date, member)
+        track_proc.extract_model_attributes(model_tracks,
+                                            config.storm_variables,
+                                            config.potential_variables,
+                                            config.tendency_variables)
+        if config.train and len(model_tracks) > 0:
+            print("Find obs tracks", run_date, member)
+            mrms_tracks = track_proc.find_mrms_tracks()
+            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
+                track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
+                                                         unique_matches=config.unique_matches,
+                                                         closest_matches=config.closest_matches)
+                track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
+                track_errors = track_proc.calc_track_errors(model_tracks,
+                                                            mrms_tracks,
+                                                            track_pairings)
+                print("Output data", run_date, member)
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member,
+                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors)
+                forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
+                                        observed_tracks=mrms_tracks,
+                                        track_errors=track_errors)
+                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
+                                               track_pairings, model_tracks)
+                obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+                # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
+                #    try:
+                #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
+                #    except:
+                #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
+                for table_name, table_data in obs_data.iteritems():
+                    csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                                  "obs",
+                                                                                  member,
+                                                                                  run_date.strftime("%Y%m%d"))
+                    table_data.to_csv(csv_filename,
+                                      na_rep="nan",
+                                      float_format="%0.5f",
+                                      index=False)
+                    os.chmod(csv_filename, 0o666)
+            else:
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
+                                                         track_proc.model_grid.proj)
+                forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+        elif len(model_tracks) > 0:
+            forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+            forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+        else:
+            forecast_data = {}
+        for table_name, table_data in forecast_data.iteritems():
+            csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                          config.ensemble_name,
+                                                                          member,
+                                                                          run_date.strftime("%Y%m%d"))
+            table_data.to_csv(csv_filename,
+                              na_rep="nan",
+                              float_format="%0.5f",
+                              index=False)
+            os.chmod(csv_filename, 0o666)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+    return
+
+
+def process_observed_tracks(run_date, member, config):
+    """
+    Find forecast and observed tracks for one run of a storm-scale ensemble member.
+
+    Args:
+        run_date: datetime object containing the date of the model run
+        member: name of the ensemble member
+        config: Config object containing model parameters
+    """
+    try:
+        print("Starting", run_date, member)
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        if hasattr(config, "mask_file"):
+            mask_file = config.mask_file
+        else:
+            mask_file = None
+        track_proc = TrackProcessor(run_date,
+                                    start_date,
+                                    end_date,
+                                    config.ensemble_name,
+                                    member,
+                                    config.watershed_variable,
+                                    config.model_path,
+                                    config.model_map_file,
+                                    config.model_watershed_params,
+                                    config.object_matcher_params,
+                                    config.track_matcher_params,
+                                    config.size_filter,
+                                    config.gaussian_window,
+                                    mrms_path=config.mrms_path,
+                                    mrms_variable=config.mrms_variable,
+                                    mrms_watershed_params=config.mrms_watershed_params,
+                                    single_step=config.single_step,
+                                    mask_file=mask_file)
+
+        print("Find obs tracks", run_date, member)
+        mrms_tracks = track_proc.find_mrms_tracks()
+        track_pairings = []
+        model_tracks = []
+        if len(mrms_tracks) > 0:
+            obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
+                                           track_pairings, model_tracks)
+            obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+            # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
+            #    try:
+            #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
+            #    except:
+            #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
+            for table_name, table_data in obs_data.iteritems():
+                csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                              "obs",
+                                                                              member,
+                                                                              run_date.strftime("%Y%m%d"))
+                table_data.to_csv(csv_filename,
+                                  na_rep="nan",
+                                  float_format="%0.5f",
+                                  index=False)
+                os.chmod(csv_filename, 0o666)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+    return
+
+
+def rematch_ensemble_tracks(run_date, member, config):
+    """
+    Loads existing forecast and observed tracks from geoJSON files, applies a new matching scheme,
+    and outputs the new matches to csv files.
+
+    Args:
+        run_date: datetime.datetime
+            Start date of the model run
+        member: str
+            Name of the ensemble member
+        config: hagelslag.util.Config
+            Config object
+    Returns:
+
+    """
+    try:
+        print("Starting", run_date, member)
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+        track_proc = TrackProcessor(run_date,
+                                    start_date,
+                                    end_date,
+                                    config.ensemble_name,
+                                    member,
+                                    config.watershed_variable,
+                                    config.model_path,
+                                    config.model_map_file,
+                                    config.model_watershed_params,
+                                    config.object_matcher_params,
+                                    config.track_matcher_params,
+                                    config.size_filter,
+                                    config.gaussian_window,
+                                    mrms_path=config.mrms_path,
+                                    mrms_variable=config.mrms_variable,
+                                    mrms_watershed_params=config.mrms_watershed_params,
+                                    single_step=config.single_step)
+        model_tracks = track_proc.load_model_tracks(config.geojson_path)
+        mrms_tracks = track_proc.load_mrms_tracks(config.geojson_path)
+        if len(model_tracks) > 0 and len(mrms_tracks) > 0:
+            track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
+                                                     unique_matches=config.unique_matches)
+            track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
+            track_errors = track_proc.calc_track_errors(model_tracks,
+                                                        mrms_tracks,
+                                                        track_pairings)
+            print("Output data", run_date, member)
+            forecast_data = make_forecast_track_data(model_tracks, run_date, member,
+                                                     config, track_proc.model_grid.proj, mrms_tracks, track_errors)
+            obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
+                                           track_pairings, model_tracks)
+            for table_name, table_data in obs_data.iteritems():
+                table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                                 "obs",
+                                                                                 member,
+                                                                                 run_date.strftime("%Y%m%d")),
+                                  na_rep="nan",
+                                  float_format="%0.5f",
+                                  index=False)
+        elif len(model_tracks) > 0:
+            forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+        else:
+            forecast_data = {}
+        for table_name, table_data in forecast_data.iteritems():
+            table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                                                                             config.ensemble_name,
+                                                                             member,
+                                                                             run_date.strftime("%Y%m%d")),
+                              na_rep="nan",
+                              float_format="%0.5f",
+                              index=False)
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+    return
+
+
+def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, observed_tracks=None, track_errors=None):
+    """
+    Calculate statistics about each model variable from the forecast track files and output the information to csv.
+
+    Args:
+        forecast_tracks: list of storm tracks found in the forecast model
+        run_date: datetime object with the start date and time of the model run
+        member: name of the ensemble member
+        config: Config object containing output parameters
+        proj: PyProj object
+        observed_tracks: list of storm trakcs found in the observation grid
+        track_errors: pandas dataframe containing track error information
+
+    Returns:
+        A dictionary of pandas DataFrames that contain information about each track as well as the individual
+        steps within each track.
+    """
+    ensemble_name = config.ensemble_name
+
+    forecast_total_track_columns = ["Track_ID", "Start_Date", "End_Date",
+                                    "Duration", "Ensemble_Name",
+                                    "Ensemble_Member", "Object_Variable", "Obs_Track_ID",
+                                    "Translation_Error_X", "Translation_Error_Y",
+                                    "Start_Time_Error", "End_Time_Error"]
+    forecast_step_track_columns = ["Step_ID", "Track_ID", "Date",
+                                   "Forecast_Hour", "Valid_Hour_UTC", "Duration",
+                                   "Centroid_Lon", "Centroid_Lat", "Storm_Motion_U", "Storm_Motion_V"]
+    forecast_variables = config.storm_variables + [v + "-potential" for v in config.potential_variables]
+    if hasattr(config, "tendency_variables"):
+        forecast_variables.extend([v + "-tendency" for v in config.tendency_variables])
+    var_stats = []
+    for var in forecast_variables:
+        for stat in config.variable_statistics:
+            var_stats.append(var + "_" + stat)
+    if hasattr(config, "shape_variables"):
+        for var in config.shape_variables:
+            var_stats.append(var)
+    forecast_step_track_columns = forecast_step_track_columns + var_stats
+    if hasattr(config, "label_type"):
+        if config.label_type == "gamma":
+            forecast_step_track_columns += ["Hail_Size", "Shape", "Location", "Scale"]
+        else:
+            forecast_step_track_columns += ["Hail_Size"]
+    else:
+        forecast_step_track_columns += ["Hail_Size"]
+    forecast_data = dict()
+    forecast_data['track_total'] = pd.DataFrame(columns=forecast_total_track_columns)
+    forecast_data['track_step'] = pd.DataFrame(columns=forecast_step_track_columns)
+    track_step_count = 0
+    for f, forecast_track in enumerate(forecast_tracks):
+        track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
+                                                                config.watershed_variable,
+                                                                run_date.strftime("%Y%m%d-%H%M"),
+                                                                forecast_track.start_time,
+                                                                forecast_track.end_time,
+                                                                f,
+                                                                )
+        start_date = run_date + timedelta(seconds=3600 * forecast_track.start_time)
+        end_date = run_date + timedelta(seconds=3600 * forecast_track.end_time)
+        duration = (end_date - start_date).total_seconds() / 3600.0 + 1
+        obs_track_id = "None"
+        if config.train and track_errors is not None:
+            if not np.isnan(track_errors.ix[f, 0]):
+                obs_track_num = track_errors.ix[f, 0]
+                obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
+                                                                            run_date.strftime("%Y%m%d-%H%M"),
+                                                                            observed_tracks[obs_track_num].start_time,
+                                                                            observed_tracks[obs_track_num].end_time,
+                                                                            obs_track_num)
+            track_error_row = [obs_track_id] + track_errors.ix[f, 1:].tolist()
+        else:
+            track_error_row = [np.nan] * 5
+        forecast_data['track_total'].loc[f] = [track_id, start_date, end_date, duration,
+                                               ensemble_name, member,
+                                               config.watershed_variable] + track_error_row
+        for s, step in enumerate(forecast_track.times):
+            step_id = track_id + "_{0:02d}".format(s)
+            step_date = run_date + timedelta(seconds=3600 * step)
+            valid_hour_utc = step_date.hour
+            step_duration = s + 1
+            centroid_lon, centroid_lat = proj(*forecast_track.center_of_mass(step), inverse=True)
+            u_motion = forecast_track.u[s]
+            v_motion = forecast_track.v[s]
+            var_stat_vals = []
+            for attribute in forecast_variables:
+                for statistic in config.variable_statistics:
+                    var_stat_vals.append(forecast_track.calc_attribute_statistic(attribute, statistic, step))
+            if hasattr(config, "shape_variables"):
+                var_stat_vals.extend(forecast_track.calc_shape_step(config.shape_variables, step))
+            record = [step_id, track_id, step_date, step, valid_hour_utc,
+                      step_duration, centroid_lon, centroid_lat, u_motion, v_motion] + var_stat_vals
+            if config.unique_matches:
+                if forecast_track.observations is not None:
+                    if hasattr(config, "label_type"):
+                        if config.label_type == "gamma":
+                            hail_label = forecast_track.observations.loc[step].values.tolist()
+                        else:
+                            hail_label = [forecast_track.observations.loc[step, "Max_Hail_Size"]]
+                    else:
+                        hail_label = [forecast_track.observations[s]]
+                else:
+                    if hasattr(config, "label_type"):
+                        if config.label_type == "gamma":
+                            hail_label = [0, 0, 0, 0]
+                        else:
+                            hail_label = [0]
+                    else:
+                        hail_label = [0]
+                forecast_data['track_step'].loc[track_step_count] = record + hail_label
+                track_step_count += 1
+            else:
+                if forecast_track.observations is not None:
+                    num_labels = len(forecast_track.observations)
+                    for l in range(num_labels):
+                        if config.label_type == "gamma":
+                            hail_label = forecast_track.observations[l].loc[step].values.tolist()
+                        else:
+                            hail_label = [forecast_track.observations[l].loc[step, "Max_Hail_Size"]]
+                        forecast_data['track_step'].loc[track_step_count] = record + hail_label
+                        track_step_count += 1
+                else:
+                    if config.label_type == "gamma":
+                        hail_label = [0, 0, 0, 0]
+                    else:
+                        hail_label = [0]
+                    forecast_data['track_step'].loc[track_step_count] = record + hail_label
+                    track_step_count += 1
+    return forecast_data
+
+
+def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, observed_tracks=None, track_errors=None):
+    """
+    Write each forecast storm track to a geoJSON file.
+
+    Args:
+        forecast_tracks (list): List of STObjects containing forecast track information
+        run_date (datetime.datetime):  Date of the model run
+        member (str): Name of the ensemble member being processed
+        config: Config object
+        proj: pyproj object with map projection information for model grid
+        observed_tracks: List of STObjects for each observed storm track
+        track_errors: DataFrame containing information about space and time offsets between forecast and observed tracks
+    """
+    ensemble_name = config.ensemble_name
+    for f, forecast_track in enumerate(forecast_tracks):
+        track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
+                                                                config.watershed_variable,
+                                                                run_date.strftime("%Y%m%d-%H%M"),
+                                                                forecast_track.start_time,
+                                                                forecast_track.end_time,
+                                                                f,
+                                                                )
+        start_date = run_date + timedelta(hours=forecast_track.start_time)
+        end_date = run_date + timedelta(hours=forecast_track.end_time)
+        duration = (end_date - start_date).total_seconds() / 3600.0 + 1
+        obs_track_id = "None"
+        if config.train and track_errors is not None:
+            if not np.isnan(track_errors.ix[f, 0]):
+                obs_track_num = track_errors.ix[f, 0]
+                obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
+                                                                            run_date.strftime("%Y%m%d-%H%M"),
+                                                                            observed_tracks[obs_track_num].start_time,
+                                                                            observed_tracks[obs_track_num].end_time,
+                                                                            obs_track_num)
+        path_parts = [run_date.strftime("%Y%m%d"), member]
+        full_path = []
+        for part in path_parts:
+            full_path.append(part)
+            if not os.access(config.geojson_path + "/".join(full_path), os.R_OK):
+                try:
+                    os.mkdir(config.geojson_path + "/".join(full_path))
+                    os.chmod(config.geojson_path + "/".join(full_path), 0o777)
+                except OSError:
+                    print("directory already created")
+
+        json_filename = config.geojson_path + "/".join(full_path) + \
+                        "/{0}_{1}_{2}_model_track_{3:03d}.json".format(ensemble_name,
+                                                                       run_date.strftime("%Y%m%d"),
+                                                                       member,
+                                                                       f)
+        json_metadata = dict(id=track_id,
+                             ensemble_name=ensemble_name,
+                             ensemble_member=member,
+                             duration=duration)
+        if config.train and track_errors is not None:
+            json_metadata['obs_track_id'] = obs_track_id
+        forecast_track.to_geojson(json_filename, proj, json_metadata)
+        os.chmod(json_filename, 0o666)
+
+
+def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairings, forecast_tracks):
+    """
+    Calculate statistics on observed storm tracks and out the information as a dataframe.
+
+    Args:
+        obs_tracks: List of observed storm tracks
+        member: Name of the ensemble member
+        run_date: Date of the model run
+        config: Config object
+        proj: pyproj object with map projection information
+        track_pairings: list of tuples containing indices of the forecast tracks and their matching observed track
+        forecast_tracks: List of forecast storm tracks.
+
+    Returns:
+        A dictionary of pandas dataframes with total and step information about each observed storm track.
+    """
+    obs_total_track_columns = ["Obs_Track_ID", "Start_Date", "End_Date", "Duration", "Track_ID"]
+    obs_step_track_columns = ["Step_ID", "Obs_Track_ID", "Date", "Forecast_Hour",
+                              "Valid_Hour_UTC", "Duration",
+                              "Centroid_Lon", "Centroid_Lat"]
+    var_stats = []
+    for stat in config.variable_statistics:
+        var_stats.append("MESH_" + stat)
+    obs_step_track_columns = obs_step_track_columns + var_stats
+    obs_data = dict()
+    obs_data['track_total'] = pd.DataFrame(columns=obs_total_track_columns)
+    obs_data['track_step'] = pd.DataFrame(columns=obs_step_track_columns)
+    track_step_count = 0
+    if len(track_pairings) > 0 and type(track_pairings[0][1]) == tuple:
+        track_pairing_list = [(tp[0], tp[1][0]) for tp in track_pairings]
+        track_pairing_array = np.array(track_pairing_list)
+    else:
+        track_pairing_array = np.array(track_pairings)
+
+    for o, obs_track in enumerate(obs_tracks):
+        obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
+                                                                    run_date.strftime("%Y%m%d-%H%M"),
+                                                                    obs_track.start_time,
+                                                                    obs_track.end_time,
+                                                                    o)
+        if track_pairing_array.shape[0] > 0 and o in track_pairing_array[:, 1]:
+            f = track_pairing_array[np.where(track_pairing_array[:, 1] == o)[0][0], 0]
+            forecast_track = forecast_tracks[f]
+            track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
+                                                                    config.watershed_variable,
+                                                                    run_date.strftime("%Y%m%d-%H%M"),
+                                                                    forecast_track.start_time,
+                                                                    forecast_track.end_time,
+                                                                    f,
+                                                                    )
+        else:
+            track_id = "None"
+        start_date = run_date + timedelta(seconds=3600 * obs_track.start_time)
+        end_date = run_date + timedelta(seconds=3600 * obs_track.end_time)
+        duration = (end_date - start_date).total_seconds() / 3600.0 + 1
+        obs_data['track_total'].loc[o] = [obs_track_id, start_date, end_date, duration, track_id]
+        for s, step in enumerate(obs_track.times):
+            step_id = obs_track_id + "_{0:02d}".format(s)
+            step_date = run_date + timedelta(seconds=3600 * step)
+            valid_hour_utc = step_date.hour
+            step_duration = s + 1
+            centroid_lon, centroid_lat = proj(*obs_track.center_of_mass(step), inverse=True)
+            var_stat_vals = []
+            for statistic in config.variable_statistics:
+                var_stat_vals.append(obs_track.calc_timestep_statistic(statistic, step))
+            record = [step_id, obs_track_id, step_date, step,
+                      valid_hour_utc, step_duration, centroid_lon, centroid_lat] + var_stat_vals
+            obs_data['track_step'].loc[track_step_count] = record
+            track_step_count += 1
+
+    return obs_data
+
+
+def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
+    """
+    Write observed storm track information to geoJSON files.
+
+    Args:
+        obs_tracks: List of observed tracks
+        member: Name of the ensemble member
+        run_date: Date of the model run
+        config: Config object
+        proj: pyproj map projection
+
+    """
+    for o, obs_track in enumerate(obs_tracks):
+        obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
+                                                                    run_date.strftime("%Y%m%d-%H%M"),
+                                                                    obs_track.start_time,
+                                                                    obs_track.end_time,
+                                                                    o)
+        start_date = run_date + timedelta(seconds=3600 * obs_track.start_time)
+        end_date = run_date + timedelta(seconds=3600 * obs_track.end_time)
+        duration = (end_date - start_date).total_seconds() / 3600.0 + 1
+        path_parts = [run_date.strftime("%Y%m%d"), member]
+        full_path = []
+        for part in path_parts:
+            full_path.append(part)
+            if not os.access(config.geojson_path + "/".join(full_path), os.R_OK):
+                try:
+                    os.mkdir(config.geojson_path + "/".join(full_path))
+                    os.chmod(config.geojson_path + "/".join(full_path), 0o777)
+
+                except OSError:
+                    print "directory already created"
+
+        json_filename = config.geojson_path + "/".join(full_path) + \
+                        "/{0}_{1}_{2}_obs_track_{3:03d}.json".format("mesh",
+                                                                     run_date.strftime("%Y%m%d"),
+                                                                     member,
+                                                                     o)
+        json_metadata = dict(id=obs_track_id,
+                             ensemble_member=member,
+                             duration=duration)
+        obs_track.to_geojson(json_filename, proj, json_metadata)
+        os.chmod(json_filename, 0o666)
+    return
+
+if __name__ == "__main__":
+    main()

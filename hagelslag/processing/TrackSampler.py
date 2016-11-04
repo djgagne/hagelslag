@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from multiprocessing import Pool
 import argparse
-import cPickle
+import pickle
 from scipy.ndimage import binary_dilation
 from scipy.stats import multivariate_normal
 import traceback
@@ -148,7 +148,7 @@ class TrackSampler(object):
         self.copula_file = copula_file
         if self.copula_file is not None:
             with open(self.copula_file) as copula_obj:
-                self.copula = cPickle.load(copula_obj)
+                self.copula = pickle.load(copula_obj)
         self.track_forecasts = []
 
     def load_track_forecasts(self):
@@ -168,17 +168,17 @@ class TrackSampler(object):
 
     def sample_tracks(self, size_ranges, track_ranges, thresholds=np.array([0, 25, 50]), dilation=13):
         track_probs = {}
-        print self.member, "Sample condition"
+        print(self.member, "Sample condition")
         condition_samples = self.sample_condition()
-        print self.member, "Sample size"
+        print(self.member, "Sample size")
         size_values = np.arange(size_ranges[0], size_ranges[1] + size_ranges[2], size_ranges[2], dtype=int)
         size_samples = self.sample_size(size_values=size_values)
-        print self.member, "Sample start time"
+        print(self.member, "Sample start time")
         start_time_values = np.arange(track_ranges['start-time'][0],
                                       track_ranges['start-time'][1] + track_ranges['start-time'][2],
                                       track_ranges['start-time'][2], dtype=int)
         st_samples = self.sample_start_time(start_time_values=start_time_values)
-        print self.member, "Sample translation"
+        print(self.member, "Sample translation")
         translation_x_values = np.arange(track_ranges['translation-x'][0],
                                          track_ranges['translation-x'][1] + track_ranges['translation-x'][2],
                                          track_ranges['translation-x'][2], dtype=int)
@@ -190,25 +190,25 @@ class TrackSampler(object):
         if self.copula_file is not None:
             copula_ranks = self.generate_copula_ranks()
         for model_name in self.model_names:
-            print model_name
+            print(model_name)
             track_probs[model_name] = {}
             for thresh in thresholds:
                 track_probs[model_name][thresh] = np.zeros((self.end_hour - self.start_hour + 1,
                                                             self.grid_shape[0],
                                                             self.grid_shape[1]))
             for t, track in enumerate(self.track_forecasts):
-                print model_name, self.member, self.run_date, t
+                print(model_name, self.member, self.run_date, t)
                 start_time = track['properties']['times'][0]
                 st_track_sample = np.zeros(st_samples[model_name][t].shape, dtype=int)
                 tx_track_sample = np.zeros(tx_samples[model_name][t].shape, dtype=int)
                 ty_track_sample = np.zeros(ty_samples[model_name][t].shape, dtype=int)
                 if self.copula_file is not None:
-                    print "copula being used"
+                    print("copula being used")
                     st_track_sample[copula_ranks['start-time'].values] = np.sort(st_samples[model_name][t])
                     tx_track_sample[copula_ranks['translation-x'].values] = np.sort(tx_samples[model_name][t])
                     ty_track_sample[copula_ranks['translation-y'].values] = np.sort(ty_samples[model_name][t])
                 else:
-                    print "copula not being used"
+                    print("copula not being used")
                     st_track_sample = st_samples[model_name][t]
                     tx_track_sample = st_samples[model_name][t]
                     ty_track_sample = st_samples[model_name][t]
@@ -316,7 +316,7 @@ class TrackSampler(object):
             try:
                 os.mkdir(path + run_date_str)
             except OSError:
-                print path + run_date_str + " already created"
+                print(path + run_date_str + " already created")
         for model in self.model_names:
             filename = path + "{2}/{0}_hailprobs_{1}_{2}.nc".format(model, self.member, run_date_str)
             out_obj = Dataset(filename, "w")

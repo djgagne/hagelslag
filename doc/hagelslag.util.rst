@@ -20,10 +20,34 @@ hagelslag.util.convert_mrms_grids module
     :undoc-members:
     :show-inheritance:
 
+hagelslag.util.create_model_grid_us_mask module
+-----------------------------------------------
+
+.. automodule:: hagelslag.util.create_model_grid_us_mask
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hagelslag.util.derived_vars module
+----------------------------------
+
+.. automodule:: hagelslag.util.derived_vars
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 hagelslag.util.make_proj_grids module
 -------------------------------------
 
 .. automodule:: hagelslag.util.make_proj_grids
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hagelslag.util.merge_forecast_data module
+-----------------------------------------
+
+.. automodule:: hagelslag.util.merge_forecast_data
     :members:
     :undoc-members:
     :show-inheritance:
@@ -48,6 +72,14 @@ hagelslag.util.show_importance_ranks module
 -------------------------------------------
 
 .. automodule:: hagelslag.util.show_importance_ranks
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+hagelslag.util.test_size_distributions module
+---------------------------------------------
+
+.. automodule:: hagelslag.util.test_size_distributions
     :members:
     :undoc-members:
     :show-inheritance:

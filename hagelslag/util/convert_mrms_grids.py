@@ -5,7 +5,7 @@ import subprocess
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 from scipy.spatial import cKDTree
-import cPickle
+import pickle
 from netCDF4 import Dataset, date2num
 from datetime import datetime, timedelta
 from hagelslag.util.make_proj_grids import read_arps_map_file, make_proj_grids
@@ -64,7 +64,7 @@ def load_map_coordinates(map_file):
         Latitude and longitude grids as numpy arrays.
     """
     if map_file[-4:] == ".pkl":
-        map_data = cPickle.load(open(map_file))
+        map_data = pickle.load(open(map_file))
         lon = map_data['lon']
         lat = map_data['lat']
     else:
@@ -93,7 +93,7 @@ def interpolate_mrms_day(start_date, variable, interp_type, mrms_path, map_filen
         out_path (str): Path to location where interpolated netCDF4 files are saved.
     """
     try:
-        print start_date, variable
+        print(start_date, variable)
         end_date = start_date + timedelta(hours=23)
         mrms = MRMSGrid(start_date, end_date, variable, mrms_path)
         if mrms.data is not None:
@@ -106,7 +106,7 @@ def interpolate_mrms_day(start_date, variable, interp_type, mrms_path, map_filen
     except Exception as e:
         # This exception catches any errors when run in multiprocessing, prints the stack trace,
         # and ends the process. Otherwise the process will stall.
-        print traceback.format_exc()
+        print(traceback.format_exc())
         raise e
 
 
@@ -144,7 +144,7 @@ class MRMSGrid(object):
                 file_dates = pd.to_datetime([d.split("_")[-1][0:13] for d in data_files])
                 if timestamp in file_dates:
                     data_file = data_files[np.where(timestamp==file_dates)[0][0]]
-                    print full_path + data_file
+                    print(full_path + data_file)
                     if data_file[-2:] == "gz":
                         subprocess.call(["gunzip", full_path + data_file])
                         file_obj = Nio.open_file(full_path + data_file[:-3])
@@ -176,7 +176,7 @@ class MRMSGrid(object):
         """
         out_data = np.zeros((self.data.shape[0], in_lon.shape[0], in_lon.shape[1]))
         for d in range(self.data.shape[0]):
-            print "Loading ", d, self.variable, self.start_date
+            print("Loading ", d, self.variable, self.start_date)
             if self.data[d].max() > -999:
                 step = self.data[d]
                 step[step < 0] = 0
@@ -184,12 +184,12 @@ class MRMSGrid(object):
                     spline = RectBivariateSpline(self.lat[::-1], self.lon, step[::-1], kx=3, ky=3)
                 else:
                     spline = RectBivariateSpline(self.lat, self.lon, step, kx=3, ky=3)
-                print "Evaluating", d, self.variable, self.start_date
+                print("Evaluating", d, self.variable, self.start_date)
                 flat_data = spline.ev(in_lat.ravel(), in_lon.ravel())
                 out_data[d] = flat_data.reshape(in_lon.shape)
                 del spline
             else:
-                print d, " is missing"
+                print(d, " is missing")
                 out_data[d] = -9999
         return out_data
 
@@ -236,7 +236,7 @@ class MRMSGrid(object):
             try:
                 os.mkdir(out_path + self.variable)
             except OSError:
-                print out_path + self.variable + " already created"
+                print(out_path + self.variable + " already created")
         out_file = out_path + self.variable + "/" + "{0}_{1}_{2}.nc".format(self.variable,
                                                                             self.start_date.strftime("%Y%m%d-%H:%M"),
                                                                             self.end_date.strftime("%Y%m%d-%H:%M"))

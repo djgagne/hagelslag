@@ -1,4 +1,4 @@
-from ModelGrid import ModelGrid
+from .ModelGrid import ModelGrid
 import numpy as np
 import os
 from pandas import DatetimeIndex

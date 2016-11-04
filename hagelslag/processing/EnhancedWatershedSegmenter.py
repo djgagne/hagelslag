@@ -88,7 +88,7 @@ class EnhancedWatershed(object):
         """
         pixels, q_data = self.quantize(input_grid)
         centers = OrderedDict()
-        for p in pixels.iterkeys():
+        for p in pixels.keys():
             centers[p] = []
         marked = np.ones(q_data.shape, dtype=int) * self.UNMARKED
         MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.max_size)))
@@ -225,7 +225,7 @@ class EnhancedWatershed(object):
 
     @staticmethod
     def is_closest(point, center, centers, bin_num):
-        bin_thresh = bin_num / 2
+        bin_thresh = int(bin_num / 2)
         p_arr = np.array(point)
         c_arr = np.array(center)
         my_dist = np.sum(np.power(p_arr - c_arr, 2))

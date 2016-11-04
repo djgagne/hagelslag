@@ -132,5 +132,5 @@ class ContingencyTable(object):
 
 if __name__ == "__main__":
     table = ContingencyTable(1, 2, 3, 4)
-    print table
-    print getattr(table, "pss")()
+    print(table)
+    print(getattr(table, "pss")())
