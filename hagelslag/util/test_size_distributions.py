@@ -14,7 +14,7 @@ def main():
     ks_frames = []
     pool = Pool(1)
     for run_date in run_dates:
-        print run_date
+        print(run_date)
         pool.apply_async(run_kstests, (json_path, run_date, member), callback=ks_frames.append)
     pool.close()
     pool.join()
@@ -42,9 +42,9 @@ def run_kstests(json_path, run_date, member):
                 ks_results["id"].append(step_id)
                 ks_results["ks"].append(sig)
                 if sig[1] < 0.01:
-                    print step_id,
-                    print sig[1],gdist
-                    print np.sort(vals)
+                    print(step_id,)
+                    print(sig[1],gdist)
+                    print(np.sort(vals))
                     plt.figure(figsize=(8,8))
                     plt.pcolormesh(ts, alpha=0.5, cmap="YlOrRd", vmin=0, vmax=100)
                     pc = plt.pcolormesh(np.ma.array(ts, mask=mask==0), cmap="YlOrRd", vmin=0, vmax=100)
@@ -53,7 +53,7 @@ def run_kstests(json_path, run_date, member):
                     plt.savefig(step_id + ".png", bbox_inches="tight", dpi=150)
                     plt.close()
         ks_frame = pd.DataFrame(ks_results["ks"], index=ks_results["id"],columns=["D", "p-val"])
-        print ks_frame.shape[0]
+        print(ks_frame.shape[0])
     except Exception as e:
         raise e
     return ks_frame

@@ -2,7 +2,7 @@
 """
 Read a scikit-learn tree ensemble object and output the object into a human-readable text format.
 """
-import cPickle
+import pickle
 import argparse
 
 
@@ -41,7 +41,7 @@ def load_tree_object(filename):
     tree ensemble object
     """
     with open(filename) as file_obj:
-        tree_ensemble_obj = cPickle.load(file_obj)
+        tree_ensemble_obj = pickle.load(file_obj)
     return tree_ensemble_obj
 
 

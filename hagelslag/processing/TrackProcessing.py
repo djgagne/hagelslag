@@ -1,9 +1,9 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
-from EnhancedWatershedSegmenter import EnhancedWatershed
-from ObjectMatcher import ObjectMatcher, TrackMatcher
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
+from .ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
-from STObject import STObject, read_geojson
+from .STObject import STObject, read_geojson
 import numpy as np
 from scipy.interpolate import interp1d
 from glob import glob
@@ -77,12 +77,10 @@ class TrackProcessor(object):
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, single_step=self.single_step)
-        self.model_grid.load_data()
         self.model_grid.load_map_info(model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
-            self.mrms_grid.load_data()
             self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
         else:
             self.mrms_grid = None
@@ -102,6 +100,7 @@ class TrackProcessor(object):
         Returns:
             List of STObjects containing model track information.
         """
+        self.model_grid.load_data()
         model_objects = []
         tracked_model_objects = []
         for h, hour in enumerate(self.hours):
@@ -183,6 +182,7 @@ class TrackProcessor(object):
         obs_objects = []
         tracked_obs_objects = []
         if self.mrms_ew is not None:
+            self.mrms_grid.load_data()
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
@@ -332,8 +332,8 @@ class TrackProcessor(object):
                 model_track.observations = np.ones(model_track.times.shape) * obs_hail_sizes[0]
             elif model_track.times.size == 1:
                 model_track.observations = np.array([obs_hail_sizes.max()])
-            print pair[0], "obs",  obs_hail_sizes
-            print pair[0], "model", model_track.observations
+            print(pair[0], "obs",  obs_hail_sizes)
+            print(pair[0], "model", model_track.observations)
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
 

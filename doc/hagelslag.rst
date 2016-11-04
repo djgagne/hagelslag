@@ -8,6 +8,7 @@ Subpackages
 
     hagelslag.data
     hagelslag.evaluation
+    hagelslag.plot
     hagelslag.processing
     hagelslag.util
 

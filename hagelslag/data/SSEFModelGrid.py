@@ -1,9 +1,8 @@
-from ModelGrid import ModelGrid
-from glob import glob
-import pandas as pd
+from .ModelGrid import ModelGrid
 import numpy as np
 import os
 from os.path import exists
+
 
 class SSEFModelGrid(ModelGrid):
     """

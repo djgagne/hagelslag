@@ -1,7 +1,7 @@
-from STObject import STObject
-from EnhancedWatershedSegmenter import EnhancedWatershed
-from Hysteresis import Hysteresis
-import ObjectMatcher as OM
+from .STObject import STObject
+from .EnhancedWatershedSegmenter import EnhancedWatershed
+from .Hysteresis import Hysteresis
+import hagelslag.processing.ObjectMatcher as OM
 from scipy.ndimage import find_objects
 import numpy as np
 

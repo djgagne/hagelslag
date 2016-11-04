@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 from glob import glob
-from ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
+from hagelslag.evaluation.ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
 from scipy.stats import gamma
 
 
