@@ -195,4 +195,3 @@ class ModelOutput(object):
                 neighbor_prob = gaussian_filter(neighbor_prob, smoothing)
         return neighbor_prob
 
-

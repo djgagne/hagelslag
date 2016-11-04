@@ -55,7 +55,6 @@ class NCARModelGrid(ModelGrid):
                                                                                          valid_time.strftime(
                                                                                              "%Y-%m-%d_%H:%M:%S"))
                     if os.access(potential_filename, os.R_OK): filenames.append(potential_filename)
-
             print "filenames: ",filenames
 
             if variable == "SRH3":
