@@ -1,4 +1,4 @@
-import cPickle
+import pickle
 import numpy as np
 from hagelslag.util.Config import Config
 import argparse
@@ -16,7 +16,7 @@ def main():
     for model_file in model_files:
         print(model_file)
         model_fo = open(model_file)
-        model_obj = cPickle.load(model_fo)
+        model_obj = pickle.load(model_fo)
         model_fo.close()
         importances = None
         if hasattr(model_obj, "feature_importances_"):

@@ -1,7 +1,7 @@
 from netCDF4 import Dataset
 import numpy as np
 from hagelslag.data.MRMSGrid import MRMSGrid
-from ProbabilityMetrics import DistributedROC, DistributedReliability
+from hagelslag.evaluation.ProbabilityMetrics import DistributedROC, DistributedReliability
 from datetime import timedelta
 from scipy.ndimage import binary_dilation
 

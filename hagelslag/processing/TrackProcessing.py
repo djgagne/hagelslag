@@ -1,9 +1,9 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
-from EnhancedWatershedSegmenter import EnhancedWatershed
-from ObjectMatcher import ObjectMatcher, TrackMatcher
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
+from .ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
-from STObject import STObject, read_geojson
+from .STObject import STObject, read_geojson
 import numpy as np
 from scipy.interpolate import interp1d
 from glob import glob
@@ -103,6 +103,9 @@ class TrackProcessor(object):
         self.model_grid.load_data()
         model_objects = []
         tracked_model_objects = []
+        if self.model_grid.data is None:
+            print("No model output found")
+            return tracked_model_objects
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
@@ -332,8 +335,8 @@ class TrackProcessor(object):
                 model_track.observations = np.ones(model_track.times.shape) * obs_hail_sizes[0]
             elif model_track.times.size == 1:
                 model_track.observations = np.array([obs_hail_sizes.max()])
-            print pair[0], "obs",  obs_hail_sizes
-            print pair[0], "model", model_track.observations
+            print(pair[0], "obs",  obs_hail_sizes)
+            print(pair[0], "model", model_track.observations)
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
 

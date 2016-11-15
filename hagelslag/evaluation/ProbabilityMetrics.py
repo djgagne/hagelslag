@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from ContingencyTable import ContingencyTable
+from .ContingencyTable import ContingencyTable
 
 __author__ = "David John Gagne <djgagne@ou.edu>"
 
@@ -88,7 +88,10 @@ class DistributedROC(object):
                                   (observations >= self.obs_threshold))
             tn = np.count_nonzero((forecasts < threshold) &
                                   (observations < self.obs_threshold))
-            self.contingency_tables.ix[t] += [tp, fp, fn, tn]
+            self.contingency_tables.iloc[t] += [tp, fp, fn, tn]
+    
+    def clear(self):
+        self.contingency_tables.loc[:, :] = 0
 
     def __add__(self, other):
         """
@@ -310,6 +313,9 @@ class DistributedReliability(object):
                                                                          (observations >= self.obs_threshold))
             self.frequencies.loc[t, "Total_Freq"] += np.count_nonzero((threshold <= forecasts) &
                                                                       (forecasts < self.thresholds[t+1]))
+    
+    def clear(self):
+        self.frequencies.loc[:, :] = 0
 
     def __add__(self, other):
         """

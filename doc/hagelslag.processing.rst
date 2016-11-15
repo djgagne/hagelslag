@@ -68,6 +68,14 @@ hagelslag.processing.TrackSampler module
     :undoc-members:
     :show-inheritance:
 
+hagelslag.processing.tracker module
+-----------------------------------
+
+.. automodule:: hagelslag.processing.tracker
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

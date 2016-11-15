@@ -4,15 +4,16 @@ except ImportError:
     from pyproj import Proj
 import numpy as np
 
+
 def main():
     map_filename = '../ssef2015.map'
     proj_dict, grid_dict = read_arps_map_file(map_filename)
-    print proj_dict
-    print grid_dict
-    print "Proj"
+    print(proj_dict)
+    print(grid_dict)
+    print("Proj")
     mapping_data = make_proj_grids(proj_dict, grid_dict)
-    print mapping_data['lon'].shape
-    print mapping_data['x'].shape
+    print(mapping_data['lon'].shape)
+    print(mapping_data['x'].shape)
 
 
 def read_arps_map_file(map_filename):

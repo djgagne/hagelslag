@@ -8,27 +8,20 @@ import os
 class STObject(object):
     """
     The STObject stores data and location information for objects extracted from the ensemble grids.
-    
-    :param grid: All of the data values. Supports a 2D array of values, a list of 2D arrays, or a 3D array.
-    :type grid: Numpy array or list of Numpy arrays.
-    :param mask: Grid of 1's and 0's in which 1's indicate the location of the object.
-    :type mask: Same as grid.
-    :param x: Array of x-coordinate values in meters. Longitudes can also be placed here.
-    :type x: Numpy float array.
-    :param y: Array of y-coordinate values in meters. Latitudes can also be placed here.
-    :type y: Numpy float array.
-    :param i: Array of row indices from the full model domain.
-    :type i: Numpy int array
-    :param j: Array of row indices from the full model domain.
-    :type j: Numpy int array
-    :param start_time: The first time of the object existence.
-    :type start_time: int
-    :param end_time: The last time of the object existence.
-    :type end_time: int
-    :param step: number of hours between timesteps
-    :param dx: grid spacing
-    :param u: storm motion in x-direction
-    :param v: storm motion in y-direction
+
+    Attributes:
+        grid (ndarray): All of the data values. Supports a 2D array of values, a list of 2D arrays, or a 3D array.
+        mask (ndarray): Grid of 1's and 0's in which 1's indicate the location of the object.
+        x (ndarray): Array of x-coordinate values in meters. Longitudes can also be placed here.
+        y (ndarray): Array of y-coordinate values in meters. Latitudes can also be placed here.
+        i (ndarray): Array of row indices from the full model domain.
+        j (ndarray): Array of column indices from the full model domain.
+        start_time: The first time of the object existence.
+        end_time: The last time of the object existence.
+        step: number of hours between timesteps
+        dx: grid spacing
+        u: storm motion in x-direction
+        v: storm motion in y-direction
     """
 
     def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
@@ -85,8 +78,11 @@ class STObject(object):
         """
         Calculate the center of mass at a given timestep.
 
-        :param time: Time at which the center of mass calculation is performed
-        :return: The x- and y-coordinates of the center of mass.
+        Args:
+            time: Time at which the center of mass calculation is performed
+
+        Returns:
+            The x- and y-coordinates of the center of mass.
         """
         if self.start_time <= time <= self.end_time:
             diff = time - self.start_time
@@ -105,6 +101,17 @@ class STObject(object):
         return com_x, com_y
 
     def closest_distance(self, time, other_object, other_time):
+        """
+        The shortest distance between two objects at specified times.
+
+        Args:
+            time (int or datetime): Valid time for this STObject
+            other_object: Another STObject being compared
+            other_time: The time within the other STObject being evaluated.
+
+        Returns:
+            Distance in units of the x-y coordinates
+        """
         ti = np.where(self.times == time)[0]
         oti = np.where(other_object.times == other_time)[0]
         xs = self.x[ti][self.masks[ti] == 1]
@@ -133,6 +140,12 @@ class STObject(object):
         return np.sqrt(np.percentile(distances, percentile))
 
     def trajectory(self):
+        """
+        Calculates the center of mass for each time step and outputs an array
+
+        Returns:
+
+        """
         traj = np.zeros((2, self.times.size))
         for t, time in enumerate(self.times):
             traj[:, t] = self.center_of_mass(time)
@@ -143,8 +156,11 @@ class STObject(object):
         Gets the corner array indices of the STObject at a given time that corresponds 
         to the upper left corner of the bounding box for the STObject.
 
-        :param time: time at which the corner is being extracted.
-        :return:  
+        Args:
+            time: time at which the corner is being extracted.
+
+        Returns:
+              corner index.
         """
         if self.start_time <= time <= self.end_time:
             diff = time - self.start_time
@@ -155,9 +171,12 @@ class STObject(object):
     def size(self, time):
         """
         Gets the size of the object at a given time.
-        
-        :param time: Time value being queried.
-        :return: size of the object in pixels
+
+        Args:
+            time: Time value being queried.
+
+        Returns:
+            size of the object in pixels
         """
         if self.start_time <= time <= self.end_time:
             return self.masks[time - self.start_time].sum()
@@ -168,7 +187,8 @@ class STObject(object):
         """
         Gets the largest size of the object over all timesteps.
         
-        :return: Maximum size of the object in pixels
+        Returns:
+            Maximum size of the object in pixels
         """
         sizes = np.array([m.sum() for m in self.masks])
         return sizes.max()
@@ -185,7 +205,8 @@ class STObject(object):
         """
         Adds the data from another STObject to this object.
         
-        :param step: another STObject being added after the current one in time.
+        Args:
+            step: another STObject being added after the current one in time.
         """
         self.timesteps.extend(step.timesteps)
         self.masks.extend(step.masks)
@@ -221,11 +242,14 @@ class STObject(object):
         """
         Estimate the motion of the object with cross-correlation on the intensity values from the previous time step.
 
-        :param time: time being evaluated.
-        :param intensity_grid: 2D array of intensities used in cross correlation.
-        :param max_u: Maximum x-component of motion. Used to limit search area.
-        :param max_v: Maximum y-component of motion. Used to limit search area
-        :return: u, v, and the minimum error.
+        Args:
+            time: time being evaluated.
+            intensity_grid: 2D array of intensities used in cross correlation.
+            max_u: Maximum x-component of motion. Used to limit search area.
+            max_v: Maximum y-component of motion. Used to limit search area
+
+        Returns:
+            u, v, and the minimum error.
         """
         ti = np.where(time == self.times)[0]
         i_vals = self.i[ti][self.masks[ti] == 1]
@@ -275,9 +299,11 @@ class STObject(object):
 
     def extract_attribute_grid(self, model_grid, potential=False):
         """
-        Extracts the data from an SSEFModelGrid or SSEFModelSubset within the bounding box region of the STObject.
+        Extracts the data from a ModelOutput or ModelGrid object within the bounding box region of the STObject.
         
-        :param model_grid: A ModelGrid Object
+        Args:
+            model_grid: A ModelGrid or ModelOutput Object
+            potential: Extracts from the time before instead of the same time as the object
         """
 
         if potential:
@@ -292,6 +318,13 @@ class STObject(object):
                 model_grid.data[t - model_grid.start_hour, self.i[ti], self.j[ti]])
 
     def extract_tendency_grid(self, model_grid):
+        """
+        Extracts the difference in model outputs
+
+        Args:
+            model_grid: ModelOutput or ModelGrid object.
+
+        """
         var_name = model_grid.variable + "-tendency"
         self.attributes[var_name] = []
         timesteps = np.arange(self.start_time, self.end_time + 1)
@@ -305,11 +338,14 @@ class STObject(object):
         """
         Calculates summary statistics over the domains of each attribute.
         
-        :param statistic_name: (string) numpy statistic
-        :return: dict of statistics from each attribute grid.
+        Args:
+            statistic_name (string): numpy statistic, such as mean, std, max, min
+
+        Returns:
+            dict of statistics from each attribute grid.
         """
         stats = {}
-        for var, grids in self.attributes.iteritems():
+        for var, grids in self.attributes.items():
             if len(grids) > 1:
                 stats[var] = getattr(np.array([getattr(np.ma.array(x, mask=self.masks[t] == 0), statistic_name)()
                                                for t, x in enumerate(grids)]), statistic_name)()
@@ -319,12 +355,16 @@ class STObject(object):
 
     def calc_attribute_statistic(self, attribute, statistic, time):
         """
-        Calculate statistics based on the values of an attribute.
+        Calculate statistics based on the values of an attribute. The following statistics are supported:
+        mean, max, min, std, ptp (range), median, skew (mean - median), and percentile_(percentile value).
 
-        :param attribute:
-        :param statistic:
-        :param time:
-        :return:
+        Args:
+            attribute: Attribute extracted from model grid
+            statistic: Name of statistic being used.
+            time: timestep of the object being investigated
+
+        Returns:
+            The value of the statistic
         """
         ti = np.where(self.times == time)[0][0]
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
@@ -352,9 +392,12 @@ class STObject(object):
         """
         Calculate statistics from the primary attribute of the StObject.
 
-        :param statistic:
-        :param time:
-        :return:
+        Args:
+            statistic: statistic being calculated
+            time: Timestep being investigated
+
+        Returns:
+            Value of the statistic
         """
         ti = np.where(self.times == time)[0]
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
@@ -379,7 +422,11 @@ class STObject(object):
         """
         Calculate shape statistics using regionprops applied to the object mask.
         
-        :param stat_names: List of statistics to be extracted from those calculated by regionprops.
+        Args:
+            stat_names: List of statistics to be extracted from those calculated by regionprops.
+
+        Returns:
+            Dictionary of shape statistics
         """
         stats = {}
         try:
@@ -392,6 +439,17 @@ class STObject(object):
         return stats
 
     def calc_shape_step(self, stat_names, time):
+        """
+        Calculate shape statistics for a single time step
+
+        Args:
+            stat_names: List of shape statistics calculated from region props
+            time: Time being investigated
+
+        Returns:
+            List of shape statistics
+
+        """
         ti = np.where(self.times == time)[0]
         props = regionprops(self.masks[ti], self.timesteps[ti])[0]
         shape_stats = []
@@ -408,22 +466,24 @@ class STObject(object):
                 shape_stats.append(props[stat_name])
         return shape_stats
 
-    def to_geojson(self, filename, proj, metadata=dict()):
+    def to_geojson(self, filename, proj, metadata=None):
         """
         Output the data in the STObject to a geoJSON file.
 
-        :param filename: Name of the file
-        :param proj: PyProj object for converting the x and y coordinates back to latitude and longitue values.
-        :param metadata: Metadata describing the object to be included in the top-level properties.
-        :return:
+        Args:
+            filename: Name of the file
+            proj: PyProj object for converting the x and y coordinates back to latitude and longitue values.
+            metadata: Metadata describing the object to be included in the top-level properties.
         """
+        if metadata is None:
+            metadata = {}
         json_obj = {"type": "FeatureCollection", "features": [], "properties": {}}
         json_obj['properties']['times'] = self.times.tolist()
         json_obj['properties']['dx'] = self.dx
         json_obj['properties']['step'] = self.step
         json_obj['properties']['u'] = self.u.tolist()
         json_obj['properties']['v'] = self.v.tolist()
-        for k, v in metadata.iteritems():
+        for k, v in metadata.items():
             json_obj['properties'][k] = v
         for t, time in enumerate(self.times):
             feature = {"type": "Feature",
@@ -438,7 +498,7 @@ class STObject(object):
             for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
                 feature["properties"][attr] = getattr(self, attr)[t].tolist()
             feature["properties"]["attributes"] = {}
-            for attr_name, steps in self.attributes.iteritems():
+            for attr_name, steps in self.attributes.items():
                 feature["properties"]["attributes"][attr_name] = steps[t].tolist()
             json_obj['features'].append(feature)
         file_obj = open(filename, "w")
@@ -451,8 +511,11 @@ def read_geojson(filename):
     """
     Reads a geojson file containing an STObject and initializes a new STObject from the information in the file.
 
-    :param filename: Name of the geojson file
-    :return: an STObject
+    Args:
+        filename: Name of the geojson file
+
+    Returns:
+        an STObject
     """
     json_file = open(filename)
     data = json.load(json_file)
@@ -461,9 +524,9 @@ def read_geojson(filename):
     main_data = dict(timesteps=[], masks=[], x=[], y=[], i=[], j=[])
     attribute_data = dict()
     for feature in data["features"]:
-        for main_name in main_data.iterkeys():
+        for main_name in main_data.keys():
             main_data[main_name].append(np.array(feature["properties"][main_name]))
-        for k, v in feature["properties"]["attributes"].iteritems():
+        for k, v in feature["properties"]["attributes"].items():
             if k not in attribute_data.keys():
                 attribute_data[k] = [np.array(v)]
             else:
@@ -474,7 +537,7 @@ def read_geojson(filename):
             kwargs[kw] = data["properties"][kw]
     sto = STObject(main_data["timesteps"], main_data["masks"], main_data["x"], main_data["y"],
                    main_data["i"], main_data["j"], times[0], times[-1], **kwargs)
-    for k, v in attribute_data.iteritems():
+    for k, v in attribute_data.items():
         sto.attributes[k] = v
     return sto
 
