@@ -143,6 +143,13 @@ class TrackMatcher(object):
                     assignments.append(a)
         return assignments
 
+    def raw_cost_matrix(self, set_a, set_b):
+        cost_matrix = np.zeros((len(set_a), len(set_b), len(self.cost_function_components)))
+        for (a, b, c), x in np.ndenumerate(cost_matrix):
+            cost_matrix[a, b, c] = self.cost_function_components[c](set_a[a],
+                                                                    set_b[b], self.max_values[c]) * self.max_values[c]
+        return cost_matrix
+
     def neighbor_matches(self, set_a, set_b):
         costs = self.track_cost_matrix(set_a, set_b)
         all_neighbors = []
