@@ -55,7 +55,7 @@ start_date = run_date + timedelta(hours=10) # remember first time is usually all
 
 # From ahij's config file.
 if field == "MAX_UPDRAFT_HELICITY" or field == "UP_HELI_MAX03":
-        params = {"min_thresh":75, "step":5, "max_thresh":250, "max_size":50, "delta":75, "min_size":1, "filter_size":0}
+        params = {"min_thresh":25, "step":5, "max_thresh":250, "max_size":150, "delta":75, "min_size":0, "filter_size":1}
 if field == "HAIL2D":
         params = {"min_thresh":0.025, "step":0.005, "max_thresh":0.1, "max_size":150, "delta":75, "min_size":0, "filter_size":1}
 levels = params['min_thresh'] * np.arange(1,8)
