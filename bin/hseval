@@ -407,7 +407,10 @@ def evaluate_reduced_neighborhood_run(run_date, start_hour, end_hour,
             for member in ensemble_members:
                 ens_data = ModelOutput(ensemble_name, member, run_date, ens_var, start_date, end_date, ensemble_path, single_step)
                 ens_data.load_data()
-                print ens_var, ens_data.data.max()
+                if ens_data.units == "m":
+                    ens_data.data *= 1000
+                    ens_data.units = "mm"
+                print(ens_var, ens_data.data.max())
                 for ens_thresh in ensemble_thresholds[ens_var]:
                     print("Evaluating {0} {1} {2} {3:d} {4}".format(ensemble_name, ens_var, member, ens_thresh, run_date.strftime("%Y%m%d")))
                     col_name = "{0}_{1}_{2}_{3:d}".format(ensemble_name, ens_var, member, ens_thresh)
