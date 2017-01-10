@@ -407,8 +407,9 @@ def evaluate_reduced_neighborhood_run(run_date, start_hour, end_hour,
             for member in ensemble_members:
                 ens_data = ModelOutput(ensemble_name, member, run_date, ens_var, start_date, end_date, ensemble_path, single_step)
                 ens_data.load_data()
-                if ens_data.units == "m":
-                    ens_data.data *= 1000
+                print(ens_var, ens_data.units)
+                if ens_data.units == "m" or ens_var in ["HAIL_MAXK1", "HAIL_MAX2D"]:
+                    ens_data.data = 1000 * ens_data.data
                     ens_data.units = "mm"
                 print(ens_var, ens_data.data.max())
                 for ens_thresh in ensemble_thresholds[ens_var]:
