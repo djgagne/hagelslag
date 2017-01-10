@@ -1,7 +1,7 @@
 from .STObject import STObject
 from .EnhancedWatershedSegmenter import EnhancedWatershed
 from .Hysteresis import Hysteresis
-import hagelslag.processing.ObjectMatcher as OM
+from hagelslag.processing import ObjectMatcher
 from scipy.ndimage import find_objects
 import numpy as np
 
@@ -130,7 +130,7 @@ def track_storms(storm_objects, times, distance_components, distance_maxima, dis
     Returns:
         tracked_objects:
     """
-    obj_matcher = OM.ObjectMatcher(distance_components, distance_weights, distance_maxima)
+    obj_matcher = ObjectMatcher(distance_components, distance_weights, distance_maxima)
     if tracked_objects is None:
         tracked_objects = []
     for t, time in enumerate(times):
