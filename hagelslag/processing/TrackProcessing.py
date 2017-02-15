@@ -1,6 +1,7 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
+from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher
 from scipy.ndimage import find_objects, gaussian_filter
 from .STObject import STObject, read_geojson
@@ -57,7 +58,8 @@ class TrackProcessor(object):
                  mrms_variable=None,
                  mrms_watershed_params=None,
                  single_step=True,
-                 mask_file=None):
+                 mask_file=None,
+                 patch_radius=16):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -91,8 +93,45 @@ class TrackProcessor(object):
             mask_data = Dataset(self.mask_file)
             self.mask = mask_data.variables["usa_mask"][:]
             mask_data.close()
+        self.patch_radius = patch_radius
         return
-    
+
+    def find_model_patch_tracks(self):
+        """
+        Identify storms in gridded model output and extract uniform sized patches around the storm centers of mass.
+
+        Returns:
+
+        """
+        self.model_grid.load_data()
+        tracked_model_objects = []
+        model_objects = []
+        if self.model_grid.data is None:
+            print("No model output found")
+            return tracked_model_objects
+        for h, hour in enumerate(self.hours):
+            # Identify storms at each time step and apply size filter
+            print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
+                                                                         self.run_date.strftime("%Y%m%d%H"), hour))
+            if self.mask is not None:
+                model_data = self.model_grid.data[h] * self.mask
+            else:
+                model_data = self.model_grid.data[h]
+            hour_labels = label_storm_objects(gaussian_filter(model_data, self.gaussian_window), "ew",
+                                              self.model_ew.min_thresh, self.model_ew.max_thresh,
+                                              min_area=self.size_filter, max_area=self.model_ew.max_size,
+                                              max_range=self.model_ew.delta, increment=self.model_ew.data_increment)
+            hour_labels[model_data < self.model_ew.min_thresh] = 0
+            model_objects.append(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
+                                                       self.model_grid.y, self.hours,
+                                                       dx=self.model_grid.dx,
+                                                       patch_radius=self.patch_radius))
+            tracked_model_objects.extend(track_storms(model_objects, self.hours,
+                                                      self.object_matcher.cost_function_components,
+                                                      self.object_matcher.max_values,
+                                                      self.object_matcher.weights))
+        return tracked_model_objects
+
     def find_model_tracks(self):
         """
         Identify storms at each model time step and link them together with object matching.
