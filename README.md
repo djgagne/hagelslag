@@ -17,7 +17,7 @@ djgagne at ou dot edu.
 
 ### Requirements
 
-Hagelslag is easiest to install with the help of the Anaconda Python Distribution, but it should work with other
+Hagelslag is compatible with Python 2.7 and 3.5. Hagelslag is easiest to install with the help of the Anaconda Python Distribution, but it should work with other
 Python setups as well. Hagelslag requires the following packages and recommends the following versions:
 
 * numpy >= 1.9
@@ -48,3 +48,6 @@ use, 3 scripts are provided in the bin directory.
 All scripts take input from a config file. The config file should be valid Python code and contain a dictionary called
 config. Custom machine learning models and parameters should be contained within the config files. Examples of them can
 be found in the config directory.
+
+### Documentation
+API Documentation is available [here](http://hagelslag.readthedocs.io/en/latest/).
