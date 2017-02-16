@@ -28,6 +28,14 @@ hagelslag.util.create_model_grid_us_mask module
     :undoc-members:
     :show-inheritance:
 
+hagelslag.util.custom_grib_table module
+---------------------------------------
+
+.. automodule:: hagelslag.util.custom_grib_table
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 hagelslag.util.derived_vars module
 ----------------------------------
 
