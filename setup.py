@@ -40,6 +40,13 @@ if __name__ == "__main__":
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
           scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsplotter", "bin/hswrf3d", "bin/hsstation"],
+          data_files=[("mapfiles", ["mapfiles/ssef2013.map", 
+                                    "mapfiles/ssef2014.map", 
+                                    "mapfiles/ssef2015.map", 
+                                    "mapfiles/ncar_grib_table.txt", 
+                                    "mapfiles/ncar_ensemble_map_2015.txt"])],
           keywords=["hail", "verification", "tracking", "weather", "meteorology", "machine learning"],
           classifiers=classifiers,
+          include_package_data=True,
+          zip_safe=False,
           install_requires=requires)
