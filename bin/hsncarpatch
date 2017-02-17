@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+import numpy as np
+from hagelslag.processing import extract_storm_patches, label_storm_objects
+import pygrib
+from multiprocessing import Pool
+import argparse
+from os.path import join, exists
+import pandas as pd
+import traceback
+from scipy.ndimage import gaussian_filter
+import pkg_resources
+
+
+def main():
+    load_ncar_grib_info()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--start_date", help="Start Run Date")
+    parser.add_argument("-e", "--end_date", help="End Run Date")
+    parser.add_argument("-t", "--start_hour", type=int, default=1, help="Start Forecast Hour")
+    parser.add_argument("-n", "--end_hour", type=int, default=48, help="End Forecast Hour")
+    parser.add_argument()
+    parser.add_argument("-p", '--proc', type=int, default=1, help="Number of processors")
+    args = parser.parse_args()
+    pool = Pool(args.proc)
+    run_dates = pd.DatetimeIndex(start=args.start_date, end=args.end_date, freq="1D")
+    members = np.arange(1, 11)
+    #for run_date in run_dates:
+    #    for member in members:
+    #        pool.apply_async(extract_ncar_member_storms, (run_date, member, args.start_hour, args.end_hour))
+    return
+
+
+def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var, storm_vars, env_vars,
+                               data_path, out_path, patch_radius, object_finder_method, min_intensity, max_intensity,
+                               min_area, max_area, max_range, increment, smoother_sigma):
+    try:
+
+        forecast_hours = np.arange(start_hour, end_hour + 1)
+        all_storm_patches = []
+        for forecast_hour in forecast_hours:
+            ncar_grib_filename = join(data_path, run_date.strftime("%Y%m%d%H"),
+                                      "post", "mem_{0:d}".format(member),
+                                      "ncar_3km_{0}_mem{1:d}_f{2:03d}.grb2".format(run_date.strftime("%Y%m%d%H"),
+                                                                                   member,
+                                                                                   forecast_hour))
+            if exists(ncar_grib_filename):
+                ncar_grib_file = pygrib.open(ncar_grib_filename)
+                storm_values = ncar_grib_file[label_var].values
+                storm_label_grid = label_storm_objects(gaussian_filter(storm_values, smoother_sigma),
+                                                       object_finder_method,
+                                                       min_intensity, max_intensity,
+                                                       min_area=min_area, max_area=max_area, max_range=max_range,
+                                                       increment=increment)
+                j_grid, i_grid = np.meshgrid(np.arange(storm_values.shape[1]), np.arange(storm_values.shape[0]))
+                x_grid = j_grid * 3
+                y_grid = i_grid * 3
+                lats, lons = ncar_grib_file[label_var].latlons()
+                storm_patches = extract_storm_patches(storm_label_grid, storm_values, x_grid, y_grid, [forecast_hour],
+                                                      dx=3, dt=1, patch_radius=patch_radius)
+
+
+                ncar_grib_file.close()
+            else:
+                raise OSError(ncar_grib_filename + " not found")
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+
+
+def load_ncar_grib_info():
+    ncar_grib_table_file = pkg_resources.resource_filename(pkg_resources.Requirement.parse("hagelslag"),
+                                                           "mapfiles/ncar_grib_table.txt")
+    print(ncar_grib_table_file)
+    raw_grib_data = pd.read_table(ncar_grib_table_file, sep=":", header=None, index_col=0)
+    grib_data = pd.DataFrame(index=raw_grib_data.index, columns=["short_name", "long_name", "units", "level",
+                                                                 "var_name"])
+    print(raw_grib_data[3].str.split().str.get(-1))
+
+if __name__ == "__main__":
+    main()

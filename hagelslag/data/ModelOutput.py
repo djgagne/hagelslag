@@ -143,7 +143,7 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
-        elif self.ensemble_name.upper() == "NCAR":
+        elif self.ensemble_name.upper() in ["NCAR", "HRRR"]:
             proj_dict, grid_dict = read_ncar_map_file(map_file)
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
