@@ -317,6 +317,19 @@ class STObject(object):
             self.attributes[var_name].append(
                 model_grid.data[t - model_grid.start_hour, self.i[ti], self.j[ti]])
 
+    def extract_attribute_array(self, data_array, var_name):
+        """
+        Extracts data from a 2D array that has the same dimensions as the grid used to identify the object.
+
+        Args:
+            data_array: 2D numpy array
+
+        """
+        if var_name not in self.attributes.keys():
+            self.attributes[var_name] = []
+        self.attributes[var_name].append(data_array[self.i[-1], self.j[-1]])
+
+
     def extract_tendency_grid(self, model_grid):
         """
         Extracts the difference in model outputs
