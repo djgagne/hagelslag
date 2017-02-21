@@ -1,5 +1,5 @@
 1:0:00Z20may2016:PRMSL Pressure Reduced to MSL [Pa]:lvl1=(101,0) lvl2=(255,missing):mean sea level:8 hour fcst:
-2:1419838:00Z20may2016:REFC Composite reflectivity [dB]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+2:1419838:00Z20may2016:REFC Composite Reflectivity [dB]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
 3:1839079:00Z20may2016:REFD Reflectivity [dB]:lvl1=(20,263) lvl2=(255,missing):263 K level:8 hour fcst:
 4:2076694:00Z20may2016:RETOP Echo Top [m]:lvl1=(3,0) lvl2=(255,missing):cloud top:8 hour fcst:
 5:2206915:00Z20may2016:VIL Vertically-Integrated Liquid Water [kg/m^2]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
@@ -43,9 +43,9 @@
 43:22083574:00Z20may2016:MAXREF Hourly Maximum of Simulated Reflectivity at 1 km AGL [dB]:lvl1=(103,1000) lvl2=(255,missing):1000 m above ground:7-8 hour max fcst:
 44:22319325:00Z20may2016:MXUPHL Hourly Maximum of Updraft Helicity over Layer 2km to 5 km AGL [m^2/s^2]:lvl1=(103,5000) lvl2=(103,2000):5000-2000 m above ground:7-8 hour max fcst:
 45:22356670:00Z20may2016:TCOLG Total Column Integrate Graupel [kg/m^2]:lvl1=(200,0) lvl2=(255,missing):entire atmosphere (considered as a single layer):7-8 hour max fcst:
-46:22374813:00Z20may2016:var discipline=0 master_table=2 parmcat=17 parm=2:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
-47:22379469:00Z20may2016:var discipline=0 master_table=2 parmcat=17 parm=3:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
-48:22435527:00Z20may2016:var discipline=0 master_table=2 parmcat=17 parm=4:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+46:22374813:00Z20may2016:LTG1 Lightning Diagnostic 1 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+47:22379469:00Z20may2016:LTG2 Lightning Diagnostic 2 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+48:22435527:00Z20may2016:LTG3 Lightning Diagnostic 3 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
 49:22474925:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(103,80) lvl2=(255,missing):80 m above ground:8 hour fcst:
 50:23156612:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(103,80) lvl2=(255,missing):80 m above ground:8 hour fcst:
 51:23847896:00Z20may2016:PRES Pressure [Pa]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
@@ -126,7 +126,7 @@
 126:67230606:00Z20may2016:LAND Land Cover (0=sea, 1=land) [Proportion]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
 127:67253640:00Z20may2016:ICEC Ice Cover [Proportion]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
 128:67254151:00Z20may2016:PVORT Potential Vorticity [Km2kg-1s-1]:lvl1=(107,320) lvl2=(255,missing):320 K isentropic level:8 hour fcst:
-129:67999426:00Z20may2016:SBT123 Simulated Brightness Temperature for GOES 12, Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
-130:68794158:00Z20may2016:SBT124 Simulated Brightness Temperature for GOES 12, Channel 4 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
-131:69675952:00Z20may2016:SBT113 Simulated Brightness Temperature for GOES 11, Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
-132:71001201:00Z20may2016:SBT114 Simulated Brightness Temperature for GOES 11, Channel 4 [K]:lvl1=(8,1) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+129:67999426:00Z20may2016:SBT123 Simulated Brightness Temperature for GOES 12 Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+130:68794158:00Z20may2016:SBT124 Simulated Brightness Temperature for GOES 12 Channel 4 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+131:69675952:00Z20may2016:SBT113 Simulated Brightness Temperature for GOES 11 Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+132:71001201:00Z20may2016:SBT114 Simulated Brightness Temperature for GOES 11 Channel 4 [K]:lvl1=(8,1) lvl2=(255,missing):top of atmosphere:8 hour fcst:

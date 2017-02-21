@@ -12,13 +12,15 @@ import pkg_resources
 
 
 def main():
-    load_ncar_grib_info()
+    grib_data = load_ncar_grib_info()
+    print(grib_data)
+    return
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--start_date", help="Start Run Date")
     parser.add_argument("-e", "--end_date", help="End Run Date")
     parser.add_argument("-t", "--start_hour", type=int, default=1, help="Start Forecast Hour")
     parser.add_argument("-n", "--end_hour", type=int, default=48, help="End Forecast Hour")
-    parser.add_argument()
+    parser.add_argument("-v", "--storm_vars", help="Comma-separated list of storm variable numbers")
     parser.add_argument("-p", '--proc', type=int, default=1, help="Number of processors")
     args = parser.parse_args()
     pool = Pool(args.proc)
@@ -27,6 +29,8 @@ def main():
     #for run_date in run_dates:
     #    for member in members:
     #        pool.apply_async(extract_ncar_member_storms, (run_date, member, args.start_hour, args.end_hour))
+    pool.close()
+    pool.join()
     return
 
 
@@ -68,13 +72,26 @@ def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var
 
 
 def load_ncar_grib_info():
+    """
+    Reads the grib table file output by wgrib2 to describe the NCAR ensemble variables and parses the file into
+    more useful variables
+
+    Returns:
+
+    """
     ncar_grib_table_file = pkg_resources.resource_filename(pkg_resources.Requirement.parse("hagelslag"),
                                                            "mapfiles/ncar_grib_table.txt")
     print(ncar_grib_table_file)
     raw_grib_data = pd.read_table(ncar_grib_table_file, sep=":", header=None, index_col=0)
     grib_data = pd.DataFrame(index=raw_grib_data.index, columns=["short_name", "long_name", "units", "level",
-                                                                 "var_name"])
-    print(raw_grib_data[3].str.split().str.get(-1))
+                                                                 "var_name"], dtype=str)
+    grib_data["short_name"] = raw_grib_data[3].str.split().str[0]
+    grib_data["long_name"] = raw_grib_data[3].str.split().str[1:-1].str.join(" ")
+    grib_data["units"] = raw_grib_data[3].str.split().str[-1].str.strip("[]")
+    grib_data["level"] = raw_grib_data[5]
+    grib_data["var_name"] = grib_data["long_name"].str.replace(" ", "_").str.cat(
+        grib_data["level"].str.replace(" ", "_"), sep="_")
+    return grib_data
 
 if __name__ == "__main__":
     main()
