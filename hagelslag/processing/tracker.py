@@ -175,8 +175,8 @@ def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, p
                                                   y_grid[obj_slice_buff],
                                                   ij_grid[0][obj_slice_buff],
                                                   ij_grid[1][obj_slice_buff],
-                                                  times,
-                                                  times,
+                                                  times[0],
+                                                  times[0],
                                                   dx=dx,
                                                   step=dt))
     return storm_objects
