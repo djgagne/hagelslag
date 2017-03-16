@@ -9,8 +9,7 @@ from glob import glob
 from datetime import datetime
 import traceback
 from mpi4py import MPI
-
-
+import os.path
 def main():
     wrf_vars = ["TEMP", "XLAT", "XLONG", "T2", "Q2", "U10", "V10", "PSFC", "U", "V", "W", "GPH", 
                 "PRES", "HGT", "REFL_10CM",
@@ -201,4 +200,6 @@ def extract_wrf_boxes(object_slices, grid_shape, global_attributes, valid_date,
 
 
 if __name__ == "__main__":
+    package_directory = os.path.dirname(os.path.abspath(__file__))
+    print(package_directory)
     main()

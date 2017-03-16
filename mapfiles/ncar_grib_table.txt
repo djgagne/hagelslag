@@ -1,0 +1,132 @@
+1:0:00Z20may2016:PRMSL Pressure Reduced to MSL [Pa]:lvl1=(101,0) lvl2=(255,missing):mean sea level:8 hour fcst:
+2:1419838:00Z20may2016:REFC Composite Reflectivity [dB]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+3:1839079:00Z20may2016:REFD Reflectivity [dB]:lvl1=(20,263) lvl2=(255,missing):263 K level:8 hour fcst:
+4:2076694:00Z20may2016:RETOP Echo Top [m]:lvl1=(3,0) lvl2=(255,missing):cloud top:8 hour fcst:
+5:2206915:00Z20may2016:VIL Vertically-Integrated Liquid Water [kg/m^2]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+6:2538583:00Z20may2016:VIS Visibility [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+7:2697643:00Z20may2016:VIS Visibility [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+8:3958545:00Z20may2016:GUST Wind Speed (Gust) [m/s]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+9:4825912:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(100,25000) lvl2=(255,missing):250 mb:8 hour fcst:
+10:5466036:00Z20may2016:TMP Temperature [K]:lvl1=(100,25000) lvl2=(255,missing):250 mb:8 hour fcst:
+11:5741512:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,25000) lvl2=(255,missing):250 mb:8 hour fcst:
+12:6147206:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,25000) lvl2=(255,missing):250 mb:8 hour fcst:
+13:6538949:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(100,50000) lvl2=(255,missing):500 mb:8 hour fcst:
+14:7205441:00Z20may2016:TMP Temperature [K]:lvl1=(100,50000) lvl2=(255,missing):500 mb:8 hour fcst:
+15:7502445:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(100,50000) lvl2=(255,missing):500 mb:8 hour fcst:
+16:8001927:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,50000) lvl2=(255,missing):500 mb:8 hour fcst:
+17:8407553:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,50000) lvl2=(255,missing):500 mb:8 hour fcst:
+18:8809832:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+19:9470393:00Z20may2016:TMP Temperature [K]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+20:9811852:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+21:10321611:00Z20may2016:DZDT Vertical Velocity (Geometric) [m/s]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+22:10712065:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+23:11191075:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,70000) lvl2=(255,missing):700 mb:8 hour fcst:
+24:11662796:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(100,85000) lvl2=(255,missing):850 mb:8 hour fcst:
+25:12473221:00Z20may2016:TMP Temperature [K]:lvl1=(100,85000) lvl2=(255,missing):850 mb:8 hour fcst:
+26:12914898:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(100,85000) lvl2=(255,missing):850 mb:8 hour fcst:
+27:13411371:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,85000) lvl2=(255,missing):850 mb:8 hour fcst:
+28:13990162:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,85000) lvl2=(255,missing):850 mb:8 hour fcst:
+29:14570957:00Z20may2016:TMP Temperature [K]:lvl1=(100,92500) lvl2=(255,missing):925 mb:8 hour fcst:
+30:15057565:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(100,92500) lvl2=(255,missing):925 mb:8 hour fcst:
+31:15555615:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,92500) lvl2=(255,missing):925 mb:8 hour fcst:
+32:16176613:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,92500) lvl2=(255,missing):925 mb:8 hour fcst:
+33:16804407:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(100,100000) lvl2=(255,missing):1000 mb:8 hour fcst:
+34:18045233:00Z20may2016:TMP Temperature [K]:lvl1=(100,100000) lvl2=(255,missing):1000 mb:8 hour fcst:
+35:18639083:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(100,100000) lvl2=(255,missing):1000 mb:8 hour fcst:
+36:19170059:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(100,100000) lvl2=(255,missing):1000 mb:8 hour fcst:
+37:19890399:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(100,100000) lvl2=(255,missing):1000 mb:8 hour fcst:
+38:20615213:00Z20may2016:MAXUVV Hourly Maximum of Upward Vertical Velocity  in the lowest 400hPa [m/s]:lvl1=(108,40000) lvl2=(108,100000):400-1000 mb above ground:7-8 hour max fcst:
+39:20952107:00Z20may2016:MAXDVV Hourly Maximum of Downward Vertical Velocity  in the lowest 400hPa [m/s]:lvl1=(108,40000) lvl2=(108,100000):400-1000 mb above ground:7-8 hour max fcst:
+40:21278045:00Z20may2016:DZDT Vertical Velocity (Geometric) [m/s]:lvl1=(104,0.5) lvl2=(104,0.8):0.5-0.8 sigma layer::
+41:21473351:00Z20may2016:REFD Reflectivity [dB]:lvl1=(103,4000) lvl2=(255,missing):4000 m above ground:8 hour fcst:
+42:21734777:00Z20may2016:REFD Reflectivity [dB]:lvl1=(103,1000) lvl2=(255,missing):1000 m above ground:8 hour fcst:
+43:22083574:00Z20may2016:MAXREF Hourly Maximum of Simulated Reflectivity at 1 km AGL [dB]:lvl1=(103,1000) lvl2=(255,missing):1000 m above ground:7-8 hour max fcst:
+44:22319325:00Z20may2016:MXUPHL Hourly Maximum of Updraft Helicity over Layer 2km to 5 km AGL [m^2/s^2]:lvl1=(103,5000) lvl2=(103,2000):5000-2000 m above ground:7-8 hour max fcst:
+45:22356670:00Z20may2016:TCOLG Total Column Integrate Graupel [kg/m^2]:lvl1=(200,0) lvl2=(255,missing):entire atmosphere (considered as a single layer):7-8 hour max fcst:
+46:22374813:00Z20may2016:LTG1 Lightning Diagnostic 1 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+47:22379469:00Z20may2016:LTG2 Lightning Diagnostic 2 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+48:22435527:00Z20may2016:LTG3 Lightning Diagnostic 3 [-]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+49:22474925:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(103,80) lvl2=(255,missing):80 m above ground:8 hour fcst:
+50:23156612:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(103,80) lvl2=(255,missing):80 m above ground:8 hour fcst:
+51:23847896:00Z20may2016:PRES Pressure [Pa]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+52:25315221:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+53:26650463:00Z20may2016:TMP Temperature [K]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+54:27810481:00Z20may2016:MSTAV Moisture Availability [%]:lvl1=(106,0) lvl2=(255,missing):0 m underground:8 hour fcst:
+55:28384530:00Z20may2016:WEASD Water Equivalent of Accumulated Snow Depth [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+56:28426906:00Z20may2016:SNOWC Snow Cover [%]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+57:28468556:00Z20may2016:SNOD Snow Depth [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+58:28539852:00Z20may2016:TMP Temperature [K]:lvl1=(103,2) lvl2=(255,missing):2 m above ground:8 hour fcst:
+59:29235683:00Z20may2016:SPFH Specific Humidity [kg/kg]:lvl1=(103,2) lvl2=(255,missing):2 m above ground:8 hour fcst:
+60:30061885:00Z20may2016:DPT Dew Point Temperature [K]:lvl1=(103,2) lvl2=(255,missing):2 m above ground:8 hour fcst:
+61:30651285:00Z20may2016:UGRD U-Component of Wind [m/s]:lvl1=(103,10) lvl2=(255,missing):10 m above ground:8 hour fcst:
+62:31370298:00Z20may2016:VGRD V-Component of Wind [m/s]:lvl1=(103,10) lvl2=(255,missing):10 m above ground:8 hour fcst:
+63:32097784:00Z20may2016:WIND Wind Speed [m/s]:lvl1=(103,10) lvl2=(255,missing):10 m above ground:7-8 hour max fcst:
+64:32869034:00Z20may2016:CPOFP Percent frozen precipitation [%]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+65:33094482:00Z20may2016:PRATE Precipitation Rate [kg/m^2/s]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+66:33123316:00Z20may2016:APCP Total Precipitation [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:0-8 hour acc fcst:
+67:33389248:00Z20may2016:WEASD Water Equivalent of Accumulated Snow Depth [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:0-8 hour acc fcst:
+68:33424597:00Z20may2016:APCP Total Precipitation [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:7-8 hour acc fcst:
+69:33523868:00Z20may2016:WEASD Water Equivalent of Accumulated Snow Depth [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:7-8 hour acc fcst:
+70:33543359:00Z20may2016:SNOL Large-Scale Snow [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:7-8 hour acc fcst:
+71:33551711:00Z20may2016:SNOL Large-Scale Snow [kg/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:7-8 hour acc fcst:
+72:33560063:00Z20may2016:CSNOW Categorical Snow [-]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+73:33564492:00Z20may2016:CICEP Categorical Ice Pellets [-]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+74:33564846:00Z20may2016:CFRZR Categorical Freezing Rain [-]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+75:33565655:00Z20may2016:CRAIN Categorical Rain [-]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+76:33592964:00Z20may2016:HAILK1 Thompson Max Hail K1 [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+77:33606911:00Z20may2016:HAIL2D Thompson Max Hail 2D [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+78:33717380:00Z20may2016:HAILCASTMEAN HAILCAST Max Hail Mean [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+79:33729003:00Z20may2016:HAILCASTSD HAILCAST Max Hail Standard Deviation [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+80:33740272:00Z20may2016:VGTYP Vegetation Type [Integer(0-13)]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+81:34510424:00Z20may2016:LFTX Surface Lifted Index [K]:lvl1=(100,50000) lvl2=(100,100000):500-1000 mb:8 hour fcst:
+82:34992152:00Z20may2016:CAPE Convective Available Potential Energy [J/kg]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+83:35164987:00Z20may2016:CIN Convective Inhibition [J/kg]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+84:35417192:00Z20may2016:BMIN Buoyancy Minimum [K]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+85:36543369:00Z20may2016:PBMIN Pressure of Buoyancy Minimum [Pa]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+86:37488217:00Z20may2016:PWAT Precipitable Water [kg/m^2]:lvl1=(200,0) lvl2=(255,missing):entire atmosphere (considered as a single layer):8 hour fcst:
+87:37901257:00Z20may2016:LCDC Low Cloud Cover [%]:lvl1=(214,0) lvl2=(255,missing):low cloud layer:8 hour fcst:
+88:38179825:00Z20may2016:MCDC Medium Cloud Cover [%]:lvl1=(224,0) lvl2=(255,missing):middle cloud layer:8 hour fcst:
+89:38399954:00Z20may2016:HCDC High Cloud Cover [%]:lvl1=(234,0) lvl2=(255,missing):high cloud layer:8 hour fcst:
+90:38593230:00Z20may2016:TCDC Total Cloud Cover [%]:lvl1=(10,0) lvl2=(255,missing):entire atmosphere:8 hour fcst:
+91:38929343:00Z20may2016:PRES Pressure [Pa]:lvl1=(2,0) lvl2=(255,missing):cloud base:8 hour fcst:
+92:39380800:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(2,0) lvl2=(255,missing):cloud base:8 hour fcst:
+93:40788949:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(215,0) lvl2=(255,missing):cloud ceiling:8 hour fcst:
+94:41738212:00Z20may2016:PRES Pressure [Pa]:lvl1=(3,0) lvl2=(255,missing):cloud top:8 hour fcst:
+95:42115530:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(3,0) lvl2=(255,missing):cloud top:8 hour fcst:
+96:43273403:00Z20may2016:TMP Temperature [K]:lvl1=(3,0) lvl2=(255,missing):cloud top:8 hour fcst:
+97:44042055:00Z20may2016:ULWRF Upward Long-Wave Rad. Flux [W/m^2]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+98:45072191:00Z20may2016:DSWRF Downward Short-Wave Radiation Flux [W/m^2]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+99:45072379:00Z20may2016:HLCY Storm Relative Helicity [m^2/s^2]:lvl1=(103,3000) lvl2=(103,0):3000-0 m above ground:8 hour fcst:
+100:45760491:00Z20may2016:HLCY Storm Relative Helicity [m^2/s^2]:lvl1=(103,1000) lvl2=(103,0):1000-0 m above ground:8 hour fcst:
+101:47009622:00Z20may2016:USTM U-Component Storm Motion [m/s]:lvl1=(103,0) lvl2=(103,6000):0-6000 m above ground:8 hour fcst:
+102:47530269:00Z20may2016:VSTM V-Component Storm Motion [m/s]:lvl1=(103,0) lvl2=(103,6000):0-6000 m above ground:8 hour fcst:
+103:48026406:00Z20may2016:VUCSH Vertical U-Component Shear [1/s]:lvl1=(103,0) lvl2=(103,1000):0-1000 m above ground:8 hour fcst:
+104:48791087:00Z20may2016:VVCSH Vertical V-Component Shear [1/s]:lvl1=(103,0) lvl2=(103,1000):0-1000 m above ground:8 hour fcst:
+105:49559236:00Z20may2016:VUCSH Vertical U-Component Shear [1/s]:lvl1=(103,0) lvl2=(103,6000):0-6000 m above ground:8 hour fcst:
+106:50190567:00Z20may2016:VVCSH Vertical V-Component Shear [1/s]:lvl1=(103,0) lvl2=(103,6000):0-6000 m above ground:8 hour fcst:
+107:50822892:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(7,0) lvl2=(255,missing):tropopause:8 hour fcst:
+108:51302592:00Z20may2016:4LFTX Best (4 layer) Lifted Index [K]:lvl1=(108,18000) lvl2=(108,0):180-0 mb above ground:8 hour fcst:
+109:51720576:00Z20may2016:CAPE Convective Available Potential Energy [J/kg]:lvl1=(108,18000) lvl2=(108,0):180-0 mb above ground:8 hour fcst:
+110:51976986:00Z20may2016:CIN Convective Inhibition [J/kg]:lvl1=(108,18000) lvl2=(108,0):180-0 mb above ground:8 hour fcst:
+111:52357316:00Z20may2016:BMIN Buoyancy Minimum [K]:lvl1=(108,18000) lvl2=(108,0):180-0 mb above ground:8 hour fcst:
+112:53370029:00Z20may2016:PBMIN Pressure of Buoyancy Minimum [Pa]:lvl1=(108,18000) lvl2=(108,0):180-0 mb above ground:8 hour fcst:
+113:54392791:00Z20may2016:HPBL Planetary Boundary Layer Height [m]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+114:56388523:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(5,0) lvl2=(255,missing):level of adiabatic condensation from sfc:8 hour fcst:
+115:58647311:00Z20may2016:CAPE Convective Available Potential Energy [J/kg]:lvl1=(108,9000) lvl2=(108,0):90-0 mb above ground:8 hour fcst:
+116:58784695:00Z20may2016:CIN Convective Inhibition [J/kg]:lvl1=(108,9000) lvl2=(108,0):90-0 mb above ground:8 hour fcst:
+117:59049449:00Z20may2016:BMIN Buoyancy Minimum [K]:lvl1=(108,9000) lvl2=(108,0):90-0 mb above ground:8 hour fcst:
+118:60042635:00Z20may2016:PBMIN Pressure of Buoyancy Minimum [Pa]:lvl1=(108,9000) lvl2=(108,0):90-0 mb above ground:8 hour fcst:
+119:61318982:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(108,9000) lvl2=(108,0):90-0 mb above ground:8 hour fcst:
+120:62290951:00Z20may2016:CAPE Convective Available Potential Energy [J/kg]:lvl1=(108,25500) lvl2=(108,0):255-0 mb above ground:8 hour fcst:
+121:62533058:00Z20may2016:CIN Convective Inhibition [J/kg]:lvl1=(108,25500) lvl2=(108,0):255-0 mb above ground:8 hour fcst:
+122:62911829:00Z20may2016:BMIN Buoyancy Minimum [K]:lvl1=(108,25500) lvl2=(108,0):255-0 mb above ground:8 hour fcst:
+123:63907049:00Z20may2016:PBMIN Pressure of Buoyancy Minimum [Pa]:lvl1=(108,25500) lvl2=(108,0):255-0 mb above ground:8 hour fcst:
+124:64914100:00Z20may2016:HGT Geopotential Height [gpm]:lvl1=(247,0) lvl2=(255,missing):equilibrium level:8 hour fcst:
+125:66426242:00Z20may2016:PLPL Pressure of level from which parcel was lifted [Pa]:lvl1=(108,25500) lvl2=(108,0):255-0 mb above ground:8 hour fcst:
+126:67230606:00Z20may2016:LAND Land Cover (0=sea, 1=land) [Proportion]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+127:67253640:00Z20may2016:ICEC Ice Cover [Proportion]:lvl1=(1,0) lvl2=(255,missing):surface:8 hour fcst:
+128:67254151:00Z20may2016:PVORT Potential Vorticity [Km2kg-1s-1]:lvl1=(107,320) lvl2=(255,missing):320 K isentropic level:8 hour fcst:
+129:67999426:00Z20may2016:SBT123 Simulated Brightness Temperature for GOES 12 Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+130:68794158:00Z20may2016:SBT124 Simulated Brightness Temperature for GOES 12 Channel 4 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+131:69675952:00Z20may2016:SBT113 Simulated Brightness Temperature for GOES 11 Channel 3 [K]:lvl1=(8,0) lvl2=(255,missing):top of atmosphere:8 hour fcst:
+132:71001201:00Z20may2016:SBT114 Simulated Brightness Temperature for GOES 11 Channel 4 [K]:lvl1=(8,1) lvl2=(255,missing):top of atmosphere:8 hour fcst:

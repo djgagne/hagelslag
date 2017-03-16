@@ -4,6 +4,14 @@ hagelslag.data package
 Submodules
 ----------
 
+hagelslag.data.HRRRModelGrid module
+-----------------------------------
+
+.. automodule:: hagelslag.data.HRRRModelGrid
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 hagelslag.data.HailForecastGrid module
 --------------------------------------
 

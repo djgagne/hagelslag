@@ -24,6 +24,10 @@ def main():
     end_date = datetime.strptime(args.end, "%Y%m%d")
     condition_models = args.cond.split(",")
     dist_models = args.dist.split(",")
+    for condition_model in condition_models:
+        print(condition_model)
+    for dist_model in dist_models:
+        print(dist_model)
     pool = Pool(args.proc)
 
     def output_combined_files(output):
@@ -34,6 +38,7 @@ def main():
             output[0].to_csv(out_file, mode="w", index_label="Step_ID")
         return
     csv_files = sorted(glob(args.csv + "track_step_{0}_*.csv".format(args.ens)))
+    print(csv_files)
     for csv_file in csv_files:
         run_date = datetime.strptime(csv_file[:-4].split("_")[-1], "%Y%m%d")
         if start_date <= run_date <= end_date:
@@ -76,7 +81,7 @@ def merge_input_csv_forecast_json(input_csv_file, forecast_json_path, condition_
         for dist_model in dist_models:
             dist_models_ns.append(dist_model.replace(" ", "-"))
             for param in gamma_params:
-                model_pred_cols.append(dist_model + "_" + param)
+                model_pred_cols.append(dist_model.replace(" ", "-") + "_" + param)
         pred_data = pd.DataFrame(index=input_data.index, columns=model_pred_cols,
                                 dtype=float)
         for track_id in track_ids:
