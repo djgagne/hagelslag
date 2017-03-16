@@ -18,7 +18,7 @@ from mpl_toolkits.basemap import Basemap
 from scipy.ndimage import gaussian_filter, find_objects
 from copy import deepcopy
 from mysavfig import mysavfig
-import pdb, sys, argparse
+import pdb, sys, argparse, os
 
 
 # In[2]:
@@ -41,14 +41,10 @@ if args.verbose: print args
 odir = '/glade/p/work/ahijevyc/hagelslag/out/'
 model_path = "/glade/scratch/ahijevyc/VSE/"
 ensemble_name = "NCAR"
-year = int(args.date[0:4])
-month = int(args.date[4:6])
-day = int(args.date[6:8])
-hour = int(args.date[8:10])
-run_date = datetime(year, month, day, hour)
+run_date = datetime.strptime(args.date,'%Y%m%d%H')
 member = args.member
 field = args.field
-start_date = run_date + timedelta(hours=1) # remember first time is usually all zeros
+start_date = run_date + timedelta(hours=10) # remember first time is usually all zeros
 
 #    Attributes:
 #        min_thresh (int): minimum pixel value for pixel to be part of a region
@@ -59,15 +55,14 @@ start_date = run_date + timedelta(hours=1) # remember first time is usually all 
 
 # From ahij's config file.
 if field == "MAX_UPDRAFT_HELICITY" or field == "UP_HELI_MAX03":
-        params = {"min_thresh":25, "step":5, "max_thresh":250, "max_size":150, "delta":75, "min_size":0, "filter_size":1}
+        params = {"min_thresh":75, "step":5, "max_thresh":250, "max_size":50, "delta":75, "min_size":1, "filter_size":0}
 if field == "HAIL2D":
         params = {"min_thresh":0.025, "step":0.005, "max_thresh":0.1, "max_size":150, "delta":75, "min_size":0, "filter_size":1}
 levels = params['min_thresh'] * np.arange(1,8)
 levels = np.append(levels, params['min_thresh'] * 15)
-# hard-wired min and max after adding rescale_data() function below.
-model_watershed_params = (0,1,100,params["max_size"],params["delta"])
+model_watershed_params = (params['min_thresh'],params['step'],params['max_thresh'],params["max_size"],params["delta"])
 
-end_date = run_date + timedelta(hours=24)
+end_date = start_date + timedelta(hours=0)
 
 from netCDF4 import Dataset
 model_grid = ModelOutput(ensemble_name, 
@@ -88,29 +83,37 @@ deltat = timedelta(minutes=60)
 
 def add_grid(m):
         m.drawstates()
-        m.drawcountries()
-        m.drawcoastlines()
+        m.drawcoastlines(linewidth=0.5)
         parallels = np.arange(0.,81.,1.)
-        m.drawparallels(parallels,labels=[True,False,False,False])
+        m.drawparallels(parallels,labels=[True,False,False,False],linewidth=0.5)
         meridians = np.arange(0.,351.,2.)
-        m.drawmeridians(meridians,labels=[False,False,False,True])
+        m.drawmeridians(meridians,labels=[False,False,False,True],linewidth=0.5)
         return m
         
 
 while d <= end_date:
         fhr = (d - run_date).total_seconds()/3600
-        dfile = model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/wrfout_d01_"+d.strftime("%Y-%m-%d_%H:%M:%S")
-        dfile = model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/diags_d01."+d.strftime("%Y-%m-%d_%H:%M:%S")+".nc"
-        dfile = model_path+member+run_date.strftime("/%Y%m%d%H")+"/post_AGAIN/"+'fhr_%d'%fhr+"/WRFTWO"+'%02d'%fhr+".nc"
-        dfile = model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/vse_d01."+d.strftime("%Y-%m-%d_%H:%M:%S")+".nc"
-        print dfile
-        ncf = Dataset(dfile)
-        model_grid.data.append(ncf.variables[field][0,:,:])
-        ncf.close()
+        # list of potential paths to diagnostic files
+        dfiles = [model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/wrfout_d01_"+d.strftime("%Y-%m-%d_%H:%M:%S"),
+                model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/diags_d01."+d.strftime("%Y-%m-%d_%H:%M:%S")+".nc",
+                model_path+member+run_date.strftime("/%Y%m%d%H")+"/post_AGAIN/"+'fhr_%d'%fhr+"/WRFTWO"+'%02d'%fhr+".nc",
+                model_path+member+run_date.strftime("/%Y%m%d%H")+"/wrf/vse_d01."+d.strftime("%Y-%m-%d_%H:%M:%S")+".nc"]
+        for dfile in dfiles:
+                # see if each path exists
+                if not os.path.isfile(dfile):
+                        continue
+                # If it does, see if 'field' is a variable.
+                ncf = Dataset(dfile)
+                if field in ncf.variables:
+                        print dfile
+                        model_grid.data.append(ncf.variables[field][0,:,:])
+                        ncf.close()
+                        break
+                ncf.close()
         d += deltat
 
 print model_grid.lon.shape, np.maximum.reduce(model_grid.data).shape # max across time dimension 
-print model_grid.data[0].max(), model_grid.data[1].max(), np.maximum.reduce(model_grid.data).max()
+print model_grid.data[0].max(), model_grid.data[-1].max(), np.maximum.reduce(model_grid.data).max()
 
 basemap = Basemap(resolution="l",
                 llcrnrlon=model_grid.lon.min()+5., urcrnrlon=model_grid.lon.max()-.1,
@@ -126,11 +129,11 @@ basemap.contourf(model_grid.lon, model_grid.lat,
                 latlon= True,
                 cmap="Accent")
 plt.colorbar(shrink=0.9, fraction=0.1, ticks=levels)
-title_info = plt.title(field + " {0}-{1}".format(start_date.strftime("%d %b %Y %H:%M"),
+title_info = plt.title(field + "\n"+member+" {0}-{1}".format(start_date.strftime("%d %b %Y %H:%M"),
                         end_date.strftime("%d %b %Y %H:%M")),
                         fontweight="bold", fontsize=14)
 dtstr = "_"+member+run_date.strftime("_%Y%m%d%H")
-ret = mysavfig(odir+"uh_swaths/uh_swaths"+dtstr+".png")
+ret = mysavfig(odir+"uh_swaths/"+field+"_swaths"+dtstr+".png")
 
 
 def get_forecast_objects(model_grid, ew_params, min_size, gaussian_window):
