@@ -113,7 +113,9 @@ class STObject(object):
             Distance in units of the x-y coordinates
         """
         ti = np.where(self.times == time)[0]
+        ti = ti[0] # avoid warning . Ahijevych
         oti = np.where(other_object.times == other_time)[0]
+        oti = oti[0] # avoid warning . Ahijevych
         xs = self.x[ti][self.masks[ti] == 1]
         xs = xs.reshape(xs.size, 1)
         ys = self.y[ti][self.masks[ti] == 1]
@@ -227,7 +229,7 @@ class STObject(object):
         Get coordinates of object boundary in counter-clockwise order
         """
         ti = np.where(time == self.times)[0]
-        #ti = ti[0] # avoid warning . Ahijevych
+        ti = ti[0] # avoid warning . Ahijevych
         com_x, com_y = self.center_of_mass(time)
         boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
@@ -253,6 +255,7 @@ class STObject(object):
             u, v, and the minimum error.
         """
         ti = np.where(time == self.times)[0]
+        ti = ti[0] # avoid warning . Ahijevych
         i_vals = self.i[ti][self.masks[ti] == 1]
         j_vals = self.j[ti][self.masks[ti] == 1]
         obj_vals = self.timesteps[ti][self.masks[ti] == 1]
@@ -454,6 +457,7 @@ class STObject(object):
 
         """
         ti = np.where(self.times == time)[0]
+        ti = ti[0] # avoid warning . Ahijevych
         props = regionprops(self.masks[ti], self.timesteps[ti])[0]
         shape_stats = []
         for stat_name in stat_names:
