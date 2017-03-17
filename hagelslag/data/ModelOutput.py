@@ -107,8 +107,18 @@ class ModelOutput(object):
                                    single_step=self.single_step)
                 self.data, self.units = mg.load_data()
                 mg.close()
-        elif self.ensemble_name.upper() in ["NCAR", "VSE"]:
+        elif self.ensemble_name.upper() == "NCAR":
             mg = NCARModelGrid(self.member_name,
+                               self.run_date,
+                               self.variable,
+                               self.start_date,
+                               self.end_date,
+                               self.path,
+                               single_step=self.single_step)
+            self.data, self.units = mg.load_data()
+            mg.close()
+        elif self.ensemble_name.upper() == "VSE":
+            mg = VSEModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
