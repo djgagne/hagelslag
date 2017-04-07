@@ -25,6 +25,7 @@ Python setups as well. Hagelslag requires the following packages and recommends 
 * matplotlib >= 1.4
 * scikit-learn >= 0.16
 * pandas >= 0.15
+* arrow >= 0.8.0
 * basemap
 * netCDF4-python
 
