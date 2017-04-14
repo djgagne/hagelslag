@@ -5,6 +5,7 @@ from skimage.morphology import convex_hull_image
 import json
 import os
 
+
 class STObject(object):
     """
     The STObject stores data and location information for objects extracted from the ensemble grids.
