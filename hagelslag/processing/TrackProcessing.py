@@ -31,9 +31,10 @@ class TrackProcessor(object):
         model_map_file: File containing model map projection information.
         model_watershed_params: tuple of parameters used for EnhancedWatershed
         object_matcher_params: tuple of parameters used for ObjectMatcher.
-        track_matcher_params: tuple of parameters for TrackMatcher.
+        track_matcher_params: tuple of parameters for TrackMatcher or TrackStepMatcher.
         size_filter: minimum size of model objects
         gaussian_window: number of grid points
+        match_steps: If True, match individual steps in tracks instead of matching whole tracks
         mrms_path: Path to MRMS netCDF files
         mrms_variable: MRMS variable being used
         mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
@@ -52,15 +53,15 @@ class TrackProcessor(object):
                  model_watershed_params,
                  object_matcher_params,
                  track_matcher_params,
-                 track_step_matcher_params,
                  size_filter,
                  gaussian_window,
+                 match_steps=True,
                  mrms_path=None,
                  mrms_variable=None,
                  mrms_watershed_params=None,
                  single_step=True,
                  mask_file=None,
-                 patch_radius=16):
+                 patch_radius=32):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -72,8 +73,12 @@ class TrackProcessor(object):
         self.variable = variable
         self.model_ew = EnhancedWatershed(*model_watershed_params)
         self.object_matcher = ObjectMatcher(*object_matcher_params)
-        self.track_matcher = TrackMatcher(*track_matcher_params)
-        self.track_step_matcher = TrackStepMatcher(*track_step_matcher_params)
+        if match_steps:
+            self.track_matcher = None
+            self.track_step_matcher = TrackStepMatcher(*track_matcher_params)
+        else:
+            self.track_matcher = TrackMatcher(*track_matcher_params)
+            self.track_step_matcher = None
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
         self.model_path = model_path
@@ -294,7 +299,6 @@ class TrackProcessor(object):
     def match_track_steps(self, model_tracks, obs_tracks):
         return self.track_step_matcher.match(model_tracks, obs_tracks)
 
-
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
                                  tendency_variables=None):
         """
@@ -311,6 +315,9 @@ class TrackProcessor(object):
             tendency_variables: List of tendency variables
         """
         model_grids = {}
+        for l_var in ["lon", "lat"]:
+            for model_obj in tracked_model_objects:
+                model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
         for storm_var in storm_variables:
             print("Storm {0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
@@ -425,6 +432,17 @@ class TrackProcessor(object):
         return
 
     def match_hail_size_step_distributions(self, model_tracks, obs_tracks, track_pairings):
+        """
+        Given a matching set of observed tracks for each model track, 
+        
+        Args:
+            model_tracks: 
+            obs_tracks: 
+            track_pairings: 
+
+        Returns:
+
+        """
         label_columns = ["Matched", "Max_Hail_Size", "Num_Matches", "Shape", "Location", "Scale"]
         s = 0
         for m, model_track in enumerate(model_tracks):

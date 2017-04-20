@@ -328,7 +328,8 @@ class STObject(object):
         """
         if var_name not in self.attributes.keys():
             self.attributes[var_name] = []
-        self.attributes[var_name].append(data_array[self.i[-1], self.j[-1]])
+        for t in range(self.times.size):
+            self.attributes[var_name].append(data_array[self.i[t], self.j[t]])
 
 
     def extract_tendency_grid(self, model_grid):
