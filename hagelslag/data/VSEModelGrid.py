@@ -8,7 +8,7 @@ from os.path import exists
 
 class VSEModelGrid(ModelGrid):
     """
-    Extension of ModelGrid to the CAPS Storm-Scale Ensemble Forecast system.
+    Extension of ModelGrid to VSE
 
     Args:
         member (str): Name of the ensemble member
@@ -25,7 +25,7 @@ class VSEModelGrid(ModelGrid):
         forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
                                    (end_date - run_date).total_seconds() / 3600 + 1)
         # Maybe you need the vse-style file.
-        if variable in ["XLAT","XLONG", "MU", "MUB", "Q2", "T2", "PSFC", "U10", "V10", "HGT", "RAINNC", "GRAUPELNC", "HAILNC", "PBLH", "WSPD10MAX", "W_UP_MAX", "W_DN_MAX", "REFD_MAX", "REFL_1KM_AGL", "UP_HELI_MAX", "UP_HELI_MAX03", "UP_HELI_MAX01", "UP_HELI_MIN", "RVORT1_MAX", "RVORT0_MAX", "W_MEAN", "GRPL_MAX", "C_PBLH", "W_PBLH", "W_MAX_PBL", "W_1KM_AGL", "HAIL_MAXK1", "HAIL_MAX2D", "PREC_ACC_NC", "REFD_COM", "REFD", "ECHOTOP", "AFWA_MSLP", "AFWA_HAIL", "AFWA_HAIL_NEWMEAN", "AFWA_HAIL_NEWSTD"]:
+        if variable in ["XLAT","XLONG", "MU", "MUB", "Q2", "T2", "PSFC", "U10", "V10", "HGT", "RAINNC", "GRAUPELNC", "HAILNC", "PBLH", "WSPD10MAX", "W_UP_MAX", "W_DN_MAX", "REFD_MAX", "UP_HELI_MAX", "UP_HELI_MAX03", "UP_HELI_MAX01", "UP_HELI_MIN", "RVORT1_MAX", "RVORT0_MAX", "W_MEAN", "GRPL_MAX", "C_PBLH", "W_PBLH", "W_MAX_PBL", "W_1KM_AGL", "HAIL_MAXK1", "HAIL_MAX2D", "PREC_ACC_NC", "REFD_COM", "REFD", "ECHOTOP", "AFWA_MSLP", "AFWA_HAIL", "AFWA_HAIL_NEWMEAN", "AFWA_HAIL_NEWSTD"]:
                 full_path = "/".join([self.path, member, run_date.strftime("%Y%m%d%H"), "wrf"])
                 potential_filenames = []
                 for hour in forecast_hours:
@@ -41,5 +41,7 @@ class VSEModelGrid(ModelGrid):
         for filename in potential_filenames:
             if os.access(filename, os.R_OK):
                 filenames.append(filename)
+            else:
+                print filename, "not readable. dropping from list"
         super(VSEModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
         return
