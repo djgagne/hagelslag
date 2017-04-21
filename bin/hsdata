@@ -526,6 +526,8 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
                     "degrees_north",
                     "",
                     ""]
+
+    label_columns = ["Matched", "Max_Hail_Size", "Num_Matches", "Shape", "Location", "Scale"]
     for m, meta_variable in enumerate(meta_variables):
         if meta_variable in ["i", "j"]:
             dtype = "i4"
@@ -539,7 +541,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             dtype = "i4"
         else:
             dtype = "f4"
-        c_var = out_file.createVariable(center_var, dtype, ("p",), zlib=False)
+        c_var = out_file.createVariable(center_var, dtype, ("p",), zlib=True, complevel=1)
         c_var.long_name = center_var
         c_var.units =center_units[c]
     for storm_variable in config.storm_variables:
@@ -550,6 +552,15 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
         p_var = out_file.createVariable(potential_variable + "_prev", "f4", ("p", "y", "x"), complevel=1, zlib=True)
         p_var.long_name = potential_variable
         p_var.units = ""
+    if config.train:
+        for label_column in label_columns:
+            if label_column in ["Matched", "Num_Matches"]:
+                dtype = "i4"
+            else:
+                dtype = "f4"
+            l_var = out_file.createVariable(label_column, dtype, ("p",), zlib=True, complevel=1)
+            l_var.long_name = label_column
+            l_var.units = ""
     p = 0
     for f, forecast_track in enumerate(forecast_tracks):
         steps = forecast_track.times.size
@@ -571,6 +582,9 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             out_file.variables[storm_variable + "_curr"][p:p + steps] = forecast_track.attributes[storm_variable]
         for p_variable in config.potential_variables:
             out_file.variables[p_variable + "_prev"][p:p + steps] = forecast_track.attributes[p_variable + "-potential"]
+        if config.train:
+            for label_column in label_columns:
+                out_file.variables[label_column][p: p + steps] = forecast_track.observations[label_column].values
         p += steps
     out_file.close()
 
