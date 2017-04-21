@@ -125,17 +125,21 @@ def process_ensemble_member(run_date, member, config):
                                                                 track_pairings)
                 print("Output data", run_date, member)
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member,
-                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors)
+                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors) 
+                if patch_radius is not None:
+                    print("Output netCDF", run_date, member)
+                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
+                                                     track_proc.model_grid.proj)
+                print("Output json", run_date, member)
                 forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
                                         observed_tracks=mrms_tracks,
                                         track_errors=track_errors)
                 obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
                                                track_pairings, model_tracks)
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-                if patch_radius is not None:
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
-                                                     track_proc.model_grid.proj)
 
+                
+                print("Output csv", run_date, member)
                 for table_name, table_data in obs_data.items():
                     csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                   "obs",
@@ -148,10 +152,16 @@ def process_ensemble_member(run_date, member, config):
                     os.chmod(csv_filename, 0o666)
             else:
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
-                                                         track_proc.model_grid.proj)
+                                                         track_proc.model_grid.proj) 
+                if patch_radius is not None:
+                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
+                                                     track_proc.model_grid.proj)
                 forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         elif len(model_tracks) > 0:
             forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+            if patch_radius is not None:
+                forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
+                                                 track_proc.model_grid.proj)
             forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
             forecast_data = {}
@@ -525,6 +535,8 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
                     "degrees_east",
                     "degrees_north",
                     "",
+                    "",
+                    "",
                     ""]
 
     label_columns = ["Matched", "Max_Hail_Size", "Num_Matches", "Shape", "Location", "Scale"]
@@ -566,11 +578,11 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
         steps = forecast_track.times.size
         out_file.variables["time"][p: p + steps] = forecast_track.times
         for c_var in ["lon", "lat"]:
-            out_file.variables["centroid_" + c_var][p: p + steps] = forecast_track.attributes[c_var][patch_radius,
-                                                                                                     patch_radius]
+            out_file.variables["centroid_" + c_var][p: p + steps] = np.array(forecast_track.attributes[c_var])[:, patch_radius,
+                                                                                                               patch_radius]
         for c_var in ["i", "j"]:
-            out_file.variables["centroid_" + c_var][p: p + steps] = getattr(forecast_track, c_var)[patch_radius,
-                                                                                                   patch_radius]
+            out_file.variables["centroid_" + c_var][p: p + steps] = np.array(getattr(forecast_track, c_var))[:, patch_radius,
+                                                                                                             patch_radius]
         out_file.variables["track_id"][p: p + steps] = f
         out_file.variables["track_step"][p: p + steps] = np.arange(1, forecast_track.times.size + 1)
         for meta_var in meta_variables:
@@ -618,11 +630,11 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
     obs_data['track_total'] = pd.DataFrame(columns=obs_total_track_columns)
     obs_data['track_step'] = pd.DataFrame(columns=obs_step_track_columns)
     track_step_count = 0
-    if len(track_pairings) > 0 and type(track_pairings[0][1]) == tuple:
-        track_pairing_list = [(tp[0], tp[1][0]) for tp in track_pairings]
-        track_pairing_array = np.array(track_pairing_list)
-    else:
-        track_pairing_array = np.array(track_pairings)
+    #if len(track_pairings) > 0 and type(track_pairings[0][1]) == tuple:
+    #    track_pairing_list = [(tp[0], tp[1][0]) for tp in track_pairings]
+    #    track_pairing_array = np.array(track_pairing_list)
+    #else:
+    #    track_pairing_array = np.array(track_pairings)
 
     for o, obs_track in enumerate(obs_tracks):
         obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
@@ -630,18 +642,18 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
                                                                     obs_track.start_time,
                                                                     obs_track.end_time,
                                                                     o)
-        if track_pairing_array.shape[0] > 0 and o in track_pairing_array[:, 1]:
-            f = track_pairing_array[np.where(track_pairing_array[:, 1] == o)[0][0], 0]
-            forecast_track = forecast_tracks[f]
-            track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
-                                                                    config.watershed_variable,
-                                                                    run_date.strftime("%Y%m%d-%H%M"),
-                                                                    forecast_track.start_time,
-                                                                    forecast_track.end_time,
-                                                                    f,
-                                                                    )
-        else:
-            track_id = "None"
+        #if track_pairing_array.shape[0] > 0 and o in track_pairing_array[:, 1]:
+        #    f = track_pairing_array[np.where(track_pairing_array[:, 1] == o)[0][0], 0]
+        #    forecast_track = forecast_tracks[f]
+        #    track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
+        #                                                            config.watershed_variable,
+        #                                                            run_date.strftime("%Y%m%d-%H%M"),
+        #                                                            forecast_track.start_time,
+        #                                                            forecast_track.end_time,
+        #                                                            f,
+        #                                                            )
+        #else:
+        track_id = "None"
         start_date = run_date + timedelta(seconds=3600 * obs_track.start_time)
         end_date = run_date + timedelta(seconds=3600 * obs_track.end_time)
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1

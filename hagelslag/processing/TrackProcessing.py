@@ -124,16 +124,24 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h] * self.mask
             else:
                 model_data = self.model_grid.data[h]
+            model_data[:self.patch_radius] = 0
+            model_data[-self.patch_radius:] = 0
+            model_data[:,:self.patch_radius] = 0
+            model_data[:,-self.patch_radius:] = 0
             hour_labels = label_storm_objects(gaussian_filter(model_data, self.gaussian_window), "ew",
                                               self.model_ew.min_thresh, self.model_ew.max_thresh,
                                               min_area=self.size_filter, max_area=self.model_ew.max_size,
                                               max_range=self.model_ew.delta, increment=self.model_ew.data_increment)
             hour_labels[model_data < self.model_ew.min_thresh] = 0
-            model_objects.append(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
-                                                       self.model_grid.y, self.hours,
+            model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
+                                                       self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
                                                        patch_radius=self.patch_radius))
-            tracked_model_objects.extend(track_storms(model_objects, self.hours,
+            for model_obj in model_objects[-1]:
+                dims = model_obj.timesteps[-1].shape
+                if h > 0:
+                    model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+        tracked_model_objects.extend(track_storms(model_objects, self.hours,
                                                       self.object_matcher.cost_function_components,
                                                       self.object_matcher.max_values,
                                                       self.object_matcher.weights))

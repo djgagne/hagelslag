@@ -215,12 +215,12 @@ class TrackStepMatcher(object):
         for tr, track_a in enumerate(set_a):
             for t, time in enumerate(track_a.times):
                 track_pairings.loc[s, ["Track", "Step", "Time"]] = [tr, t, time]
-                track_pairings["Matched"] = 1 if np.count_nonzero(set_a_matches == s) > 0 else 0
-                if track_pairings["Matched"] == 1:
-                    track_pairings["Pairings"] = set_b_info_arr[set_b_matches[set_a_matches == s]]
+                track_pairings.loc[s, "Matched"] = 1 if np.count_nonzero(set_a_matches == s) > 0 else 0
+                if track_pairings.loc[s, "Matched"] == 1:
+                    track_pairings.loc[s, "Pairings"] = set_b_info_arr[set_b_matches[set_a_matches == s]]
                 else:
-                    track_pairings["Pairings"] = np.array([])
-            s += 1
+                    track_pairings.loc[s, "Pairings"] = np.array([])
+                s += 1
         return track_pairings
 
     def cost_matrix(self, set_a, set_b):
