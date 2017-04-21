@@ -3,7 +3,7 @@ from hagelslag.data.MRMSGrid import MRMSGrid
 from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
 from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
-from .ObjectMatcher import ObjectMatcher, TrackMatcher
+from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
 from scipy.ndimage import find_objects, gaussian_filter
 from .STObject import STObject, read_geojson
 import numpy as np
@@ -33,9 +33,10 @@ class TrackProcessor(object):
         model_map_file: File containing model map projection information.
         model_watershed_params: tuple of parameters used for EnhancedWatershed
         object_matcher_params: tuple of parameters used for ObjectMatcher.
-        track_matcher_params: tuple of parameters for TrackMatcher.
+        track_matcher_params: tuple of parameters for TrackMatcher or TrackStepMatcher.
         size_filter: minimum size of model objects
         gaussian_window: number of grid points
+        match_steps: If True, match individual steps in tracks instead of matching whole tracks
         mrms_path: Path to MRMS netCDF files
         mrms_variable: MRMS variable being used
         mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
@@ -56,12 +57,13 @@ class TrackProcessor(object):
                  track_matcher_params,
                  size_filter,
                  gaussian_window,
+                 match_steps=True,
                  mrms_path=None,
                  mrms_variable=None,
                  mrms_watershed_params=None,
                  single_step=True,
                  mask_file=None,
-                 patch_radius=16):
+                 patch_radius=32):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -73,7 +75,12 @@ class TrackProcessor(object):
         self.variable = variable
         self.model_ew = EnhancedWatershed(*model_watershed_params)
         self.object_matcher = ObjectMatcher(*object_matcher_params)
-        self.track_matcher = TrackMatcher(*track_matcher_params)
+        if match_steps:
+            self.track_matcher = None
+            self.track_step_matcher = TrackStepMatcher(*track_matcher_params)
+        else:
+            self.track_matcher = TrackMatcher(*track_matcher_params)
+            self.track_step_matcher = None
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
         self.model_path = model_path
@@ -119,16 +126,24 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h] * self.mask
             else:
                 model_data = self.model_grid.data[h]
+            model_data[:self.patch_radius] = 0
+            model_data[-self.patch_radius:] = 0
+            model_data[:,:self.patch_radius] = 0
+            model_data[:,-self.patch_radius:] = 0
             hour_labels = label_storm_objects(gaussian_filter(model_data, self.gaussian_window), "ew",
                                               self.model_ew.min_thresh, self.model_ew.max_thresh,
                                               min_area=self.size_filter, max_area=self.model_ew.max_size,
                                               max_range=self.model_ew.delta, increment=self.model_ew.data_increment)
             hour_labels[model_data < self.model_ew.min_thresh] = 0
-            model_objects.append(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
-                                                       self.model_grid.y, self.hours,
+            model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
+                                                       self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
                                                        patch_radius=self.patch_radius))
-            tracked_model_objects.extend(track_storms(model_objects, self.hours,
+            for model_obj in model_objects[-1]:
+                dims = model_obj.timesteps[-1].shape
+                if h > 0:
+                    model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+        tracked_model_objects.extend(track_storms(model_objects, self.hours,
                                                       self.object_matcher.cost_function_components,
                                                       self.object_matcher.max_values,
                                                       self.object_matcher.weights))
@@ -306,6 +321,9 @@ class TrackProcessor(object):
             pairings = self.track_matcher.neighbor_matches(model_tracks, obs_tracks)
         return pairings
 
+    def match_track_steps(self, model_tracks, obs_tracks):
+        return self.track_step_matcher.match(model_tracks, obs_tracks)
+
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
                                  tendency_variables=None):
         """
@@ -322,6 +340,9 @@ class TrackProcessor(object):
             tendency_variables: List of tendency variables
         """
         model_grids = {}
+        for l_var in ["lon", "lat"]:
+            for model_obj in tracked_model_objects:
+                model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
         for storm_var in storm_variables:
             print("Storm {0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
@@ -434,6 +455,41 @@ class TrackProcessor(object):
                     interp_hail_dists = match_single_track_dist(model_tracks[pair[0]], obs_tracks[op])
                     model_tracks[pair[0]].observations.append(interp_hail_dists)
         return
+
+    def match_hail_size_step_distributions(self, model_tracks, obs_tracks, track_pairings):
+        """
+        Given a matching set of observed tracks for each model track, 
+        
+        Args:
+            model_tracks: 
+            obs_tracks: 
+            track_pairings: 
+
+        Returns:
+
+        """
+        label_columns = ["Matched", "Max_Hail_Size", "Num_Matches", "Shape", "Location", "Scale"]
+        s = 0
+        for m, model_track in enumerate(model_tracks):
+            model_track.observations = pd.DataFrame(index=model_track.times, columns=label_columns, dtype=np.float64)
+            model_track.observations.loc[:, :] = 0
+            model_track.observations["Matched"] = model_track.observations["Matched"].astype(np.int32)
+            for t, time in enumerate(model_track.times):
+                model_track.observations.loc[time, "Matched"] = track_pairings.loc[s, "Matched"]
+                if model_track.observations.loc[time, "Matched"] > 0:
+                    all_hail_sizes = []
+                    step_pairs = track_pairings.loc[s, "Pairings"]
+                    for step_pair in step_pairs:
+                        obs_step = obs_tracks[step_pair[0]].timesteps[step_pair[1]].ravel()
+                        obs_mask = obs_tracks[step_pair[0]].masks[step_pair[1]].ravel()
+                        all_hail_sizes.append(obs_step[(obs_mask == 1) & (obs_step >= self.mrms_ew.min_thresh)])
+                    combined_hail_sizes = np.concatenate(all_hail_sizes)
+                    min_hail = combined_hail_sizes.min() - 0.1
+                    model_track.observations.loc[time, "Max_Hail_Size"] = combined_hail_sizes.max()
+                    model_track.observations.loc[time, "Num_Matches"] = step_pairs.shape[0]
+                    model_track.observations.loc[time, ["Shape", "Location", "Scale"]] = gamma.fit(combined_hail_sizes,
+                                                                                                   floc=min_hail)
+                s += 1
 
     @staticmethod
     def calc_track_errors(model_tracks, obs_tracks, track_pairings):
