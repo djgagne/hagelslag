@@ -10,7 +10,7 @@
 """
 
 #import pdb
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import label as splabel
 from scipy.ndimage import find_objects
@@ -53,6 +53,8 @@ class EnhancedWatershed(object):
         """
         marked = self.find_local_maxima(input_grid)
         marked = np.where(marked >= 0, 1, 0)
+        # splabel returns two things in a tuple: an array and an integer
+        # assign the first thing (array) to markers
         markers = splabel(marked)[0]
         return markers
 
@@ -96,9 +98,12 @@ class EnhancedWatershed(object):
         MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.max_size)))
         MAX_INFL = 2 * MIN_INFL
         marked_so_far = []
-        plt.close('all')
+        #plt.close('all')
         # Find the maxima. These are high-values with enough clearance
-        # around them
+        # around them.
+        # Work from high to low bins. The pixels in the highest bin mark their
+        # neighborhoods first. If you did it from low to high the lowest maxima
+        # would mark their neighborhoods first and interfere with the identification of higher maxima.
         for b in sorted(pixels.keys(),reverse=True):
             # Square starts large with high intensity bins and gets smaller with low intensity bins.
             infl_dist = MIN_INFL + int(np.round(float(b) / self.max_bin * (MAX_INFL - MIN_INFL)))
@@ -128,10 +133,13 @@ class EnhancedWatershed(object):
                     else:
                         for m in marked_so_far:
                             marked[m] = self.UNMARKED
+        # Erase marks and start over. You have a list of centers now.
         marked[:, :] = self.UNMARKED
         deferred_from_last = []
         deferred_to_next = []
+        # delta (int): maximum number of increments the cluster is allowed to range over. Larger d results in clusters over larger scales.
         for delta in range(0, self.delta + 1):
+            # Work from high to low bins.
             for b in sorted(centers.keys(), reverse=True):
                 bin_lower = b - delta
                 deferred_from_last[:] = deferred_to_next[:]
@@ -153,10 +161,11 @@ class EnhancedWatershed(object):
                             # decrement to lower value to see if it'll get big enough
                             deferred_to_next.append(center)
                         else:
+                            pass
                             #print "delta",delta,"bin",b, "i",i, "done growing",center
-                            plot_data = plt.figimage(np.flipud(marked))
-                            plt.savefig('%02d'%delta+'.%03d'%(100-b)+'.%04d'%i+".png")
-                            plt.close('all')
+                            #plot_data = plt.figimage(np.flipud(marked))
+                            #plt.savefig('%02d'%delta+'.%03d'%(100-b)+'.%04d'%i+".png")
+                            #plt.close('all')
                 # this is the last one for this bin
                 self.remove_foothills(q_data, marked, b, bin_lower, centers, foothills)
             del deferred_from_last[:]
@@ -210,7 +219,7 @@ class EnhancedWatershed(object):
         if big_enough:
             # remove lower values within region of influence
             foothills.append((center, as_glob))
-        elif will_be_considered_again: # remove the check if you don't want small regions colored
+        elif will_be_considered_again: # remove the check if you want to ignore regions smaller than max_size
             for m in marked_so_far:
                 marked[m] = self.UNMARKED
             del as_bin[:]
