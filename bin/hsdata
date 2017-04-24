@@ -573,31 +573,25 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             l_var = out_file.createVariable(label_column, dtype, ("p",), zlib=True, complevel=1)
             l_var.long_name = label_column
             l_var.units = ""
-    p = 0
-    for f, forecast_track in enumerate(forecast_tracks):
-        steps = forecast_track.times.size
-        out_file.variables["time"][p: p + steps] = forecast_track.times
-        for c_var in ["lon", "lat"]:
-            out_file.variables["centroid_" + c_var][p: p + steps] = np.array(forecast_track.attributes[c_var])[:, patch_radius,
-                                                                                                               patch_radius]
-        for c_var in ["i", "j"]:
-            out_file.variables["centroid_" + c_var][p: p + steps] = np.array(getattr(forecast_track, c_var))[:, patch_radius,
-                                                                                                             patch_radius]
-        out_file.variables["track_id"][p: p + steps] = f
-        out_file.variables["track_step"][p: p + steps] = np.arange(1, forecast_track.times.size + 1)
-        for meta_var in meta_variables:
-            if meta_var in ["lon", "lat"]:
-                out_file.variables[meta_var][p: p + steps] = forecast_track.attributes[meta_var]
-            else:
-                out_file.variables[meta_var][p: p + steps] = getattr(forecast_track, meta_var)
-        for storm_variable in config.storm_variables:
-            out_file.variables[storm_variable + "_curr"][p:p + steps] = forecast_track.attributes[storm_variable]
-        for p_variable in config.potential_variables:
-            out_file.variables[p_variable + "_prev"][p:p + steps] = forecast_track.attributes[p_variable + "-potential"]
-        if config.train:
-            for label_column in label_columns:
-                out_file.variables[label_column][p: p + steps] = forecast_track.observations[label_column].values
-        p += steps
+    out_file.variables["time"][:] = np.concatenate([f_track.times for f_track in forecast_tracks])
+    for c_var in ["lon", "lat"]:
+        out_file.variables["centroid_" + c_var][:] = np.concatenate([np.array(f_track.attributes[c_var])[:, patch_radius, patch_radius] for f_track in forecast_tracks])
+    for c_var in ["i", "j"]:
+        out_file.variables["centroid_" + c_var][:] = np.concatenate([np.array(getattr(f_track, c_var))[:, patch_radius, patch_radius] for f_track in forecast_tracks])
+    out_file.variables["track_id"][:] = np.concatenate([[f] * f_track.times.size for f, f_track in enumerate(forecast_tracks)])
+    out_file.variables["track_step"][:] = np.concatenate([np.arange(1, f_track.times.size + 1) for f_track in forecast_tracks])
+    for meta_var in meta_variables:
+        if meta_var in ["lon", "lat"]:
+            out_file.variables[meta_var][:] = np.vstack([f_track.attributes[meta_var] for f_track in forecast_tracks])
+        else:
+            out_file.variables[meta_var][:] = np.vstack([getattr(f_track, meta_var) for f_track in forecast_tracks])
+    for storm_variable in config.storm_variables:
+        out_file.variables[storm_variable + "_curr"][:] = np.vstack([f_track.attributes[storm_variable] for f_track in forecast_tracks])
+    for p_variable in config.potential_variables:
+        out_file.variables[p_variable + "_prev"][:] = np.vstack([f_track.attributes[p_variable + "-potential"] for f_track in forecast_tracks])
+    if config.train:
+        for label_column in label_columns:
+            out_file.variables[label_column][:] = np.concatenate([f_track.observations[label_column].values for f_track in forecast_tracks])
     out_file.close()
 
 
