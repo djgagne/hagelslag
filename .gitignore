@@ -35,6 +35,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
+testdata/
 htmlcov/
 .tox/
 .coverage
@@ -50,6 +51,9 @@ coverage.xml
 
 # Django stuff:
 *.log
+
+# Images
+*.png
 
 # Sphinx documentation
 docs/_build/

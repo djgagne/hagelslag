@@ -114,7 +114,9 @@ class STObject(object):
             Distance in units of the x-y coordinates
         """
         ti = np.where(self.times == time)[0]
+        ti = ti[0] # avoid warning . Ahijevych
         oti = np.where(other_object.times == other_time)[0]
+        oti = oti[0] # avoid warning . Ahijevych
         xs = self.x[ti][self.masks[ti] == 1]
         xs = xs.reshape(xs.size, 1)
         ys = self.y[ti][self.masks[ti] == 1]
@@ -229,7 +231,14 @@ class STObject(object):
         """
         ti = np.where(time == self.times)[0][0]
         com_x, com_y = self.center_of_mass(time)
-        boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
+        # If at least one point along perimeter of the mask rectangle is unmasked, find_boundaries() works.
+        # But if all perimeter points are masked, find_boundaries() does not find the object.
+        # Therefore, pad the mask with zeroes first and run find_boundaries on the padded array.
+        padded_mask = np.pad(self.masks[ti], 1, 'constant', constant_values=0)
+        chull = convex_hull_image(padded_mask)
+        boundary_image = find_boundaries(chull, mode='inner', background=0)
+        # Now remove the padding.
+        boundary_image = boundary_image[1:-1,1:-1]
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
         boundary_y = self.y[ti].ravel()[boundary_image.ravel()]
         r = np.sqrt((boundary_x - com_x) ** 2 + (boundary_y - com_y) ** 2)
@@ -271,14 +280,16 @@ class STObject(object):
                     shift_vals = intensity_grid[i_shift, j_shift]
                 else:
                     shift_vals = np.zeros(i_shift.shape)
+                # This isn't correlation; it is mean absolute error.
                 error = np.abs(shift_vals - obj_vals).mean()
                 if error < min_error:
                     min_error = error
                     best_u = u * self.dx
                     best_v = v * self.dx
-        if min_error > 60:
-            best_u = 0
-            best_v = 0
+        # 60 seems arbitrarily high
+        #if min_error > 60:
+        #    best_u = 0
+        #    best_v = 0
         self.u[ti] = best_u
         self.v[ti] = best_v
         return best_u, best_v, min_error
@@ -521,7 +532,6 @@ class STObject(object):
         json.dump(json_obj, file_obj, indent=1, sort_keys=True)
         file_obj.close()
         return
-
 
 def read_geojson(filename):
     """

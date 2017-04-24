@@ -1,5 +1,6 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
+from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
 from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
@@ -12,6 +13,7 @@ import pandas as pd
 from datetime import timedelta
 from scipy.stats import gamma
 from netCDF4 import Dataset
+import pdb
 
 
 class TrackProcessor(object):
@@ -168,10 +170,25 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h] * self.mask
             else:
                 model_data = self.model_grid.data[h]
-            hour_labels = self.model_ew.label(gaussian_filter(model_data, self.gaussian_window))
+
+            # remember orig values
+            min_orig = self.model_ew.min_thresh
+            max_orig = self.model_ew.max_thresh
+            data_increment_orig = self.model_ew.data_increment
+            # scale to int 0-100.
+            scaled_data = np.array( rescale_data( self.model_grid.data[h], min_orig, max_orig) )
+            self.model_ew.min_thresh =   0
+            self.model_ew.data_increment =   1
+            self.model_ew.max_thresh = 100
+            hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
             hour_labels[model_data < self.model_ew.min_thresh] = 0
             hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
+            # Return to orig values
+            self.model_ew.min_thresh =  min_orig
+            self.model_ew.max_thresh =  max_orig
+            self.model_ew.data_increment =  data_increment_orig
             obj_slices = find_objects(hour_labels)
+
             num_slices = len(obj_slices)
             model_objects.append([])
             if num_slices > 0:
