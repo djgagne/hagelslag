@@ -7,6 +7,13 @@ from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
+from hagelslag.evaluation import DistributedROC
+
+try:
+    from sklearn.model_selection import KFold
+except ImportError:
+    from sklearn.cross_validation import KFold
 
 
 class TrackModeler(object):
@@ -155,6 +162,47 @@ class TrackModeler(object):
                     print(self.condition_models[group][model_name].best_estimator_) 
                     print(self.condition_models[group][model_name].best_score_)
 
+    def fit_condition_threshold_models(self, model_names, model_objs, input_columns, output_column="Matched",
+                                       output_threshold=0.5, num_folds=5, threshold_score="ets"):
+        """
+        Fit models to predict hail/no-hail and use cross-validation to determine the probaility threshold that
+        maximizes a skill score.
+        
+        Args:
+            model_names: List of machine learning model names
+            model_objs: List of Scikit-learn ML models
+            input_columns: List of input variables in the training data
+            output_column: Column used for prediction
+            output_threshold: Values exceeding this threshold are considered positive events; below are nulls
+            num_folds: Number of folds in the cross-validation procedure
+            threshold_score: Score available in ContingencyTable used for determining the best probability threshold
+        Returns:
+            None
+        """
+        print("Fitting condition models")
+        groups = self.data["train"]["member"][self.group_col].unique()
+        for group in groups:
+            print(group)
+            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
+            output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
+            print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
+            self.condition_models[group] = {}
+            for m, model_name in enumerate(model_names):
+                print(model_name)
+                self.condition_models[group][model_name] = deepcopy(model_objs[m])
+                kf = KFold(n_splits=num_folds)
+                roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
+                for train_index, test_index in kf.split(group_data[input_columns]):
+                    self.condition_models[group][model_name].fit(group_data.loc[train_index, input_columns],
+                                                                 output_data[train_index])
+                    cv_preds = self.condition_models[group][model_name].predict_proba(group_data.loc[test_index,
+                                                                                                     input_columns])
+                    roc.update(cv_preds, output_data[test_index])
+                self.condition_models[group][
+                    model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
+                self.condition_models[group][model_name].fit(group_data[input_columns],
+                                                             output_data)
+
     def predict_condition_models(self, model_names,
                                  input_columns,
                                  metadata_cols,
@@ -227,6 +275,24 @@ class TrackModeler(object):
                     self.size_distribution_models[group]["calscale"][model_name].fit(training_predictions[:, 1:],
                                                                           (log_labels[:, 1] - log_means[1]) / log_sds[
                                                                               1])
+
+    def fit_size_distribution_component_models(self, model_names, model_objs, input_columns, output_columns):
+        groups = np.unique(self.data["train"]["member"][self.group_col])
+        for group in groups:
+            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
+            group_data = group_data.dropna()
+            group_data = group_data.loc[group_data[output_columns[-1]] > 0]
+            self.size_distribution_models[group] = {"lognorm": {}, "pc": None}
+            pc = PCA(n_components=len(output_columns))
+            log_labels = np.log(group_data[output_columns].values)
+            log_labels[:, np.where(output_columns == "Shape")[0]] *= -1
+            log_means = log_labels.mean(axis=0)
+            log_sds = log_labels.std(axis=0)
+            log_norm_labels = (log_labels - log_means) / log_sds
+            out_pc_labels = pc.fit_transform(log_norm_labels)
+            self.size_distribution_models[group]['lognorm']['mean'] = log_means
+            self.size_distribution_models[group]['lognorm']['sd'] = log_sds
+        return
 
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
                                          data_mode="forecast", location=6, calibrate=False):

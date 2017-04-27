@@ -162,6 +162,11 @@ class DistributedROC(object):
                                                self.contingency_tables["FP"])
         return csi.max()
 
+    def max_threshold_score(self, score="ets"):
+        cts = self.get_contingency_tables()
+        scores = np.array([getattr(ct, score)() for ct in cts])
+        return self.thresholds[scores.argmax()], scores.max()
+
     def get_contingency_tables(self):
         """
         Create an Array of ContingencyTable objects for each probability threshold.
