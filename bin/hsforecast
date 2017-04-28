@@ -52,7 +52,7 @@ def main():
     if args.grid:
         generate_ml_grids(config, mode="forecast")
     if args.ens:
-        print "Making ensemble probs"
+        print("Making ensemble probs")
         make_ensemble_probabilities(config, mode="forecast")
         #generate_all_ensemble_products(config, mode="forecast")
     if args.samp:
@@ -572,7 +572,7 @@ def member_neighborhood_probability(ensemble_name, model_name, member, run_date,
         #            smooth_neighbor_prob[:] = 0
         for radius in radii:
             for threshold in thresholds[variable]:
-                print "Period {0} {1} {2} {3}".format(radius, threshold, member, run_date)
+                print("Period {0} {1} {2} {3}".format(radius, threshold, member, run_date))
                 period_prob = emp.period_max_neighborhood_probability(threshold, radius)
                 for sigma in sigmas:
                     smooth_period_prob = gaussian_filter(period_prob, sigma)
