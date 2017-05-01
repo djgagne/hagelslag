@@ -5,11 +5,13 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
 from scipy.stats import gamma, bernoulli
+from scipy.interpolate import interp1d
 from scipy.spatial import cKDTree
 from skimage.morphology import disk
-from netCDF4 import Dataset, date2num
+from netCDF4 import Dataset, date2num, num2date
 import os
 from glob import glob
+from os.path import join, exists
 import json
 from datetime import timedelta
 
@@ -53,6 +55,8 @@ class EnsembleMemberProduct(object):
                 self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)
             self.mapping_data = make_proj_grids(self.proj_dict, self.grid_dict)
         self.units = ""
+        self.nc_patches = None
+        self.hail_forecast_table = None
 
     def load_data(self, num_samples=1000, percentiles=None):
         """
@@ -134,6 +138,56 @@ class EnsembleMemberProduct(object):
                 tfo.close()
         else:
             self.track_forecasts = []
+
+    def load_forecast_csv_data(self, csv_path):
+        forecast_file = join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                    self.member,
+                                                                    self.run_date.strftime("%Y%m%d")))
+        if exists(forecast_file):
+            self.hail_forecast_table = pd.read_csv(forecast_file)
+        return
+
+    def load_forecast_netcdf_data(self, nc_path):
+        nc_file = join(nc_path, "{0}_{1}_{2}_model_patches.nc".format(self.ensemble_name,
+                                                                      self.run_date.strftime("%Y%m%d%H"),
+                                                                      self.member))
+        nc_patches = Dataset(nc_file)
+        nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
+                                             nc_file.variables["time"].units))
+        time_indices = np.in1d(nc_times, self.times)
+        self.nc_patches["time"] = nc_times[time_indices]
+        self.nc_patches = dict()
+        self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable][time_indices]
+        self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
+        self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
+        self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
+        nc_patches.close()
+        return
+
+    def quantile_match(self):
+        mask_indices = np.where(self.nc_patches["masks"] == 1)
+        obj_values = self.nc_patches["obj_values"][mask_indices]
+        percentiles = np.linspace(0.1, 99.9, 100)
+        obj_per_vals = np.percentile(obj_values, percentiles)
+        per_func = interp1d(obj_per_vals, percentiles / 100.0, bounds_error=False, fill_value=(0.1, 99.9))
+        obj_percentiles = np.zeros(self.nc_patches["masks"].shape)
+        obj_percentiles[mask_indices] = per_func(obj_values)
+        obj_hail_sizes = np.zeros(obj_percentiles.shape)
+        model_name = self.model_name.replace(" ", "-")
+        for p in range(obj_hail_sizes.shape[0]):
+            patch_mask = np.where(self.nc_patches["masks"][p] == 1)
+            obj_hail_sizes[p,
+                           patch_mask[0],
+                           patch_mask[1]] = gamma.ppf(obj_percentiles[p,
+                                                                      patch_mask[0],
+                                                                      patch_mask[1]],
+                                                      self.hail_forecast_table.loc[p,
+                                                                                   model_name + "_shape"],
+                                                      self.hail_forecast_table.loc[p,
+                                                                                   model_name + "_location"],
+                                                      self.hail_forecast_table.loc[p,
+                                                                                   model_name + "_scale"])
+        return
 
     def neighborhood_probability(self, threshold, radius):
         """

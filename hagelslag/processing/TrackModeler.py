@@ -9,6 +9,7 @@ from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
 from sklearn.decomposition import PCA
 from hagelslag.evaluation import DistributedROC
+from os.path import join
 
 try:
     from sklearn.model_selection import KFold
@@ -221,14 +222,14 @@ class TrackModeler(object):
             A dictionary of data frames containing probabilities of the event and specified metadata
         """
         groups = self.condition_models.keys()
-        predictions = {}
+        predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
         for group in groups:
-            group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
-            if group_data.shape[0] > 0:
-                predictions[group] = group_data[metadata_cols]
+            group_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(group_idxs)
+            if group_count > 0:
                 for m, model_name in enumerate(model_names):
-                    predictions[group].loc[:, model_name] = self.condition_models[group][model_name].predict_proba(
-                        group_data.loc[:, input_columns])[:, 1]
+                    predictions.loc[group_idxs, model_name.replace(" ", "-") + "_condition"] = self.condition_models[group][
+                                                                               model_name].predict_proba(self.data[data_mode]["combo"].loc[group_idxs, input_columns])[:, 1]
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
@@ -320,13 +321,12 @@ class TrackModeler(object):
         groups = self.size_distribution_models.keys()
         predictions = {}
         for group in groups:
-            predictions[group] = {}
             group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
+            predictions[group] = group_data[metadata_cols]
             if group_data.shape[0] > 0:
                 log_mean = self.size_distribution_models[group]["lognorm"]["mean"]
                 log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
                 for m, model_name in enumerate(model_names):
-                    predictions[group][model_name] = group_data[metadata_cols]
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
                         group_data[input_columns])
                     if calibrate:
@@ -362,19 +362,19 @@ class TrackModeler(object):
             Predictions in dictionary of data frames grouped by group type
         """
         groups = self.size_distribution_models.keys()
-        predictions = {}
+        predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
         for group in groups:
-            predictions[group] = {}
-            group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
-            if group_data.shape[0] > 0:
+            group_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(group_idxs)
+            if group_count > 0:
                 log_mean = self.size_distribution_models[group]["lognorm"]["mean"]
                 log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
                 for m, model_name in enumerate(model_names):
-                    predictions[group][model_name] = group_data[metadata_cols]
-                    raw_preds = np.zeros((group_data.shape[0], len(output_columns)))
+                    raw_preds = np.zeros((group_count, len(output_columns)))
                     for c in range(len(output_columns)):
                         raw_preds[:, c] = self.size_distribution_models[group][
-                            "pc_{0:d}".format(c)][model_name].predict(group_data[input_columns])
+                            "pc_{0:d}".format(c)][model_name].predict(self.data[data_mode]["combo"].loc[group_idxs,
+                                                                                                        input_columns])
                     log_norm_preds = self.size_distribution_models[group]["lognorm"]["pca"].inverse_transform(raw_preds)
                     log_norm_preds[:, 0] *= -1
                     multi_predictions = np.exp(log_norm_preds * log_sd + log_mean)
@@ -385,7 +385,7 @@ class TrackModeler(object):
                         multi_predictions_temp[:, 2] = multi_predictions[:, 1]
                         multi_predictions = multi_predictions_temp
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
-                        predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
+                        predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
         return predictions
 
@@ -718,6 +718,33 @@ class TrackModeler(object):
             out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
             with open(out_json_filename, "w") as out_json_obj:
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
+        return
+
+    def output_forecasts_csv(self, forecasts, mode, csv_path):
+        """
+        Output hail forecast values to csv files by run date and ensemble member.
+        
+        Args:
+            forecasts: 
+            mode: 
+            csv_path: 
+
+        Returns:
+
+        """
+        merged_forecasts = pd.merge(forecasts["condition"],
+                                    forecasts["dist"], on="Step_ID")
+        all_members = self.data[mode]["combo"]["Ensemble_Member"]
+        members = np.unique(all_members)
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
+        run_dates = np.unique(all_run_dates)
+        for member in members:
+            for run_date in run_dates:
+                mem_run_index = (all_run_dates == run_date) & (all_members == member)
+                member_forecast = merged_forecasts.loc[mem_run_index]
+                member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                                              member,
+                                                                                              run_date.strftime("%Y%m%d"))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,

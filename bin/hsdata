@@ -129,7 +129,7 @@ def process_ensemble_member(run_date, member, config):
                 if patch_radius is not None:
                     print("Output netCDF", run_date, member)
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
-                                                     track_proc.model_grid.proj)
+                                                     config.watershed_variable)
                 print("Output json", run_date, member)
                 forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
                                         observed_tracks=mrms_tracks,
@@ -512,7 +512,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
         os.chmod(json_filename, 0o666)
 
 
-def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config, proj):
+def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config, watershed_var):
     ensemble_name = config.ensemble_name
     patch_count = 0
     for f, forecast_track in enumerate(forecast_tracks):
@@ -534,6 +534,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     out_file.title = "{0} Storm Patches for run {1} member {2}".format(ensemble_name,
                                                                        run_date.strftime("%Y%m%d%H"),
                                                                        member)
+    out_file.object_variable = watershed_var
     meta_variables = ["lon", "lat", "i", "j", "x", "y", "masks"]
     meta_units = ["degrees_east", "degrees_north", "", "", "m", "m", ""]
     center_vars = ["time", "centroid_lon", "centroid_lat", "centroid_i", "centroid_j", "track_id", "track_step"]
