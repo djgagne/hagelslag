@@ -118,7 +118,8 @@ class EnsembleMemberProduct(object):
                                 for p, percentile in enumerate(self.percentiles):
                                     if percentile != "mean":
                                         if condition >= self.condition_threshold:
-                                            self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile, axis=0)
+                                            self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile,
+                                                                                             axis=0)
                                     else:
                                         if condition >= self.condition_threshold:
                                             self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
@@ -156,6 +157,7 @@ class EnsembleMemberProduct(object):
                                              nc_file.variables["time"].units))
         time_indices = np.in1d(nc_times, self.times)
         self.nc_patches["time"] = nc_times[time_indices]
+        self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
         self.nc_patches = dict()
         self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable][time_indices]
         self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
@@ -174,19 +176,28 @@ class EnsembleMemberProduct(object):
         obj_percentiles[mask_indices] = per_func(obj_values)
         obj_hail_sizes = np.zeros(obj_percentiles.shape)
         model_name = self.model_name.replace(" ", "-")
+        self.units = "mm"
+        self.data = np.zeros((self.forecast_hours.size,
+                              self.mapping_data["lon"].shape[0],
+                              self.mapping_data["lon"].shape[1]), dtype=np.float32)
+        sh = self.forecast_hours.min()
         for p in range(obj_hail_sizes.shape[0]):
-            patch_mask = np.where(self.nc_patches["masks"][p] == 1)
-            obj_hail_sizes[p,
-                           patch_mask[0],
-                           patch_mask[1]] = gamma.ppf(obj_percentiles[p,
-                                                                      patch_mask[0],
-                                                                      patch_mask[1]],
-                                                      self.hail_forecast_table.loc[p,
-                                                                                   model_name + "_shape"],
-                                                      self.hail_forecast_table.loc[p,
-                                                                                   model_name + "_location"],
-                                                      self.hail_forecast_table.loc[p,
-                                                                                   model_name + "_scale"])
+            if self.hail_forecast_table.loc[p, model_name + "_conditionthresh"] == 1:
+                patch_mask = np.where(self.nc_patches["masks"][p] == 1)
+                obj_hail_sizes[p,
+                               patch_mask[0],
+                               patch_mask[1]] = gamma.ppf(obj_percentiles[p,
+                                                                          patch_mask[0],
+                                                                          patch_mask[1]],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_shape"],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_location"],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_scale"])
+                self.data[self.nc_patches["forecast_hour"][p] - sh,
+                          self.nc_patches["i"][p, patch_mask[0]],
+                          self.nc_patches["j"][p, patch_mask[1]]] = obj_hail_sizes[p, patch_mask[0], patch_mask[1]]
         return
 
     def neighborhood_probability(self, threshold, radius):

@@ -224,12 +224,18 @@ class TrackModeler(object):
         groups = self.condition_models.keys()
         predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
         for group in groups:
-            group_idxs = self.data[data_mode]["combo"][self.group_col] == group
-            group_count = np.count_nonzero(group_idxs)
+            g_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(g_idxs)
             if group_count > 0:
                 for m, model_name in enumerate(model_names):
-                    predictions.loc[group_idxs, model_name.replace(" ", "-") + "_condition"] = self.condition_models[group][
-                                                                               model_name].predict_proba(self.data[data_mode]["combo"].loc[group_idxs, input_columns])[:, 1]
+                    mn = model_name.replace(" ", "-")
+                    predictions.loc[g_idxs,
+                                    mn + "_conditionprob"] = self.condition_models[
+                        group][model_name].predict_proba(self.data[data_mode]["combo"].loc[g_idxs, input_columns])[:, 1]
+                    predictions.loc[g_idxs,
+                                    mn + "_conditionthresh"] = np.where(predictions.loc[g_idxs, mn + "_conditionprob"]
+                                                                        >= self.condition_models[group][
+                                                                        model_name + "_condition_threshold"], 1, 0)
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
