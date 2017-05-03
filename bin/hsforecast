@@ -48,7 +48,7 @@ def main():
             track_modeler.calc_copulas(config.copula_file)
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
-            output_forecasts(forecasts, track_modeler, config)
+            output_forecasts_csv(forecasts, track_modeler, config)
     if args.grid:
         generate_ml_grids(config, mode="forecast")
     if args.ens:
@@ -111,11 +111,10 @@ def train_models(track_modeler, config):
         calibrate = config.size_distribution_calibrate
     else:
         calibrate = False
-    track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
+    track_modeler.fit_size_distribution_component_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
                                                config.size_distribution_input_columns,
-                                               output_columns=config.size_distribution_output_columns,
-                                               calibrate=calibrate)
+                                               output_columns=config.size_distribution_output_columns)
     track_modeler.fit_condition_models(config.condition_model_names,
                                        config.condition_model_objs,
                                        config.condition_input_columns,
@@ -165,20 +164,11 @@ def make_forecasts(track_modeler, config):
         calibrate = config.size_distribution_calibrate
     else:
         calibrate = False
-    forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
-                                                                       config.size_distribution_input_columns,
-                                                                       config.metadata_columns,
-                                                                       calibrate=calibrate)
-    #print("Size forecasts")
-    #forecasts["size"] = track_modeler.predict_size_models(config.size_model_names,
-    #                                                      config.size_input_columns,
-    #                                                      config.metadata_columns)
-    #print("Track forecasts")
-    #forecasts["track"] = track_modeler.predict_track_models(config.track_model_names,
-    #                                                        config.track_input_columns,
-    #                                                        config.metadata_columns,
-    #                                                        )
-
+    forecasts["dist"] = track_modeler.predict_size_distribution_component_models(config.size_distribution_model_names,
+                                                                                 config.size_distribution_input_columns,
+                                                                                 config.size_distribution_output_columns,
+                                                                                 config.metadata_columns,
+                                                                                 location=13)
     return forecasts
 
 
@@ -204,6 +194,11 @@ def output_forecasts(forecasts, track_modeler, config):
                                                  config.data_json_path,
                                                  config.forecast_json_path,
                                                  config.num_procs)
+    return
+
+
+def output_forecasts_csv(forecasts, track_modeler, config):
+    track_modeler.output_forecasts_csv(forecasts, "forecast", config.forecast_csv_path)
     return
 
 
@@ -490,9 +485,8 @@ def generate_ml_grids(config, mode="forecast"):
         end_date = run_date + timedelta(hours=config.end_hour)
         for member in config.ensemble_members:
             args = (config.ensemble_name, ml_model_list, member, run_date, ml_var, start_date, end_date,
-                    config.single_step, config.neighbor_condition_model, config.condition_threshold,
-                    config.ml_grid_percentiles, config.forecast_json_path,
-                    config.grib_path, config.model_map_file, config.num_track_samples)
+                    config.single_step, config.neighbor_condition_model, config.forecast_csv_path, config.netcdf_path,
+                    config.grib_path, config.model_map_file)
             pool.apply_async(generate_ml_member_grid, args)
     pool.close()
     pool.join()
@@ -500,8 +494,8 @@ def generate_ml_grids(config, mode="forecast"):
 
 
 def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variable, start_date, end_date,
-                            single_step, neighbor_condition_model, condition_threshold, ml_grid_percentiles,
-                            forecast_json_path, grib_path, map_file, num_samples):
+                            single_step, neighbor_condition_model, forecast_csv_path, netcdf_path,
+                            grib_path, map_file):
     """
     Loads machine learning model forecasts and outputs them to original ensemble model grid. The grids are then
     written out to GRIB2 files.
@@ -526,16 +520,19 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
 
     """
     try:
-        if os.access(forecast_json_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
+        if os.access(forecast_csv_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
             ep = EnsembleMemberProduct(ensemble_name, model_names[0], member, run_date, variable,
-                                       start_date, end_date, forecast_json_path, single_step, map_file=map_file,
+                                       start_date, end_date, None, single_step, map_file=map_file,
                                        condition_model_name=neighbor_condition_model,
-                                       condition_threshold=condition_threshold)
+                                       )
             ep.load_track_data()
 
             for model_name in model_names:
                 ep.model_name = model_name
-                ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
+                ep.load_forecast_csv_data(forecast_csv_path)
+                ep.load_forecast_netcdf_data(netcdf_path)
+                ep.quantile_match()
+                #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
                 grib_objects = ep.encode_grib2()
                 if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
                     try:
