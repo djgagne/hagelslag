@@ -152,14 +152,15 @@ class EnsembleMemberProduct(object):
         nc_file = join(nc_path, "{0}_{1}_{2}_model_patches.nc".format(self.ensemble_name,
                                                                       self.run_date.strftime("%Y%m%d%H"),
                                                                       self.member))
+        print(nc_file)
         nc_patches = Dataset(nc_file)
         nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
-                                             nc_file.variables["time"].units))
+                                             nc_patches.variables["time"].units))
         time_indices = np.in1d(nc_times, self.times)
+        self.nc_patches = dict()
         self.nc_patches["time"] = nc_times[time_indices]
         self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
-        self.nc_patches = dict()
-        self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable][time_indices]
+        self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable + "_curr"][time_indices]
         self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
         self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
         self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
@@ -182,7 +183,7 @@ class EnsembleMemberProduct(object):
                               self.mapping_data["lon"].shape[1]), dtype=np.float32)
         sh = self.forecast_hours.min()
         for p in range(obj_hail_sizes.shape[0]):
-            if self.hail_forecast_table.loc[p, model_name + "_conditionthresh"] == 1:
+            if self.hail_forecast_table.loc[p, self.condition_model_name.replace(" ", "-") + "_conditionthresh"] == 1:
                 patch_mask = np.where(self.nc_patches["masks"][p] == 1)
                 obj_hail_sizes[p,
                                patch_mask[0],
@@ -196,8 +197,8 @@ class EnsembleMemberProduct(object):
                                                           self.hail_forecast_table.loc[p,
                                                                                        model_name + "_scale"])
                 self.data[self.nc_patches["forecast_hour"][p] - sh,
-                          self.nc_patches["i"][p, patch_mask[0]],
-                          self.nc_patches["j"][p, patch_mask[1]]] = obj_hail_sizes[p, patch_mask[0], patch_mask[1]]
+                          self.nc_patches["i"][p, patch_mask[0], patch_mask[1]],
+                          self.nc_patches["j"][p, patch_mask[0], patch_mask[1]]] = obj_hail_sizes[p, patch_mask[0], patch_mask[1]]
         return
 
     def neighborhood_probability(self, threshold, radius):
@@ -355,7 +356,7 @@ class EnsembleMemberProduct(object):
                            1,                # Scale value of 2nd fixed surface
                            0,                # Value of 2nd fixed surface
                            0,                # Derived forecast type
-                           self.num_samples  # Number of ensemble members
+                           1                 # Number of ensemble members
                            ], dtype=np.int32)
         grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
         drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
@@ -366,7 +367,8 @@ class EnsembleMemberProduct(object):
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
             data = self.data[t] / 1000.0
-            masked_data = np.ma.array(data, mask=data <= 0)
+            data[np.isnan(data)] = 0
+            masked_data = np.ma.array(data, mask=data<=0)
             pdtmp1[-2] = 0
             grib_objects[time].addfield(1, pdtmp1, 0, drtmp1, masked_data)
         return grib_objects
