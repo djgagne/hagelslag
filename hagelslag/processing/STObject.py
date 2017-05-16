@@ -5,6 +5,7 @@ from skimage.morphology import convex_hull_image
 import json
 import os
 
+
 class STObject(object):
     """
     The STObject stores data and location information for objects extracted from the ensemble grids.
@@ -113,7 +114,9 @@ class STObject(object):
             Distance in units of the x-y coordinates
         """
         ti = np.where(self.times == time)[0]
+        ti = ti[0] # avoid warning . Ahijevych
         oti = np.where(other_object.times == other_time)[0]
+        oti = oti[0] # avoid warning . Ahijevych
         xs = self.x[ti][self.masks[ti] == 1]
         xs = xs.reshape(xs.size, 1)
         ys = self.y[ti][self.masks[ti] == 1]
@@ -198,7 +201,7 @@ class STObject(object):
         Calculate the maximum intensity found at a timestep.
 
         """
-        ti = np.where(time == self.times)[0]
+        ti = np.where(time == self.times)[0][0]
         return self.timesteps[ti].max()
 
     def extend(self, step):
@@ -226,9 +229,16 @@ class STObject(object):
         """
         Get coordinates of object boundary in counter-clockwise order
         """
-        ti = np.where(time == self.times)[0]
+        ti = np.where(time == self.times)[0][0]
         com_x, com_y = self.center_of_mass(time)
-        boundary_image = find_boundaries(convex_hull_image(self.masks[ti]), mode='inner')
+        # If at least one point along perimeter of the mask rectangle is unmasked, find_boundaries() works.
+        # But if all perimeter points are masked, find_boundaries() does not find the object.
+        # Therefore, pad the mask with zeroes first and run find_boundaries on the padded array.
+        padded_mask = np.pad(self.masks[ti], 1, 'constant', constant_values=0)
+        chull = convex_hull_image(padded_mask)
+        boundary_image = find_boundaries(chull, mode='inner', background=0)
+        # Now remove the padding.
+        boundary_image = boundary_image[1:-1,1:-1]
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
         boundary_y = self.y[ti].ravel()[boundary_image.ravel()]
         r = np.sqrt((boundary_x - com_x) ** 2 + (boundary_y - com_y) ** 2)
@@ -251,10 +261,11 @@ class STObject(object):
         Returns:
             u, v, and the minimum error.
         """
-        ti = np.where(time == self.times)[0]
-        i_vals = self.i[ti][self.masks[ti] == 1]
-        j_vals = self.j[ti][self.masks[ti] == 1]
-        obj_vals = self.timesteps[ti][self.masks[ti] == 1]
+        ti = np.where(time == self.times)[0][0]
+        mask_vals = np.where(self.masks[ti].ravel() == 1)
+        i_vals = self.i[ti].ravel()[mask_vals]
+        j_vals = self.j[ti].ravel()[mask_vals]
+        obj_vals = self.timesteps[ti].ravel()[mask_vals]
         u_shifts = np.arange(-max_u, max_u + 1)
         v_shifts = np.arange(-max_v, max_v + 1)
         min_error = 99999999999.0
@@ -269,14 +280,16 @@ class STObject(object):
                     shift_vals = intensity_grid[i_shift, j_shift]
                 else:
                     shift_vals = np.zeros(i_shift.shape)
+                # This isn't correlation; it is mean absolute error.
                 error = np.abs(shift_vals - obj_vals).mean()
                 if error < min_error:
                     min_error = error
                     best_u = u * self.dx
                     best_v = v * self.dx
-        if min_error > 60:
-            best_u = 0
-            best_v = 0
+        # 60 seems arbitrarily high
+        #if min_error > 60:
+        #    best_u = 0
+        #    best_v = 0
         self.u[ti] = best_u
         self.v[ti] = best_v
         return best_u, best_v, min_error
@@ -285,7 +298,7 @@ class STObject(object):
         """
         Counts the number of points that overlap between this STObject and another STObject. Used for tracking.
         """
-        ti = np.where(time == self.times)[0]
+        ti = np.where(time == self.times)[0][0]
         oti = np.where(other_time == other_object.times)[0]
         obj_coords = np.zeros(self.masks[ti].sum(), dtype=[('x', int), ('y', int)])
         other_obj_coords = np.zeros(other_object.masks[oti].sum(), dtype=[('x', int), ('y', int)])
@@ -327,7 +340,8 @@ class STObject(object):
         """
         if var_name not in self.attributes.keys():
             self.attributes[var_name] = []
-        self.attributes[var_name].append(data_array[self.i[-1], self.j[-1]])
+        for t in range(self.times.size):
+            self.attributes[var_name].append(data_array[self.i[t], self.j[t]])
 
 
     def extract_tendency_grid(self, model_grid):
@@ -463,7 +477,7 @@ class STObject(object):
             List of shape statistics
 
         """
-        ti = np.where(self.times == time)[0]
+        ti = np.where(self.times == time)[0][0]
         props = regionprops(self.masks[ti], self.timesteps[ti])[0]
         shape_stats = []
         for stat_name in stat_names:
@@ -518,7 +532,6 @@ class STObject(object):
         json.dump(json_obj, file_obj, indent=1, sort_keys=True)
         file_obj.close()
         return
-
 
 def read_geojson(filename):
     """

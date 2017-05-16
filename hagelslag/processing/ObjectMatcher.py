@@ -1,5 +1,6 @@
 import numpy as np
 from hagelslag.util.munkres import Munkres
+import pandas as pd
 
 
 class ObjectMatcher(object):
@@ -178,6 +179,70 @@ class TrackMatcher(object):
         return total_distance
 
 
+class TrackStepMatcher(object):
+    """
+    Determine if each step in a track is in close proximity to steps from another set of tracks
+    """
+    def __init__(self, cost_function_components, max_values):
+        self.cost_function_components = cost_function_components
+        self.max_values = max_values
+
+    def match(self, set_a, set_b):
+        """
+        For each step in each track from set_a, identify all steps in all tracks from set_b that meet all
+        cost function criteria
+        
+        Args:
+            set_a: List of STObjects
+            set_b: List of STObjects
+
+        Returns:
+            track_pairings: pandas.DataFrame 
+        """
+        track_step_matches = [[] * len(set_a)]
+
+        costs = self.cost_matrix(set_a, set_b)
+        valid_costs = np.all(costs < 1, axis=2)
+        set_a_matches, set_b_matches = np.where(valid_costs)
+        s = 0
+        track_pairings = pd.DataFrame(index=np.arange(costs.shape[0]),
+                                      columns=["Track", "Step", "Time", "Matched", "Pairings"], dtype=object)
+        set_b_info = []
+        for trb, track_b in enumerate(set_b):
+            for t, time in enumerate(track_b.times):
+                set_b_info.append((trb, t))
+        set_b_info_arr = np.array(set_b_info, dtype=int)
+        for tr, track_a in enumerate(set_a):
+            for t, time in enumerate(track_a.times):
+                track_pairings.loc[s, ["Track", "Step", "Time"]] = [tr, t, time]
+                track_pairings.loc[s, "Matched"] = 1 if np.count_nonzero(set_a_matches == s) > 0 else 0
+                if track_pairings.loc[s, "Matched"] == 1:
+                    track_pairings.loc[s, "Pairings"] = set_b_info_arr[set_b_matches[set_a_matches == s]]
+                else:
+                    track_pairings.loc[s, "Pairings"] = np.array([])
+                s += 1
+        return track_pairings
+
+    def cost_matrix(self, set_a, set_b):
+        num_steps_a = np.sum([track_a.times.size for track_a in set_a])
+        num_steps_b = np.sum([track_b.times.size for track_b in set_b])
+        cost_matrix = np.zeros((num_steps_a, num_steps_b, len(self.cost_function_components)))
+        a_i = 0
+        for a, track_a in enumerate(set_a):
+            for time_a in track_a.times:
+                b_i = 0
+                for b, track_b in enumerate(set_b):
+                    for time_b in track_b.times:
+                        cost_matrix[a_i, b_i] = self.cost(track_a, time_a, track_b, time_b)
+                        b_i += 1
+                a_i += 1
+        return cost_matrix
+
+    def cost(self, track_a, time_a, track_b, time_b):
+        return np.array([cost_func(track_a, time_a, track_b, time_b, self.max_values[c])
+                         for c, cost_func in enumerate(self.cost_function_components)])
+
+
 def centroid_distance(item_a, time_a, item_b, time_b, max_value):
     """
     Euclidean distance between the centroids of item_a and item_b.
@@ -195,6 +260,10 @@ def centroid_distance(item_a, time_a, item_b, time_b, max_value):
     ax, ay = item_a.center_of_mass(time_a)
     bx, by = item_b.center_of_mass(time_b)
     return np.minimum(np.sqrt((ax - bx) ** 2 + (ay - by) ** 2), max_value) / float(max_value)
+
+
+def time_distance(item_a, time_a, item_b, time_b, max_value):
+    return np.minimum(np.abs(time_b - time_a), max_value) / float(max_value)
 
 
 def shifted_centroid_distance(item_a, time_a, item_b, time_b, max_value):

@@ -7,6 +7,14 @@ from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
+from hagelslag.evaluation import DistributedROC
+from os.path import join
+
+try:
+    from sklearn.model_selection import KFold
+except ImportError:
+    from sklearn.cross_validation import KFold
 
 
 class TrackModeler(object):
@@ -127,7 +135,7 @@ class TrackModeler(object):
     def fit_condition_models(self, model_names,
                              model_objs,
                              input_columns,
-                             output_column="Hail_Size",
+                             output_column="Matched",
                              output_threshold=0.0):
         """
         Fit machine learning models to predict whether or not hail will occur.
@@ -155,6 +163,48 @@ class TrackModeler(object):
                     print(self.condition_models[group][model_name].best_estimator_) 
                     print(self.condition_models[group][model_name].best_score_)
 
+    def fit_condition_threshold_models(self, model_names, model_objs, input_columns, output_column="Matched",
+                                       output_threshold=0.5, num_folds=5, threshold_score="ets"):
+        """
+        Fit models to predict hail/no-hail and use cross-validation to determine the probaility threshold that
+        maximizes a skill score.
+        
+        Args:
+            model_names: List of machine learning model names
+            model_objs: List of Scikit-learn ML models
+            input_columns: List of input variables in the training data
+            output_column: Column used for prediction
+            output_threshold: Values exceeding this threshold are considered positive events; below are nulls
+            num_folds: Number of folds in the cross-validation procedure
+            threshold_score: Score available in ContingencyTable used for determining the best probability threshold
+        Returns:
+            None
+        """
+        print("Fitting condition models")
+        groups = self.data["train"]["member"][self.group_col].unique()
+        for group in groups:
+            print(group)
+            group_data = self.data["train"]["combo"].iloc[np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
+            output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
+            print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
+            self.condition_models[group] = {}
+            for m, model_name in enumerate(model_names):
+                print(model_name)
+                self.condition_models[group][model_name] = deepcopy(model_objs[m])
+                kf = KFold(n_splits=num_folds)
+                roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
+                for train_index, test_index in kf.split(group_data[input_columns].values):
+                    self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
+                                                                 output_data[train_index])
+                    cv_preds = self.condition_models[group][model_name].predict_proba(group_data.iloc[test_index][
+                                                                                                     input_columns])[:, 1]
+                    roc.update(cv_preds, output_data[test_index])
+                self.condition_models[group][
+                    model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
+                print(model_name + " condition threshold: {0:0.3f}".format(self.condition_models[group][model_name + "_condition_threshold"]))
+                self.condition_models[group][model_name].fit(group_data[input_columns],
+                                                             output_data)
+
     def predict_condition_models(self, model_names,
                                  input_columns,
                                  metadata_cols,
@@ -173,14 +223,22 @@ class TrackModeler(object):
             A dictionary of data frames containing probabilities of the event and specified metadata
         """
         groups = self.condition_models.keys()
-        predictions = {}
+        predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
         for group in groups:
-            group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
-            if group_data.shape[0] > 0:
-                predictions[group] = group_data[metadata_cols]
+            print(group)
+            print(self.condition_models[group])
+            g_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(g_idxs)
+            if group_count > 0:
                 for m, model_name in enumerate(model_names):
-                    predictions[group].loc[:, model_name] = self.condition_models[group][model_name].predict_proba(
-                        group_data.loc[:, input_columns])[:, 1]
+                    mn = model_name.replace(" ", "-")
+                    predictions.loc[g_idxs,
+                                    mn + "_conditionprob"] = self.condition_models[
+                        group][model_name].predict_proba(self.data[data_mode]["combo"].loc[g_idxs, input_columns])[:, 1]
+                    predictions.loc[g_idxs,
+                                    mn + "_conditionthresh"] = np.where(predictions.loc[g_idxs, mn + "_conditionprob"]
+                                                                        >= self.condition_models[group][
+                                                                        model_name + "_condition_threshold"], 1, 0)
         return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
@@ -228,6 +286,34 @@ class TrackModeler(object):
                                                                           (log_labels[:, 1] - log_means[1]) / log_sds[
                                                                               1])
 
+    def fit_size_distribution_component_models(self, model_names, model_objs, input_columns, output_columns):
+        groups = np.unique(self.data["train"]["member"][self.group_col])
+        for group in groups:
+            print(group)
+            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
+            group_data = group_data.dropna()
+            group_data = group_data.loc[group_data[output_columns[-1]] > 0]
+            self.size_distribution_models[group] = {"lognorm": {}}
+            self.size_distribution_models[group]["lognorm"]["pca"] = PCA(n_components=len(output_columns))
+            log_labels = np.log(group_data[output_columns].values)
+            log_labels[:, np.where(output_columns == "Shape")[0]] *= -1
+            log_means = log_labels.mean(axis=0)
+            log_sds = log_labels.std(axis=0)
+            log_norm_labels = (log_labels - log_means) / log_sds
+            out_pc_labels = self.size_distribution_models[group]["lognorm"]["pca"].fit_transform(log_norm_labels)
+            self.size_distribution_models[group]['lognorm']['mean'] = log_means
+            self.size_distribution_models[group]['lognorm']['sd'] = log_sds
+            for comp in range(len(output_columns)):
+                self.size_distribution_models[group]["pc_{0:d}".format(comp)] = dict()
+                for m, model_name in enumerate(model_names):
+                    print(model_name, comp)
+                    self.size_distribution_models[group][
+                        "pc_{0:d}".format(comp)][model_name] = deepcopy(model_objs[m])
+                    self.size_distribution_models[group][
+                        "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
+                                                                 out_pc_labels[:, comp])
+        return
+
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
                                          data_mode="forecast", location=6, calibrate=False):
         """
@@ -247,13 +333,12 @@ class TrackModeler(object):
         groups = self.size_distribution_models.keys()
         predictions = {}
         for group in groups:
-            predictions[group] = {}
             group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
+            predictions[group] = group_data[metadata_cols]
             if group_data.shape[0] > 0:
                 log_mean = self.size_distribution_models[group]["lognorm"]["mean"]
                 log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
                 for m, model_name in enumerate(model_names):
-                    predictions[group][model_name] = group_data[metadata_cols]
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
                         group_data[input_columns])
                     if calibrate:
@@ -272,6 +357,51 @@ class TrackModeler(object):
                         predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
         return predictions
+
+    def predict_size_distribution_component_models(self, model_names, input_columns, output_columns, metadata_cols,
+                                                   data_mode="forecast", location=6):
+        """
+        Make predictions using fitted size distribution models.
+
+        Args:
+            model_names: Name of the models for predictions
+            input_columns: Data columns used for input into ML models
+            output_columns: Names of output columns
+            metadata_cols: Columns from input data that should be included in the data frame with the predictions.
+            data_mode: Set of data used as input for prediction models
+            location: Value of fixed location parameter
+        Returns:
+            Predictions in dictionary of data frames grouped by group type
+        """
+        groups = self.size_distribution_models.keys()
+        predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
+        for group in groups:
+            group_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(group_idxs)
+            print(self.size_distribution_models[group])
+            if group_count > 0:
+                log_mean = self.size_distribution_models[group]["lognorm"]["mean"]
+                log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
+                for m, model_name in enumerate(model_names):
+                    raw_preds = np.zeros((group_count, len(output_columns)))
+                    for c in range(len(output_columns)):
+                        raw_preds[:, c] = self.size_distribution_models[group][
+                            "pc_{0:d}".format(c)][model_name].predict(self.data[data_mode]["combo"].loc[group_idxs,
+                                                                                                        input_columns])
+                    log_norm_preds = self.size_distribution_models[group]["lognorm"]["pca"].inverse_transform(raw_preds)
+                    log_norm_preds[:, 0] *= -1
+                    multi_predictions = np.exp(log_norm_preds * log_sd + log_mean)
+                    if multi_predictions.shape[1] == 2:
+                        multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
+                        multi_predictions_temp[:, 0] = multi_predictions[:, 0]
+                        multi_predictions_temp[:, 1] = location
+                        multi_predictions_temp[:, 2] = multi_predictions[:, 1]
+                        multi_predictions = multi_predictions_temp
+                    for p, pred_col in enumerate(["shape", "location", "scale"]):
+                        predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
+                            multi_predictions[:, p]
+        return predictions
+
 
     def fit_size_models(self, model_names,
                         model_objs,
@@ -486,7 +616,10 @@ class TrackModeler(object):
                     self.condition_models[model_comps[0]] = {}
                 model_name = model_comps[1].replace("-", " ")
                 with open(condition_model_file) as cmf:
-                    self.condition_models[model_comps[0]][model_name] = pickle.load(cmf)
+                    if "condition_threshold" in condition_model_file:
+                        self.condition_models[model_comps[0]][model_name + "_condition_threshold"] = pickle.load(cmf)
+                    else:
+                        self.condition_models[model_comps[0]][model_name] = pickle.load(cmf)
 
         size_model_files = sorted(glob(model_path + "*_size.pkl"))
         if len(size_model_files) > 0:
@@ -504,11 +637,11 @@ class TrackModeler(object):
                 model_comps = dist_model_file.split("/")[-1][:-4].split("_")
                 if model_comps[0] not in self.size_distribution_models.keys():
                     self.size_distribution_models[model_comps[0]] = {}
-                if model_comps[2] not in self.size_distribution_models[model_comps[0]].keys():
-                    self.size_distribution_models[model_comps[0]][model_comps[2]] = {}
+                if "_".join(model_comps[2:-1]) not in self.size_distribution_models[model_comps[0]].keys():
+                    self.size_distribution_models[model_comps[0]]["_".join(model_comps[2:-1])] = {}
                 model_name = model_comps[1].replace("-", " ")
                 with open(dist_model_file) as dmf:
-                    self.size_distribution_models[model_comps[0]][model_comps[2]][model_name] = pickle.load(dmf)
+                    self.size_distribution_models[model_comps[0]]["_".join(model_comps[2:-1])][model_name] = pickle.load(dmf)
 
         track_model_files = sorted(glob(model_path + "*_track.pkl"))
         if len(track_model_files) > 0:
@@ -601,6 +734,35 @@ class TrackModeler(object):
             out_json_filename = out_path + "/".join(full_path) + "/" + json_file_name
             with open(out_json_filename, "w") as out_json_obj:
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
+        return
+
+    def output_forecasts_csv(self, forecasts, mode, csv_path):
+        """
+        Output hail forecast values to csv files by run date and ensemble member.
+        
+        Args:
+            forecasts: 
+            mode: 
+            csv_path: 
+
+        Returns:
+
+        """
+        merged_forecasts = pd.merge(forecasts["condition"],
+                                    forecasts["dist"], on="Step_ID")
+        all_members = self.data[mode]["combo"]["Ensemble_Member"]
+        members = np.unique(all_members)
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Date"]) -\
+            pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
+        print(run_dates)
+        for member in members:
+            for run_date in run_dates:
+                mem_run_index = (all_run_dates == run_date) & (all_members == member)
+                member_forecast = merged_forecasts.loc[mem_run_index]
+                member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                                              member,
+                                                                                              run_date.strftime("%Y%m%d"))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,

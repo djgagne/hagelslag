@@ -5,11 +5,13 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
 from scipy.stats import gamma, bernoulli
+from scipy.interpolate import interp1d
 from scipy.spatial import cKDTree
 from skimage.morphology import disk
-from netCDF4 import Dataset, date2num
+from netCDF4 import Dataset, date2num, num2date
 import os
 from glob import glob
+from os.path import join, exists
 import json
 from datetime import timedelta
 
@@ -53,6 +55,8 @@ class EnsembleMemberProduct(object):
                 self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)
             self.mapping_data = make_proj_grids(self.proj_dict, self.grid_dict)
         self.units = ""
+        self.nc_patches = None
+        self.hail_forecast_table = None
 
     def load_data(self, num_samples=1000, percentiles=None):
         """
@@ -114,7 +118,8 @@ class EnsembleMemberProduct(object):
                                 for p, percentile in enumerate(self.percentiles):
                                     if percentile != "mean":
                                         if condition >= self.condition_threshold:
-                                            self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile, axis=0)
+                                            self.percentile_data[p, t, i, j] = np.percentile(raw_samples, percentile,
+                                                                                             axis=0)
                                     else:
                                         if condition >= self.condition_threshold:
                                             self.percentile_data[p, t, i, j] = np.mean(raw_samples, axis=0)
@@ -134,6 +139,67 @@ class EnsembleMemberProduct(object):
                 tfo.close()
         else:
             self.track_forecasts = []
+
+    def load_forecast_csv_data(self, csv_path):
+        forecast_file = join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                    self.member,
+                                                                    self.run_date.strftime("%Y%m%d")))
+        if exists(forecast_file):
+            self.hail_forecast_table = pd.read_csv(forecast_file)
+        return
+
+    def load_forecast_netcdf_data(self, nc_path):
+        nc_file = join(nc_path, "{0}_{1}_{2}_model_patches.nc".format(self.ensemble_name,
+                                                                      self.run_date.strftime("%Y%m%d%H"),
+                                                                      self.member))
+        print(nc_file)
+        nc_patches = Dataset(nc_file)
+        nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
+                                             nc_patches.variables["time"].units))
+        time_indices = np.in1d(nc_times, self.times)
+        self.nc_patches = dict()
+        self.nc_patches["time"] = nc_times[time_indices]
+        self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
+        self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable + "_curr"][time_indices]
+        self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
+        self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
+        self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
+        nc_patches.close()
+        return
+
+    def quantile_match(self):
+        mask_indices = np.where(self.nc_patches["masks"] == 1)
+        obj_values = self.nc_patches["obj_values"][mask_indices]
+        percentiles = np.linspace(0.1, 99.9, 100)
+        obj_per_vals = np.percentile(obj_values, percentiles)
+        per_func = interp1d(obj_per_vals, percentiles / 100.0, bounds_error=False, fill_value=(0.1, 99.9))
+        obj_percentiles = np.zeros(self.nc_patches["masks"].shape)
+        obj_percentiles[mask_indices] = per_func(obj_values)
+        obj_hail_sizes = np.zeros(obj_percentiles.shape)
+        model_name = self.model_name.replace(" ", "-")
+        self.units = "mm"
+        self.data = np.zeros((self.forecast_hours.size,
+                              self.mapping_data["lon"].shape[0],
+                              self.mapping_data["lon"].shape[1]), dtype=np.float32)
+        sh = self.forecast_hours.min()
+        for p in range(obj_hail_sizes.shape[0]):
+            if self.hail_forecast_table.loc[p, self.condition_model_name.replace(" ", "-") + "_conditionthresh"] > 0.5:
+                patch_mask = np.where(self.nc_patches["masks"][p] == 1)
+                obj_hail_sizes[p,
+                               patch_mask[0],
+                               patch_mask[1]] = gamma.ppf(obj_percentiles[p,
+                                                                          patch_mask[0],
+                                                                          patch_mask[1]],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_shape"],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_location"],
+                                                          self.hail_forecast_table.loc[p,
+                                                                                       model_name + "_scale"])
+                self.data[self.nc_patches["forecast_hour"][p] - sh,
+                          self.nc_patches["i"][p, patch_mask[0], patch_mask[1]],
+                          self.nc_patches["j"][p, patch_mask[0], patch_mask[1]]] = obj_hail_sizes[p, patch_mask[0], patch_mask[1]]
+        return
 
     def neighborhood_probability(self, threshold, radius):
         """
@@ -187,7 +253,7 @@ class EnsembleMemberProduct(object):
         return surrogate_grid
 
 
-    def encode_grib2(self):
+    def encode_grib2_percentile(self):
         """
         Encodes member percentile data to GRIB2 format.
 
@@ -249,6 +315,62 @@ class EnsembleMemberProduct(object):
                 else:
                     pdtmp1[-2] = 0
                     grib_objects[time].addfield(2, pdtmp1, 0, drtmp1, masked_data[p])
+        return grib_objects
+
+    def encode_grib2_data(self):
+        """
+        Encodes member percentile data to GRIB2 format.
+
+        Returns:
+            Series of GRIB2 messages
+        """
+        lscale = 1e6
+        grib_id_start = [7, 0, 14, 14, 2]
+        gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
+        lon_0 = self.proj_dict["lon_0"]
+        sw_lon = self.grid_dict["sw_lon"]
+        if lon_0 < 0:
+            lon_0 += 360
+        if sw_lon < 0:
+            sw_lon += 360
+        gdtmp1 = [1, 0, self.proj_dict['a'], 0, float(self.proj_dict['a']), 0, float(self.proj_dict['b']),
+                  self.data.shape[-1], self.data.shape[-2], self.grid_dict["sw_lat"] * lscale,
+                  sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
+                  lon_0 * lscale,
+                  self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
+                  self.proj_dict["lat_1"] * lscale,
+                  self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
+        pdtmp1 = np.array([1,                # parameter category Moisture
+                           31,               # parameter number Hail
+                           4,                # Type of generating process Ensemble Forecast
+                           0,                # Background generating process identifier
+                           31,               # Generating process or model from NCEP
+                           0,                # Hours after reference time data cutoff
+                           0,                # Minutes after reference time data cutoff
+                           1,                # Forecast time units Hours
+                           0,                # Forecast time
+                           1,                # Type of first fixed surface Ground
+                           1,                # Scale value of first fixed surface
+                           0,                # Value of first fixed surface
+                           1,                # Type of second fixed surface
+                           1,                # Scale value of 2nd fixed surface
+                           0,                # Value of 2nd fixed surface
+                           0,                # Derived forecast type
+                           1                 # Number of ensemble members
+                           ], dtype=np.int32)
+        grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
+        drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
+        for t, time in enumerate(self.times):
+            time_list = list(self.run_date.utctimetuple()[0:6])
+            if grib_objects[time] is None:
+                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time].addgrid(gdsinfo, gdtmp1)
+            pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
+            data = self.data[t] / 1000.0
+            data[np.isnan(data)] = 0
+            masked_data = np.ma.array(data, mask=data<=0)
+            pdtmp1[-2] = 0
+            grib_objects[time].addfield(1, pdtmp1, 0, drtmp1, masked_data)
         return grib_objects
 
     def write_grib2_files(self, grib_objects, path):
