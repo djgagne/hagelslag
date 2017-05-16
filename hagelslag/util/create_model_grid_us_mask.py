@@ -19,9 +19,9 @@ def main():
     print("Creating mask grid")
     mask_grid = create_mask_grid(args.shape, mapping_data, proj_dict, grid_dict)
     output_netcdf_file(args.out, mask_grid, proj_dict, grid_dict)
-    plt.figure(figsize=(10, 6))
-    plt.contourf(mapping_data["lon"], mapping_data["lat"], mask_grid, cmap="Reds", vmin=0, vmax=1)
-    plt.show()
+    #plt.figure(figsize=(10, 6))
+    #plt.contourf(mapping_data["lon"], mapping_data["lat"], mask_grid, cmap="Reds", vmin=0, vmax=1)
+    #plt.show()
     return
 
 

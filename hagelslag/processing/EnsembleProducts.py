@@ -183,7 +183,7 @@ class EnsembleMemberProduct(object):
                               self.mapping_data["lon"].shape[1]), dtype=np.float32)
         sh = self.forecast_hours.min()
         for p in range(obj_hail_sizes.shape[0]):
-            if self.hail_forecast_table.loc[p, self.condition_model_name.replace(" ", "-") + "_conditionthresh"] == 1:
+            if self.hail_forecast_table.loc[p, self.condition_model_name.replace(" ", "-") + "_conditionthresh"] > 0.5:
                 patch_mask = np.where(self.nc_patches["masks"][p] == 1)
                 obj_hail_sizes[p,
                                patch_mask[0],
