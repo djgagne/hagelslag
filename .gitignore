@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Config file always changing
+VSE_data_ahijevyc.config
+
 # Distribution / packaging
 .Python
 env/
