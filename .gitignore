@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Config file always changing
-VSE_data_ahijevyc.config
+config/VSE_data_ahijevyc.config
 
 # Distribution / packaging
 .Python
