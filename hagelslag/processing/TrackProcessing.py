@@ -1,7 +1,6 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
-from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
-from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
 from scipy.ndimage import find_objects, gaussian_filter

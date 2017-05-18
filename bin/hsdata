@@ -128,12 +128,11 @@ def process_ensemble_member(run_date, member, config):
                                                          config, track_proc.model_grid.proj, mrms_tracks, track_errors) 
                 if patch_radius is not None:
                     print("Output netCDF", run_date, member)
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
-                                                     track_proc.model_grid.proj)
-                print("Output json", run_date, member)
-                forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
-                                        observed_tracks=mrms_tracks,
-                                        track_errors=track_errors)
+                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                #print("Output json", run_date, member)
+                #forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
+                #                        observed_tracks=mrms_tracks,
+                #                        track_errors=track_errors)
                 obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
                                                track_pairings, model_tracks)
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
@@ -154,15 +153,13 @@ def process_ensemble_member(run_date, member, config):
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                          track_proc.model_grid.proj) 
                 if patch_radius is not None:
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
-                                                     track_proc.model_grid.proj)
-                forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                #forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         elif len(model_tracks) > 0:
             forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
             if patch_radius is not None:
-                forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config,
-                                                 track_proc.model_grid.proj)
-            forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+                forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+            #forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
             forecast_data = {}
         for table_name, table_data in forecast_data.items():
@@ -512,7 +509,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
         os.chmod(json_filename, 0o666)
 
 
-def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config, proj):
+def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config):
     ensemble_name = config.ensemble_name
     patch_count = 0
     for f, forecast_track in enumerate(forecast_tracks):
@@ -534,6 +531,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     out_file.title = "{0} Storm Patches for run {1} member {2}".format(ensemble_name,
                                                                        run_date.strftime("%Y%m%d%H"),
                                                                        member)
+    out_file.object_variable = config.watershed_variable
     meta_variables = ["lon", "lat", "i", "j", "x", "y", "masks"]
     meta_units = ["degrees_east", "degrees_north", "", "", "m", "m", ""]
     center_vars = ["time", "centroid_lon", "centroid_lat", "centroid_i", "centroid_j", "track_id", "track_step"]
