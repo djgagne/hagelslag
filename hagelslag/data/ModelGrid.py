@@ -101,7 +101,7 @@ class ModelGrid(object):
         """
         units = ""
         if len(self.file_objects) == 1 and self.file_objects[0] is not None:
-            var_name, z_index = self.format_var_name(self.variable, self.file_objects[0].variables.keys())
+            var_name, z_index = self.format_var_name(self.variable, list(self.file_objects[0].variables.keys()))
             if z_index is None:
                 data = self.file_objects[0].variables[var_name][self.forecast_hours].astype(np.float32)
             else:
@@ -109,7 +109,7 @@ class ModelGrid(object):
             if hasattr(self.file_objects[0].variables[var_name], "units"):
                 units = self.file_objects[0].variables[var_name].units
         elif len(self.file_objects) > 1:
-            var_name, z_index = self.format_var_name(self.variable, self.file_objects[0].variables.keys())
+            var_name, z_index = self.format_var_name(self.variable, list(self.file_objects[0].variables.keys()))
             y_dim, x_dim = self.file_objects[0].variables[var_name].shape[-2:]
             data = np.zeros((len(self.valid_dates), y_dim, x_dim), dtype=np.float32)
             for f, file_object in enumerate(self.file_objects):

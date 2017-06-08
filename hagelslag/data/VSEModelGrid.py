@@ -1,4 +1,4 @@
-from ModelGrid import ModelGrid
+from .ModelGrid import ModelGrid
 from glob import glob
 import pandas as pd
 from datetime import timedelta
@@ -42,6 +42,6 @@ class VSEModelGrid(ModelGrid):
             if os.access(filename, os.R_OK):
                 filenames.append(filename)
             else:
-                print filename, "not readable. dropping from list"
+                print(filename, "not readable. dropping from list")
         super(VSEModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
         return

@@ -376,8 +376,8 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                                                                 forecast_track.end_time,
                                                                 f,
                                                                 )
-        start_date = run_date + timedelta(seconds=3600 * forecast_track.start_time)
-        end_date = run_date + timedelta(seconds=3600 * forecast_track.end_time)
+        start_date = run_date + timedelta(seconds=3600 * int(forecast_track.start_time))
+        end_date = run_date + timedelta(seconds=3600 * int(forecast_track.end_time))
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
         obs_track_id = "None"
         if config.train and track_errors is not None:
@@ -396,7 +396,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                                                config.watershed_variable] + track_error_row
         for s, step in enumerate(forecast_track.times):
             step_id = track_id + "_{0:02d}".format(s)
-            step_date = run_date + timedelta(seconds=3600 * step)
+            step_date = run_date + timedelta(seconds=3600 * int(step))
             valid_hour_utc = step_date.hour
             step_duration = s + 1
             centroid_lon, centroid_lat = proj(*forecast_track.center_of_mass(step), inverse=True)
@@ -471,8 +471,8 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
                                                                 forecast_track.end_time,
                                                                 f,
                                                                 )
-        start_date = run_date + timedelta(hours=forecast_track.start_time)
-        end_date = run_date + timedelta(hours=forecast_track.end_time)
+        start_date = run_date + timedelta(hours=int(forecast_track.start_time))
+        end_date = run_date + timedelta(hours=int(forecast_track.end_time))
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
         obs_track_id = "None"
         if config.train and track_errors is not None:
@@ -662,13 +662,13 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
         #                                                            )
         #else:
         track_id = "None"
-        start_date = run_date + timedelta(seconds=3600 * obs_track.start_time)
-        end_date = run_date + timedelta(seconds=3600 * obs_track.end_time)
+        start_date = run_date + timedelta(seconds=3600 * int(obs_track.start_time))
+        end_date = run_date + timedelta(seconds=3600 * int(obs_track.end_time))
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
         obs_data['track_total'].loc[o] = [obs_track_id, start_date, end_date, duration, track_id]
         for s, step in enumerate(obs_track.times):
             step_id = obs_track_id + "_{0:02d}".format(s)
-            step_date = run_date + timedelta(seconds=3600 * step)
+            step_date = run_date + timedelta(seconds=3600 * int(step))
             valid_hour_utc = step_date.hour
             step_duration = s + 1
             centroid_lon, centroid_lat = proj(*obs_track.center_of_mass(step), inverse=True)
@@ -701,8 +701,8 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
                                                                     obs_track.start_time,
                                                                     obs_track.end_time,
                                                                     o)
-        start_date = run_date + timedelta(seconds=3600 * obs_track.start_time)
-        end_date = run_date + timedelta(seconds=3600 * obs_track.end_time)
+        start_date = run_date + timedelta(seconds=3600 * int(obs_track.start_time))
+        end_date = run_date + timedelta(seconds=3600 * int(obs_track.end_time))
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
         path_parts = [run_date.strftime("%Y%m%d"), member]
         full_path = []

@@ -1,6 +1,6 @@
 from __future__ import division
 from .SSEFModelGrid import SSEFModelGrid
-from VSEModelGrid import VSEModelGrid
+from .VSEModelGrid import VSEModelGrid
 from .NCARModelGrid import NCARModelGrid
 from .HRRRModelGrid import HRRRModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
