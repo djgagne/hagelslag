@@ -4,14 +4,19 @@ class Config(object):
     them into attributes.
     """
     def __init__(self, filename, required_attributes=()):
-        config = {}
+        config = None
+        print(filename)
         config_file = open(filename)
         config_text = config_file.read()
         config_file.close()
         if "config" not in config_text:
             raise ValueError
-        exec(config_text)
+        d = {}
+        exec(config_text, d)
+        config = d["config"]
+        print(config)
         for a, v in config.items():
+            print(a)
             setattr(self, a, v)
         if len(required_attributes) > 0:
             has_required = [hasattr(self, a) for a in required_attributes]

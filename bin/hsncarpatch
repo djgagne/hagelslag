@@ -85,7 +85,7 @@ def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var
 
     """
     try:
-        print("Starting {0} {1}".format(run_date.strftime("%Y-%m-%d"), member))
+        print("Starting {0} {1} at {2}".format(run_date.strftime("%Y-%m-%d"), member, pd.Timestamp("now").strftime("%Y-%m-%d %H:%M:%S")))
         forecast_hours = np.arange(start_hour, end_hour + 1)
         all_storm_patches = []
         all_forecast_hours = []
@@ -210,7 +210,7 @@ def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var
             lon_var[s] = storm_patch.attributes["longitude"][0]
             lat_var[s] = storm_patch.attributes["latitude"][0]
             row_var[s] = storm_patch.i[0]
-            row_var[s] = storm_patch.j[0]
+            col_var[s] = storm_patch.j[0]
         for storm_var in storm_vars:
             nc_storm_var = out_file.createVariable(grib_info.loc[storm_var, "var_name"] + "_current",
                                                    "f4", dimensions=("p", "y", "x"), zlib=True)
@@ -228,7 +228,7 @@ def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var
             for s, storm_patch in enumerate(all_storm_patches):
                 nc_env_var[s] = storm_patch.attributes[str(env_var) + "_prev"][0]
         out_file.close()
-        print("Completed {0} {1}".format(run_date.strftime("%Y-%m-%d"), member))
+        print("Completed {0} {1} at {2}".format(run_date.strftime("%Y-%m-%d"), member, pd.Timestamp("now").strftime("%Y-%m-%d %H:%M:%S")))
     except Exception as e:
         print(traceback.format_exc())
         raise e

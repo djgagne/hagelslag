@@ -28,7 +28,7 @@ class STObject(object):
     def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
         if hasattr(grid, "shape") and len(grid.shape) == 2:
             self.timesteps = [grid]
-            self.masks = [mask]
+            self.masks = [np.array(mask, dtype=int)]
             self.x = [x]
             self.y = [y]
             self.i = [i]
@@ -42,14 +42,14 @@ class STObject(object):
             self.j = []
             for l in range(grid.shape[0]):
                 self.timesteps.append(grid[l])
-                self.masks.append(mask[l])
+                self.masks.append(np.array(mask[l], dtype=int))
                 self.x.append(x[l])
                 self.y.append(y[l])
                 self.i.append(i[l])
                 self.j.append(j[l])
         else:
             self.timesteps = grid
-            self.masks = mask
+            self.masks = np.array(mask, dtype=int)
             self.x = x
             self.y = y
             self.i = i
@@ -113,24 +113,24 @@ class STObject(object):
         Returns:
             Distance in units of the x-y coordinates
         """
-        ti = np.where(self.times == time)[0]
+        ti = np.where(self.times == time)[0][0]
         ti = ti[0] # avoid warning . Ahijevych
-        oti = np.where(other_object.times == other_time)[0]
+        oti = np.where(other_object.times == other_time)[0][0]
         oti = oti[0] # avoid warning . Ahijevych
-        xs = self.x[ti][self.masks[ti] == 1]
+        xs = self.x[ti].ravel()[self.masks[ti].ravel() == 1]
         xs = xs.reshape(xs.size, 1)
-        ys = self.y[ti][self.masks[ti] == 1]
+        ys = self.y[ti].ravel()[self.masks[ti].ravel() == 1]
         ys = ys.reshape(ys.size, 1)
-        o_xs = other_object.x[oti][other_object.masks[oti] == 1]
+        o_xs = other_object.x[oti].ravel()[other_object.masks[oti].ravel() == 1]
         o_xs = o_xs.reshape(1, o_xs.size)
-        o_ys = other_object.y[oti][other_object.masks[oti] == 1]
+        o_ys = other_object.y[oti].ravel()[other_object.masks[oti].ravel() == 1]
         o_ys = o_ys.reshape(1, o_ys.size)
         distances = (xs - o_xs) ** 2 + (ys - o_ys) ** 2
         return np.sqrt(distances.min())
 
     def percentile_distance(self, time, other_object, other_time, percentile):
-        ti = np.where(self.times == time)[0]
-        oti = np.where(other_object.times == other_time)[0]
+        ti = np.where(self.times == time)[0][0]
+        oti = np.where(other_object.times == other_time)[0][0]
         xs = self.x[ti][self.masks[ti] == 1]
         xs = xs.reshape(xs.size, 1)
         ys = self.y[ti][self.masks[ti] == 1]
@@ -299,11 +299,12 @@ class STObject(object):
         Counts the number of points that overlap between this STObject and another STObject. Used for tracking.
         """
         ti = np.where(time == self.times)[0][0]
+        ma = np.where(self.masks[ti].ravel() == 1)
         oti = np.where(other_time == other_object.times)[0]
         obj_coords = np.zeros(self.masks[ti].sum(), dtype=[('x', int), ('y', int)])
         other_obj_coords = np.zeros(other_object.masks[oti].sum(), dtype=[('x', int), ('y', int)])
-        obj_coords['x'] = self.i[ti][self.masks[ti] == 1]
-        obj_coords['y'] = self.j[ti][self.masks[ti] == 1]
+        obj_coords['x'] = self.i[ti].ravel()[ma]
+        obj_coords['y'] = self.j[ti].ravel()[ma]
         other_obj_coords['x'] = other_object.i[oti][other_object.masks[oti] == 1]
         other_obj_coords['y'] = other_object.j[oti][other_object.masks[oti] == 1]
         return float(np.intersect1d(obj_coords,
@@ -394,16 +395,17 @@ class STObject(object):
             The value of the statistic
         """
         ti = np.where(self.times == time)[0][0]
+        ma = np.where(self.masks[ti].ravel() == 1)
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
-            stat_val = getattr(self.attributes[attribute][ti][self.masks[ti] == 1], statistic)()
+            stat_val = getattr(self.attributes[attribute][ti].ravel()[ma], statistic)()
         elif statistic == 'median':
-            stat_val = np.median(self.attributes[attribute][ti][self.masks[ti] == 1])
+            stat_val = np.median(self.attributes[attribute][ti].ravel()[ma])
         elif statistic == "skew":
-            stat_val = np.mean(self.attributes[attribute][ti][self.masks[ti] == 1]) - \
-                       np.median(self.attributes[attribute][ti][self.masks[ti] == 1])
+            stat_val = np.mean(self.attributes[attribute][ti].ravel()[ma]) - \
+                       np.median(self.attributes[attribute][ti].ravel()[ma])
         elif 'percentile' in statistic:
             per = int(statistic.split("_")[1])
-            stat_val = np.percentile(self.attributes[attribute][ti][self.masks[ti] == 1], per)
+            stat_val = np.percentile(self.attributes[attribute][ti].ravel()[ma], per)
         elif 'dt' in statistic:
             stat_name = statistic[:-3]
             if ti == 0:
@@ -426,14 +428,15 @@ class STObject(object):
         Returns:
             Value of the statistic
         """
-        ti = np.where(self.times == time)[0]
+        ti = np.where(self.times == time)[0][0]
+        ma = np.where(self.masks[ti].ravel() == 1)
         if statistic in ['mean', 'max', 'min', 'std', 'ptp']:
-            stat_val = getattr(self.timesteps[ti][self.masks[ti] == 1], statistic)()
+            stat_val = getattr(self.timesteps[ti].ravel()[ma], statistic)()
         elif statistic == 'median':
-            stat_val = np.median(self.timesteps[ti][self.masks[ti] == 1])
+            stat_val = np.median(self.timesteps[ti].ravel()[ma])
         elif 'percentile' in statistic:
             per = int(statistic.split("_")[1])
-            stat_val = np.percentile(self.timesteps[ti][self.masks[ti] == 1], per)
+            stat_val = np.percentile(self.timesteps[ti].ravel()[ma], per)
         elif 'dt' in statistic:
             stat_name = statistic[:-3]
             if ti == 0:

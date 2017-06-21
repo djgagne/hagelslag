@@ -68,7 +68,7 @@ class TrackProcessor(object):
         self.end_date = end_date
         self.start_hour = int((self.start_date - self.run_date).total_seconds()) / 3600
         self.end_hour = int((self.end_date - self.run_date).total_seconds()) / 3600
-        self.hours = range(self.start_hour, self.end_hour + 1)
+        self.hours = np.arange(int(self.start_hour), int(self.end_hour) + 1)
         self.ensemble_name = ensemble_name
         self.ensemble_member = ensemble_member
         self.variable = variable
@@ -216,7 +216,7 @@ class TrackProcessor(object):
             # Match from previous time step with current time step
             elif len(past_time_objs) > 0 and len(model_objects[h]) > 0:
                 assignments = self.object_matcher.match_objects(past_time_objs, model_objects[h], hour - 1, hour)
-                unpaired = range(len(model_objects[h]))
+                unpaired = list(range(len(model_objects[h])))
                 for pair in assignments:
                     past_time_objs[pair[0]].extend(model_objects[h][pair[1]])
                     unpaired.remove(pair[1])
@@ -291,7 +291,7 @@ class TrackProcessor(object):
                     tracked_obs_objects.extend(obs_objects[h])
                 elif len(past_time_objs) > 0 and len(obs_objects[h]) > 0:
                     assignments = self.object_matcher.match_objects(past_time_objs, obs_objects[h], hour - 1, hour)
-                    unpaired = range(len(obs_objects[h]))
+                    unpaired = list(range(len(obs_objects[h])))
                     for pair in assignments:
                         past_time_objs[pair[0]].extend(obs_objects[h][pair[1]])
                         unpaired.remove(pair[1])
@@ -392,7 +392,7 @@ class TrackProcessor(object):
             obs_tracks: List of observed STObjects
             track_pairings: list of tuples containing the indices of the paired (forecast, observed) tracks
         """
-        unpaired = range(len(model_tracks))
+        unpaired = list(range(len(model_tracks)))
         for p, pair in enumerate(track_pairings):
             model_track = model_tracks[pair[0]]
             unpaired.remove(pair[0])
@@ -442,7 +442,7 @@ class TrackProcessor(object):
                 for param in obs_hail_dists.columns:
                     model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[obs_track.times[0], param]
             return model_hail_dists
-        unpaired = range(len(model_tracks))
+        unpaired = list(range(len(model_tracks)))
         for p, pair in enumerate(track_pairings):
             unpaired.remove(pair[0])
             if type(pair[1]) in [int, np.int64, np.int32]:
@@ -510,7 +510,7 @@ class TrackProcessor(object):
                    'start_time_difference',
                    'end_time_difference',
                    ]
-        track_errors = pd.DataFrame(index=range(len(model_tracks)),
+        track_errors = pd.DataFrame(index=list(range(len(model_tracks))),
                                     columns=columns)
         for p, pair in enumerate(track_pairings):
             model_track = model_tracks[pair[0]]
