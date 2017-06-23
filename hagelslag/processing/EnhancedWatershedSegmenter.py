@@ -9,8 +9,8 @@
 @author: David John Gagne (djgagne@ou.edu)
 """
 
-#import pdb
-#import matplotlib.pyplot as plt
+import pdb
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import label as splabel
 from scipy.ndimage import find_objects
@@ -98,7 +98,7 @@ class EnhancedWatershed(object):
         MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.max_size)))
         MAX_INFL = 2 * MIN_INFL
         marked_so_far = []
-        #plt.close('all')
+        plt.close('all')
         # Find the maxima. These are high-values with enough clearance
         # around them.
         # Work from high to low bins. The pixels in the highest bin mark their
@@ -133,6 +133,9 @@ class EnhancedWatershed(object):
                     else:
                         for m in marked_so_far:
                             marked[m] = self.UNMARKED
+            plot_data = plt.figimage(np.flipud(marked))
+            plt.savefig('bin%03d'%(100-b)+".png")
+            plt.close('all')
         # Erase marks and start over. You have a list of centers now.
         marked[:, :] = self.UNMARKED
         deferred_from_last = []
@@ -162,10 +165,7 @@ class EnhancedWatershed(object):
                             deferred_to_next.append(center)
                         else:
                             pass
-                            #print "delta",delta,"bin",b, "i",i, "done growing",center
-                            #plot_data = plt.figimage(np.flipud(marked))
-                            #plt.savefig('%02d'%delta+'.%03d'%(100-b)+'.%04d'%i+".png")
-                            #plt.close('all')
+                    print "delta",delta,'out of',self.delta,"bin",b, "i",i,"center",center
                 # this is the last one for this bin
                 self.remove_foothills(q_data, marked, b, bin_lower, centers, foothills)
             del deferred_from_last[:]
@@ -194,7 +194,7 @@ class EnhancedWatershed(object):
         as_bin.append(center)
         center_data = q_data[center]
         while len(as_bin) > 0:
-            p = as_bin.pop(-1)
+            p = as_bin.pop(-1) # remove and return last pixel in as_bin
             if marked[p] != self.UNMARKED: # already processed
                 continue
             marked[p] = q_data[center]
@@ -216,6 +216,7 @@ class EnhancedWatershed(object):
         if bin_lower == 0:
             will_be_considered_again = False
         big_enough = len(marked_so_far) >= self.max_size
+        print 'center',center,'bin_lower',bin_lower,len(marked_so_far),'out of',self.max_size
         if big_enough:
             # remove lower values within region of influence
             foothills.append((center, as_glob))
