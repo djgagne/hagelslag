@@ -9,12 +9,19 @@
 @author: David John Gagne (djgagne@ou.edu)
 """
 
-import pdb
+import pdb, os
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import label as splabel
 from scipy.ndimage import find_objects
 from collections import OrderedDict
+
+def myimg(filename):
+    i = 0
+    while os.path.exists('{}{:02d}.png'.format(filename, i)):
+        i += 1
+    plt.savefig('{}{:02d}.png'.format(filename,i))
+    plt.close('all')
 
 
 class EnhancedWatershed(object):
@@ -98,7 +105,8 @@ class EnhancedWatershed(object):
         MIN_INFL = int(np.round(1 + 0.5 * np.sqrt(self.max_size)))
         MAX_INFL = 2 * MIN_INFL
         marked_so_far = []
-        plt.close('all')
+        #plot_data = plt.figimage(np.flipud(input_grid))
+        #myimg('input_grid')
         # Find the maxima. These are high-values with enough clearance
         # around them.
         # Work from high to low bins. The pixels in the highest bin mark their
@@ -133,10 +141,10 @@ class EnhancedWatershed(object):
                     else:
                         for m in marked_so_far:
                             marked[m] = self.UNMARKED
-            plot_data = plt.figimage(np.flipud(marked))
-            plt.savefig('bin%03d'%(100-b)+".png")
-            plt.close('all')
         # Erase marks and start over. You have a list of centers now.
+        print "found maximas and marked their neighborhoods"
+        #plot_data = plt.figimage(np.flipud(marked))
+        #myimg('neighborhood')
         marked[:, :] = self.UNMARKED
         deferred_from_last = []
         deferred_to_next = []
@@ -165,11 +173,13 @@ class EnhancedWatershed(object):
                             deferred_to_next.append(center)
                         else:
                             pass
-                    print "delta",delta,'out of',self.delta,"bin",b, "i",i,"center",center
                 # this is the last one for this bin
                 self.remove_foothills(q_data, marked, b, bin_lower, centers, foothills)
+                # print "delta",delta,'out of',self.delta,"bin",b
             del deferred_from_last[:]
             del deferred_to_next[:]
+        #plot_data = plt.figimage(np.flipud(marked))
+        #myimg('marked')
         return marked
             
     def set_maximum(self, q_data, marked, center, bin_lower, foothills):
@@ -216,7 +226,7 @@ class EnhancedWatershed(object):
         if bin_lower == 0:
             will_be_considered_again = False
         big_enough = len(marked_so_far) >= self.max_size
-        print 'center',center,'bin_lower',bin_lower,len(marked_so_far),'out of',self.max_size
+        #print 'center',center,'bin_lower',bin_lower,len(marked_so_far),'out of',self.max_size
         if big_enough:
             # remove lower values within region of influence
             foothills.append((center, as_glob))
