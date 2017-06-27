@@ -117,6 +117,12 @@ class TrackProcessor(object):
         if self.model_grid.data is None:
             print("No model output found")
             return tracked_model_objects
+        min_orig = self.model_ew.min_thresh
+        max_orig = self.model_ew.max_thresh
+        data_increment_orig = self.model_ew.data_increment
+        self.model_ew.min_thresh = 0
+        self.model_ew.data_increment = 1
+        self.model_ew.max_thresh = 100
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
@@ -127,13 +133,14 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h]
             model_data[:self.patch_radius] = 0
             model_data[-self.patch_radius:] = 0
-            model_data[:,:self.patch_radius] = 0
-            model_data[:,-self.patch_radius:] = 0
-            hour_labels = label_storm_objects(gaussian_filter(model_data, self.gaussian_window), "ew",
+            model_data[:, :self.patch_radius] = 0
+            model_data[:, -self.patch_radius:] = 0
+            scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
+            hour_labels = label_storm_objects(gaussian_filter(scaled_data, self.gaussian_window), "ew",
                                               self.model_ew.min_thresh, self.model_ew.max_thresh,
                                               min_area=self.size_filter, max_area=self.model_ew.max_size,
                                               max_range=self.model_ew.delta, increment=self.model_ew.data_increment)
-            hour_labels[model_data < self.model_ew.min_thresh] = 0
+            hour_labels[scaled_data < self.model_ew.min_thresh] = 0
             model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
@@ -143,9 +150,12 @@ class TrackProcessor(object):
                 if h > 0:
                     model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
         tracked_model_objects.extend(track_storms(model_objects, self.hours,
-                                                      self.object_matcher.cost_function_components,
-                                                      self.object_matcher.max_values,
-                                                      self.object_matcher.weights))
+                                                  self.object_matcher.cost_function_components,
+                                                  self.object_matcher.max_values,
+                                                  self.object_matcher.weights))
+        self.model_ew.min_thresh = min_orig
+        self.model_ew.max_thresh = max_orig
+        self.model_ew.data_increment = data_increment_orig
         return tracked_model_objects
 
     def find_model_tracks(self):
@@ -175,17 +185,17 @@ class TrackProcessor(object):
             max_orig = self.model_ew.max_thresh
             data_increment_orig = self.model_ew.data_increment
             # scale to int 0-100.
-            scaled_data = np.array( rescale_data( self.model_grid.data[h], min_orig, max_orig) )
-            self.model_ew.min_thresh =   0
-            self.model_ew.data_increment =   1
+            scaled_data = np.array(rescale_data( self.model_grid.data[h], min_orig, max_orig))
+            self.model_ew.min_thresh = 0
+            self.model_ew.data_increment = 1
             self.model_ew.max_thresh = 100
             hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
             hour_labels[model_data < self.model_ew.min_thresh] = 0
             hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
             # Return to orig values
-            self.model_ew.min_thresh =  min_orig
-            self.model_ew.max_thresh =  max_orig
-            self.model_ew.data_increment =  data_increment_orig
+            self.model_ew.min_thresh = min_orig
+            self.model_ew.max_thresh = max_orig
+            self.model_ew.data_increment = data_increment_orig
             obj_slices = find_objects(hour_labels)
 
             num_slices = len(obj_slices)
