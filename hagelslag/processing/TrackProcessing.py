@@ -136,11 +136,11 @@ class TrackProcessor(object):
             model_data[:, :self.patch_radius] = 0
             model_data[:, -self.patch_radius:] = 0
             scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
-            hour_labels = label_storm_objects(gaussian_filter(scaled_data, self.gaussian_window), "ew",
+            hour_labels = label_storm_objects(scaled_data, "ew",
                                               self.model_ew.min_thresh, self.model_ew.max_thresh,
                                               min_area=self.size_filter, max_area=self.model_ew.max_size,
-                                              max_range=self.model_ew.delta, increment=self.model_ew.data_increment)
-            hour_labels[scaled_data < self.model_ew.min_thresh] = 0
+                                              max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
+                                              gaussian_sd=self.gaussian_window)
             model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
