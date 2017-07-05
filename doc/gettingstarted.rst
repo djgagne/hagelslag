@@ -35,4 +35,7 @@ Make sure the following dependencies are installed before trying to install hage
 Most of these should be installable with the `Anaconda Python distribution <https://www.continuum.io/downloads>`_ or pip.
 Pygrib requires the `ECMWF GRIB-API <https://software.ecmwf.int/wiki/display/GRIB/Home>`_.
 Basemap may need to be installed from source because the geos library the anaconda binary uses conflicts with other packages.
+Alternatively, use the conda-forge channel in anaconda to install all of the dependencies. If you install them all
+simultaneously, it should handle any potential conflicts.
+
 
