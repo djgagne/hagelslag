@@ -49,7 +49,7 @@ class STObject(object):
                 self.j.append(j[l])
         else:
             self.timesteps = grid
-            self.masks = np.array(mask, dtype=int)
+            self.masks = mask
             self.x = x
             self.y = y
             self.i = i
