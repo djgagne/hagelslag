@@ -114,9 +114,7 @@ class STObject(object):
             Distance in units of the x-y coordinates
         """
         ti = np.where(self.times == time)[0][0]
-        ti = ti[0] # avoid warning . Ahijevych
         oti = np.where(other_object.times == other_time)[0][0]
-        oti = oti[0] # avoid warning . Ahijevych
         xs = self.x[ti].ravel()[self.masks[ti].ravel() == 1]
         xs = xs.reshape(xs.size, 1)
         ys = self.y[ti].ravel()[self.masks[ti].ravel() == 1]
