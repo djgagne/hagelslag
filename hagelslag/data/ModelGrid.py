@@ -3,6 +3,7 @@ import numpy as np
 from pandas import DatetimeIndex, Timestamp
 from os.path import exists
 
+
 class ModelGrid(object):
     """
     Base class for reading 2D model output grids from netCDF files.
