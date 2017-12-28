@@ -137,8 +137,7 @@ def process_ensemble_member(run_date, member, config):
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
                                             observed_tracks=mrms_tracks,
                                             track_errors=track_errors)
-                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                               track_pairings, model_tracks)
+                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                 print("Output csv", run_date, member)
                 for table_name, table_data in obs_data.items():
@@ -224,7 +223,7 @@ def process_observed_tracks(run_date, member, config):
         model_tracks = []
         if len(mrms_tracks) > 0:
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                           track_pairings, model_tracks)
+                                           )
             obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
             # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
             #    try:
@@ -296,7 +295,7 @@ def rematch_ensemble_tracks(run_date, member, config):
             forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                      config, track_proc.model_grid.proj, mrms_tracks, track_errors)
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                           track_pairings, model_tracks)
+                                          )
             for table_name, table_data in obs_data.items():
                 table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                  "obs",
