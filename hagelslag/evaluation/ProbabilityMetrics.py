@@ -48,12 +48,13 @@ class DistributedROC(object):
         contingency_tables (pandas.DataFrame): Stores contingency table counts for each probability threshold
 
     Examples:
-        >>>import numpy as np
-        >>>forecasts = np.random.random(size=1000)
-        >>>obs = np.random.random_integers(0, 1, size=1000)
-        >>>roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1)
-        >>>roc.update(forecasts, obs)
-        >>>print(roc.auc())
+
+        >>> import numpy as np
+        >>> forecasts = np.random.random(size=1000)
+        >>> obs = np.random.random_integers(0, 1, size=1000)
+        >>> roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1)
+        >>> roc.update(forecasts, obs)
+        >>> print(roc.auc())
     """
     def __init__(self, thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1.0, input_str=None):
         """
