@@ -3,11 +3,11 @@ import pandas as pd
 import pickle
 import json
 import os
+from sklearn.decomposition import PCA
 from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
-from sklearn.decomposition import PCA
 from hagelslag.evaluation import DistributedROC
 from os.path import join
 
