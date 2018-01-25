@@ -402,7 +402,6 @@ class TrackModeler(object):
                             multi_predictions[:, p]
         return predictions
 
-
     def fit_size_models(self, model_names,
                         model_objs,
                         input_columns,

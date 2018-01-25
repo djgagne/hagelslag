@@ -2,9 +2,6 @@
 import argparse
 from hagelslag.util.Config import Config
 from hagelslag.processing.TrackModeler import TrackModeler
-from hagelslag.processing.TrackSampler import sample_member_run_tracks
-from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file, read_arps_map_file
-from os.path import exists
 from multiprocessing import Pool, Manager
 from hagelslag.processing.EnsembleProducts import *
 from scipy.ndimage import gaussian_filter
@@ -18,23 +15,19 @@ import os
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", help="Config filename.")
-    parser.add_argument("-t", "--train", action="store_true", help="Train models.")
-    parser.add_argument("-c", "--cop", action="store_true", help="Calculate copulas.")
-    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts.")
-    parser.add_argument("-s", "--samp", action="store_true", help="Sample tracks.")
-    parser.add_argument("-e", "--ens", action="store_true", help="Generate ensemble products.")
-    parser.add_argument("-g", "--grid", action="store_true", help="Generate forecast grids.")
+    parser.add_argument("-t", "--train", action="store_true", help="Train machine learning models.")
+    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts from machine learning models.")
+    parser.add_argument("-e", "--ens", action="store_true", help="Generate ensemble products from ML and raw ensemble variables.")
+    parser.add_argument("-g", "--grid", action="store_true", help="Generate forecast grids for machine learning models.")
     args = parser.parse_args()
     required = ["ensemble_name", "train_data_path", "forecast_data_path", "member_files",
                 "data_format", "condition_model_names", "condition_model_objs", "condition_input_columns",
-                "condition_output_column", "output_threshold", "group_col", "size_model_names",
-                "size_model_objs", "size_input_columns", "size_output_column", "size_range_params",
-                "track_model_names", "track_model_objs", "track_input_columns", "track_output_columns",
-                "track_output_ranges", "model_path", "metadata_columns", "data_json_path", "forecast_json_path",
-                "load_models", "ensemble_members", "ml_grid_method", "neighbor_radius", "neighbor_sigma", "grid_shape",
+                "condition_output_column", "group_col",
+                "model_path", "metadata_columns", "data_json_path", "forecast_json_path",
+                "load_models", "ensemble_members", "ml_grid_method", "neighbor_radius", "neighbor_sigma",
                 "ensemble_consensus_path", "ensemble_variables", "ensemble_variable_thresholds", "ensemble_data_path"]
     config = Config(args.config, required)
-    if any([args.train, args.cop, args.fore]):
+    if any([args.train, args.fore]):
         track_modeler = TrackModeler(config.ensemble_name,
                                      config.train_data_path,
                                      config.forecast_data_path,
@@ -44,8 +37,6 @@ def main():
                                      config.group_col)
         if args.train:
             train_models(track_modeler, config)
-        if args.cop:
-            track_modeler.calc_copulas(config.copula_file)
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
             output_forecasts_csv(forecasts, track_modeler, config)
@@ -54,43 +45,7 @@ def main():
     if args.ens:
         print("Making ensemble probs")
         make_ensemble_probabilities(config, mode="forecast")
-        #generate_all_ensemble_products(config, mode="forecast")
-    if args.samp:
-        sample_all_tracks(config)
     return
-
-
-def sample_all_tracks(config, mode="forecast"):
-    pool = Pool(config.num_procs)
-    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
-                                 end=config.end_dates[mode],
-                                 freq='1D')
-    member_info = pd.read_csv(config.member_files[mode], index_col="Ensemble_Member")
-    if config.ensemble_name.upper() == "SSEF":
-        proj_dict, grid_dict = read_arps_map_file(config.map_filename)
-    else:
-        proj_dict, grid_dict = read_ncar_map_file(config.map_filename)
-    mapping_data = make_proj_grids(proj_dict, grid_dict)
-    for run_date in run_dates.to_pydatetime():
-        for member in config.ensemble_members:
-            group = member_info.loc[member, config.group_col]
-            pool.apply_async(sample_member_run_tracks, (member,
-                                                        group,
-                                                        run_date,
-                                                        config.size_model_names,
-                                                        config.start_hour,
-                                                        config.end_hour,
-                                                        mapping_data['lon'].shape,
-                                                        grid_dict['dx'],
-                                                        config.forecast_json_path,
-                                                        config.num_track_samples,
-                                                        config.sampler_thresholds,
-                                                        config.copula_file,
-                                                        config.sampler_out_path,
-                                                        config.size_range_params,
-                                                        config.track_output_ranges))
-    pool.close()
-    pool.join()
 
 
 def train_models(track_modeler, config):
@@ -98,41 +53,19 @@ def train_models(track_modeler, config):
     Trains machine learning models to predict size, whether or not the event occurred, and track errors.
 
     Args:
-        track_modeler: hagelslag.TrackModeler object
-            an initialized TrackModeler object
-        config: Config
-            Config object containing
-
-    Returns:
-
+        track_modeler (hagelslag.TrackModeler): an initialized TrackModeler object
+        config: Config object
     """
     track_modeler.load_data(mode="train", format=config.data_format)
-    if hasattr(config, "size_distribution_calibrate"):
-        calibrate = config.size_distribution_calibrate
-    else:
-        calibrate = False
-    print(config.condition_output_column, config.output_threshold)
     track_modeler.fit_condition_threshold_models(config.condition_model_names,
-                                       config.condition_model_objs,
-                                       config.condition_input_columns,
-                                       config.condition_output_column,
-                                       config.condition_threshold)
+                                                 config.condition_model_objs,
+                                                 config.condition_input_columns,
+                                                 config.condition_output_column,
+                                                 config.condition_threshold)
     track_modeler.fit_size_distribution_component_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
                                                config.size_distribution_input_columns,
                                                output_columns=config.size_distribution_output_columns)
-    #track_modeler.fit_size_models(config.size_model_names,
-    #                              config.size_model_objs,
-    #                              config.size_input_columns,
-    #                              config.size_output_column,
-    #                              output_start=config.size_range_params[0],
-    #                              output_stop=config.size_range_params[1],
-    #                              output_step=config.size_range_params[2])
-    #track_modeler.fit_track_models(config.track_model_names,
-    #                               config.track_model_objs,
-    #                               config.track_input_columns,
-    #                               config.track_output_columns,
-    #                               config.track_output_ranges)
     track_modeler.save_models(config.model_path)
     return
 
@@ -142,10 +75,8 @@ def make_forecasts(track_modeler, config):
     Generate predictions from all machine learning models.
 
     Args:
-        track_modeler: hagelslag.processing.TrackModeler object
-            TrackModeler object with configuration information
-        config: hagelslag.util.Config object
-            Configuration information
+        track_modeler (hagelslag.processing.TrackModeler object): TrackModeler object with configuration information
+        config (hagelslag.util.Config object): Configuration information
     Returns:
         dictionary containing forecast values.
     """
@@ -161,15 +92,11 @@ def make_forecasts(track_modeler, config):
                                                                     config.metadata_columns)
 
     print("Size Distribution Forecasts")
-    if hasattr(config, "size_distribution_calibrate"):
-        calibrate = config.size_distribution_calibrate
-    else:
-        calibrate = False
     forecasts["dist"] = track_modeler.predict_size_distribution_component_models(config.size_distribution_model_names,
                                                                                  config.size_distribution_input_columns,
                                                                                  config.size_distribution_output_columns,
                                                                                  config.metadata_columns,
-                                                                                 location=13)
+                                                                                 location=config.size_distribution_loc)
     return forecasts
 
 
@@ -259,209 +186,10 @@ def make_ensemble_probabilities(config, mode="forecast"):
                                            variable_thresholds, config.neighbor_radius, q, config.model_map_file,
                                            config.neighbor_condition_model, config.condition_threshold,
                                            config.num_track_samples, config.neighbor_sigma))
-
-            #for ml_model_name in config.size_distribution_model_names:
-            #    print(ml_model_name)
-            #    ensemble_run_neighborhood_probabilities(config.ensemble_name, ml_model_name, config.ensemble_members,
-            #                                            run_date, "dist", start_date, end_date,
-            #                                            config.forecast_json_path, config.single_step,
-            #                                            variable_thresholds,
-            #                                            config.neighbor_radius, config.neighbor_sigma,
-            #                                            config.ensemble_consensus_path, config.num_procs,
-            #                                            config.model_map_file, config.neighbor_condition_model,
-            #                                            config.condition_threshold, config.num_track_samples)
-            #for model_variable in config.ensemble_variables:
-            #    print(model_variable)
-            #    ensemble_run_neighborhood_probabilities(config.ensemble_name, "WRF", config.ensemble_members,
-            #                                            run_date, model_variable, start_date, end_date,
-            #                                            config.ensemble_data_path, config.single_step,
-            #                                            config.ensemble_variable_thresholds[model_variable],
-            #                                            config.neighbor_radius, config.neighbor_sigma,
-            #                                            config.ensemble_consensus_path, config.num_procs,
-            #                                            config.model_map_file, config.neighbor_condition_model,
-            #                                            config.condition_threshold, config.num_track_samples)
         else:
             print(run_date.strftime("%Y%m%d") + " not available") 
     pool.close()
     pool.join()
-
-
-def generate_all_ensemble_products(config, mode="forecast"):
-    """
-    Create neighborhood probabilities from raw model forecasts and from machine learning model forecasts.
-
-    Args:
-        config:
-            Config object
-        mode: str
-            Used to determine which set of dates to pull from when making ensemble products
-    Returns:
-
-    """
-    pool = Pool(config.num_procs)
-    run_dates = pd.DatetimeIndex(start=config.start_dates[mode],
-                                 end=config.end_dates[mode],
-                                 freq='1D')
-    size_bins = np.arange(config.size_range_params[0], config.size_range_params[1] + config.size_range_params[2],
-                          config.size_range_params[2])
-    if config.ml_grid_method == "gamma":
-        ml_var = "dist"
-        ml_model_list = config.size_distribution_model_names
-    else:
-        ml_var = "size"
-        ml_model_list = config.size_model_names
-    for run_date in run_dates.to_pydatetime():
-        start_date = run_date + timedelta(hours=config.start_hour)
-        end_date = run_date + timedelta(hours=config.end_hour)
-        args = (ml_model_list, config.ensemble_members, run_date, ml_var, start_date, end_date,
-                config.grid_shape, size_bins, config.forecast_json_path, config.ml_grid_method,
-                config.sampler_thresholds, config.neighbor_radius, config.neighbor_sigma,
-                config.ensemble_consensus_path, config.neighbor_condition_model)
-        pool.apply_async(generate_ml_run_product, args)
-    for run_date in run_dates.to_pydatetime():
-        start_date = run_date + timedelta(hours=config.start_hour)
-        end_date = run_date + timedelta(hours=config.end_hour)
-        for variable in config.ensemble_variables:
-            args = (config.ensemble_name, config.ensemble_members, run_date, variable, start_date, end_date,
-                    config.ensemble_data_path, config.single_step, config.ensemble_variable_thresholds[variable],
-                    config.neighbor_radius, config.neighbor_sigma, config.ensemble_consensus_path)
-            pool.apply_async(generate_ensemble_run_product, args)
-    pool.close()
-    pool.join()
-    return
-
-
-def generate_ensemble_run_product(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step,
-                                  thresholds, neighbor_radii, neighbor_sigmas, out_path):
-    """
-    Calculate neighborhood probabilities from raw ensemble data.
-
-    Args:
-        ensemble_name:
-        members:
-        run_date:
-        variable:
-        start_date:
-        end_date:
-        path:
-        single_step:
-        thresholds:
-        neighbor_radii:
-        neighbor_sigmas:
-        out_path:
-
-    Returns:
-
-    """
-    out_file = None
-    try:
-        r_date = run_date.strftime("%Y%m%d")
-        print(r_date + " " + variable + " started")
-        ep = EnsembleProducts(ensemble_name, members, run_date, variable, start_date, end_date, path, single_step)
-        ep.load_data()
-        if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
-            try:
-                os.mkdir(out_path + run_date.strftime("%Y%m%d"))
-            except OSError:
-                print("Directory already created")
-        filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(ensemble_name, variable,
-                                                                    run_date.strftime("%Y%m%d"))
-        ecs = []
-        for threshold in thresholds:
-            print(r_date + " " + variable + "{0:d}".format(int(threshold)))
-            for neighbor_radius in neighbor_radii:
-                print(r_date + " Hourly " + variable + " r={0:d}".format(int(neighbor_radius)))
-                ecs.extend(ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
-                print(r_date + " Max " + variable + " r={0:d}".format(int(neighbor_radius)))
-                ecs.extend(ep.period_max_neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
-                if out_file is None:
-                    out_file = ecs[0].init_file(filename)
-                for ec in ecs:
-                    ec.to_file(out_file)
-                del ecs[:]
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise e
-    finally:
-        if out_file is not None:
-            out_file.close()
-            del out_file
-    return
-
-
-def generate_ml_run_product(model_names, members, run_date, variable, start_date, end_date, grid_shape, forecast_bins,
-                            forecast_json_path, grid_method, thresholds, neighbor_radii, neighbor_sigmas, out_path,
-                            neighbor_condition_model):
-    """
-    Calculate neighborhood probabilities from machine learning model forecasts.
-
-    Args:
-        model_names:
-        members:
-        run_date:
-        variable:
-        start_date:
-        end_date:
-        grid_shape:
-        forecast_bins:
-        forecast_json_path:
-        grid_method:
-        thresholds:
-        neighbor_radii:
-        neighbor_sigmas:
-        out_path:
-        neighbor_condition_model:
-
-    Returns:
-
-    """
-    out_file = None
-    try:
-        r_date = run_date.strftime("%Y%m%d")
-
-        ep = MachineLearningEnsembleProducts(None, members, run_date, variable, start_date, end_date, grid_shape,
-                                             forecast_bins, forecast_json_path,
-                                             condition_model_name=neighbor_condition_model)
-        ep.load_track_forecasts()
-        ecs = []
-        for model_name in model_names:
-            print(r_date + " " + model_name + " neighborhood probability started")
-            ep.ensemble_name = model_name
-            data_code = ep.load_data(grid_method=grid_method)
-            if data_code == 0:
-                if not os.access(out_path + run_date.strftime("%Y%m%d"), os.R_OK):
-                    try:
-                        os.mkdir(out_path + run_date.strftime("%Y%m%d"))
-                    except OSError:
-                        print("Directory already created")
-                filename = out_path + "{2}/{0}_{1}_consensus_{2}.nc".format(model_name.replace(" ", "-"), variable,
-                                                                            run_date.strftime("%Y%m%d"))
-                out_file = None
-                for threshold in thresholds:
-                    for neighbor_radius in neighbor_radii:
-                        print(r_date + " Hourly " + model_name + " r={0:d}".format(int(neighbor_radius)))
-                        ecs.extend(ep.neighborhood_probability(threshold, neighbor_radius, sigmas=neighbor_sigmas))
-                        print(r_date + " Max " + model_name + " r={0:d}".format(int(neighbor_radius)))
-                        ecs.extend(ep.period_max_neighborhood_probability(threshold, neighbor_radius,
-                                                                          sigmas=neighbor_sigmas))
-                        if out_file is None:
-                            out_file = ecs[0].init_file(filename)
-                        for ec in ecs:
-                            ec.to_file(out_file)
-                        del ecs[:]
-                if out_file is not None:
-                    out_file.close()
-                    del out_file
-
-    except Exception as e:
-        print(traceback.format_exc())
-        raise e
-    finally:
-        if out_file is not None:
-            out_file.close()
-            del out_file
-    return
 
 
 def generate_ml_grids(config, mode="forecast"):
@@ -499,22 +227,20 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                             single_step, neighbor_condition_model, forecast_csv_path, netcdf_path,
                             grib_path, map_file):
     """
-    Loads machine learning model forecasts and outputs them to original ensemble model grid. The grids are then
-    written out to GRIB2 files.
+
 
     Args:
+        ensemble_name:
         model_names:
-        members:
+        member:
         run_date:
         variable:
         start_date:
         end_date:
-        grid_shape:
+        single_step:
         neighbor_condition_model:
-        condition_threshold:
-        zero_inflate:
-        ml_grid_percentiles:
-        forecast_json_path:
+        forecast_csv_path:
+        netcdf_path:
         grib_path:
         map_file:
 
