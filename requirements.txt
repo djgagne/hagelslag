@@ -1,0 +1,11 @@
+numpy>=1.9
+pandas>=0.15
+scipy
+matplotlib
+scikit-learn>=0.16
+h5py
+netCDF4
+basemap
+scikit-image
+pygrib
+arrow>=0.8
