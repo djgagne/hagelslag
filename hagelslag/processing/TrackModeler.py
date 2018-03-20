@@ -3,11 +3,11 @@ import pandas as pd
 import pickle
 import json
 import os
+from sklearn.decomposition import PCA
 from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
-from sklearn.decomposition import PCA
 from hagelslag.evaluation import DistributedROC
 from os.path import join
 
@@ -52,7 +52,6 @@ class TrackModeler(object):
         Load data from flat data files containing total track information and information about each timestep.
         The two sets are combined using merge operations on the Track IDs. Additional member information is gathered
         from the appropriate member file.
-
         Args:
             mode: "train" or "forecast"
             format:  file format being used. Default is "csv"
@@ -72,28 +71,33 @@ class TrackModeler(object):
                 file_date = track_file.split("_")[-1][:-4]
                 if file_date in run_date_str:
                     total_track_files.append(track_file)
+		    
             step_track_files = []
             for step_file in all_step_track_files:
                 file_date = step_file.split("_")[-1][:-4]
                 if file_date in run_date_str:
                     step_track_files.append(step_file)            
+	  	   
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
                                                  ignore_index=True)
-            self.data[mode]["total"] = self.data[mode]["total"].fillna(0)
-            self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
+            self.data[mode]["total"] = self.data[mode]["total"].fillna(value=0)
+	    self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
-                                                ignore_index=True).fillna(0)
+                                                ignore_index=True)
+	    self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
-            if mode == "forecast":
+	   
+	    if mode == "forecast":
                 self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
+	    
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
-                                                on="Track_ID",
-                                                suffixes=("_Step", "_Total"))
-            self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
+                                                on=["Track_ID"], 
+                                                suffixes=("", "_Total"))
+	    self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
-                                                on="Ensemble_Member")
+                                                on="Ensemble_Member") 
             self.data[mode]["total_group"] = pd.merge(self.data[mode]["total"],
                                                       self.data[mode]["member"],
                                                       on="Ensemble_Member")
@@ -105,14 +109,11 @@ class TrackModeler(object):
         """
         Calculate a copula multivariate normal distribution from the training data for each group of ensemble members.
         Distributions are written to a pickle file for later use.
-
         Args:
             output_file: Pickle file
             model_names: Names of the tracking models
             label_columns: Names of the data columns used for labeling
-
         Returns:
-
         """
         if len(self.data['train']) == 0:
             self.load_data()
@@ -139,7 +140,6 @@ class TrackModeler(object):
                              output_threshold=0.0):
         """
         Fit machine learning models to predict whether or not hail will occur.
-
         Args:
             model_names: List of strings with the names for the particular machine learning models
             model_objs: scikit-learn style machine learning model objects.
@@ -151,7 +151,7 @@ class TrackModeler(object):
         groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
             print(group)
-            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
+            group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group] 
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
@@ -181,44 +181,43 @@ class TrackModeler(object):
             None
         """
         print("Fitting condition models")
-        groups = self.data["train"]["member"][self.group_col].unique()
+	groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].iloc[np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
-            output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
+	    output_data = np.where(group_data.loc[:,output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
             for m, model_name in enumerate(model_names):
                 print(model_name)
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
-                kf = KFold(n_splits=num_folds)
+		num_elements = group_data[input_columns].shape[0] 
+                kf = KFold(num_elements,n_folds=num_folds)  
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
-                for train_index, test_index in kf.split(group_data[input_columns].values):
+                #for train_index, test_index in kf.split(group_data[input_columns].values):
+		for train_index, test_index in kf: 
                     self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
-                                                                 output_data[train_index])
-                    cv_preds = self.condition_models[group][model_name].predict_proba(group_data.iloc[test_index][
-                                                                                                     input_columns])[:, 1]
+		    					output_data[train_index])
+		    cv_preds = self.condition_models[group][model_name].predict_proba(group_data.iloc[test_index][input_columns])[:, 1] 
                     roc.update(cv_preds, output_data[test_index])
                 self.condition_models[group][
-                    model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
+                   model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
                 print(model_name + " condition threshold: {0:0.3f}".format(self.condition_models[group][model_name + "_condition_threshold"]))
-                self.condition_models[group][model_name].fit(group_data[input_columns],
-                                                             output_data)
-
+                self.condition_models[group][model_name].fit\
+				(group_data[input_columns],output_data) 
+	
     def predict_condition_models(self, model_names,
                                  input_columns,
                                  metadata_cols,
                                  data_mode="forecast",
                                  ):
         """
-        Apply condition models to forecast data.
-
+        Apply condition modelsto forecast data.
         Args:
             model_names: List of names associated with each condition model used for prediction
             input_columns: List of columns in data used as input into the model
             metadata_cols: Columns from input data that should be included in the data frame with the predictions.
             data_mode: Which data subset to pull from for the predictions, "forecast" by default
-
         Returns:
             A dictionary of data frames containing probabilities of the event and specified metadata
         """
@@ -232,20 +231,18 @@ class TrackModeler(object):
             if group_count > 0:
                 for m, model_name in enumerate(model_names):
                     mn = model_name.replace(" ", "-")
-                    predictions.loc[g_idxs,
-                                    mn + "_conditionprob"] = self.condition_models[
-                        group][model_name].predict_proba(self.data[data_mode]["combo"].loc[g_idxs, input_columns])[:, 1]
+                    predictions.loc[g_idxs,mn + "_conditionprob"] = self.condition_models[group][model_name].predict_proba(self.data[data_mode]["combo"].loc[g_idxs, input_columns])[:, 1]
                     predictions.loc[g_idxs,
                                     mn + "_conditionthresh"] = np.where(predictions.loc[g_idxs, mn + "_conditionprob"]
                                                                         >= self.condition_models[group][
                                                                         model_name + "_condition_threshold"], 1, 0)
-        return predictions
+
+	return predictions
 
     def fit_size_distribution_models(self, model_names, model_objs, input_columns,
                                      output_columns=None, calibrate=False):
         """
         Fits multitask machine learning models to predict the parameters of a size distribution
-
         Args:
             model_names: List of machine learning model names
             model_objs: scikit-learn style machine learning model objects
@@ -318,7 +315,6 @@ class TrackModeler(object):
                                          data_mode="forecast", location=6, calibrate=False):
         """
         Make predictions using fitted size distribution models.
-
         Args:
             model_names: Name of the models for predictions
             input_columns: Data columns used for input into ML models
@@ -326,7 +322,6 @@ class TrackModeler(object):
             data_mode: Set of data used as input for prediction models
             location: Value of fixed location parameter
             calibrate: Whether or not to apply calibration model
-
         Returns:
             Predictions in dictionary of data frames grouped by group type
         """
@@ -356,13 +351,13 @@ class TrackModeler(object):
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
+	
         return predictions
 
     def predict_size_distribution_component_models(self, model_names, input_columns, output_columns, metadata_cols,
                                                    data_mode="forecast", location=6):
         """
         Make predictions using fitted size distribution models.
-
         Args:
             model_names: Name of the models for predictions
             input_columns: Data columns used for input into ML models
@@ -400,8 +395,8 @@ class TrackModeler(object):
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
-        return predictions
 
+        return predictions
 
     def fit_size_models(self, model_names,
                         model_objs,
@@ -412,11 +407,9 @@ class TrackModeler(object):
                         output_stop=100):
         """
         Fit size models to produce discrete pdfs of forecast hail sizes.
-
         Args:
             model_names:
             model_objs:
-
         Keyword Args:
             input_columns:
             output_column:
@@ -450,7 +443,6 @@ class TrackModeler(object):
                             data_mode="forecast"):
         """
         Apply size models to forecast data.
-
         Args:
             model_names:
             input_columns:
@@ -487,7 +479,6 @@ class TrackModeler(object):
                          ):
         """
         Fit machine learning models to predict track error offsets.
-
             model_names:
             model_objs:
             input_columns:
@@ -523,13 +514,11 @@ class TrackModeler(object):
                              ):
         """
         Predict track offsets on forecast data.
-
         Args:
             model_names:
             input_columns:
             metadata_cols:
             data_mode:
-
         Returns:
         """
         predictions = {}
@@ -558,7 +547,6 @@ class TrackModeler(object):
     def save_models(self, model_path):
         """
         Save machine learning models to pickle files.
-
         """
         for group, condition_model_set in self.condition_models.items():
             for model_name, model_obj in condition_model_set.items():
@@ -606,7 +594,6 @@ class TrackModeler(object):
     def load_models(self, model_path):
         """
         Load models from pickle files.
-
         """
         condition_model_files = sorted(glob(model_path + "*_condition.pkl"))
         if len(condition_model_files) > 0:
@@ -666,7 +653,6 @@ class TrackModeler(object):
                               out_path):
         """
         Output forecast values to geoJSON file format.
-
         :param forecasts:
         :param condition_model_names:
         :param size_model_names:
@@ -744,18 +730,17 @@ class TrackModeler(object):
             forecasts: 
             mode: 
             csv_path: 
-
         Returns:
-
         """
         merged_forecasts = pd.merge(forecasts["condition"],
                                     forecasts["dist"], on="Step_ID")
+        
         all_members = self.data[mode]["combo"]["Ensemble_Member"]
         members = np.unique(all_members)
-        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Date"]) -\
-            pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])-\
+				 pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
-        print(run_dates)
+      	print(run_dates)
         for member in members:
             for run_date in run_dates:
                 mem_run_index = (all_run_dates == run_date) & (all_members == member)
