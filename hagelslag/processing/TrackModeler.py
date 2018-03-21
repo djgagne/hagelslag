@@ -10,6 +10,7 @@ from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
 from hagelslag.evaluation import DistributedROC
 from os.path import join
+import inspect
 
 try:
     from sklearn.model_selection import KFold
@@ -89,8 +90,8 @@ class TrackModeler(object):
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
-                                                on="Track_ID",
-                                                suffixes=("_Step", "_Total"))
+                                                on=["Track_ID", "Ensemble_Name", "Ensemble_Member", "Run_Date"],
+                                                )
             self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
                                                 on="Ensemble_Member")
@@ -182,6 +183,7 @@ class TrackModeler(object):
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
+        inspect.getargspec(KFold.__init__)[0]
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].iloc[np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
@@ -191,6 +193,7 @@ class TrackModeler(object):
             for m, model_name in enumerate(model_names):
                 print(model_name)
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
+
                 kf = KFold(n_splits=num_folds)
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
                 for train_index, test_index in kf.split(group_data[input_columns].values):
@@ -751,8 +754,7 @@ class TrackModeler(object):
                                     forecasts["dist"], on="Step_ID")
         all_members = self.data[mode]["combo"]["Ensemble_Member"]
         members = np.unique(all_members)
-        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Date"]) -\
-            pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
         print(run_dates)
         for member in members:
