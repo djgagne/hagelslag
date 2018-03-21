@@ -95,8 +95,8 @@ class TrackModeler(object):
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
-                                                on=["Track_ID"],
-                                                suffixes=("", "_Total"))
+                                                on=["Track_ID", "Ensemble_Name", "Ensemble_Member", "Run_Date"],
+                                                )
             self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
                                                 on="Ensemble_Member")
@@ -191,13 +191,15 @@ class TrackModeler(object):
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
+            num_elements = group_data[input_columns].shape[0]
             for m, model_name in enumerate(model_names):
                 print(model_name)
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
-                num_elements = group_data[input_columns].shape[0]
-                kf = KFold(num_elements, n_folds=num_folds)
+                try:
+                    kf = KFold(n_splits=num_folds)
+                except TypeError:
+                    kf = KFold(num_elements, n_folds=num_folds)
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
-                # for train_index, test_index in kf.split(group_data[input_columns].values):
                 for train_index, test_index in kf:
                     self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
                                                                  output_data[train_index])
@@ -292,6 +294,19 @@ class TrackModeler(object):
                                                                                          1])
 
     def fit_size_distribution_component_models(self, model_names, model_objs, input_columns, output_columns):
+        """
+        This calculates 2 principal components for the hail size distribution between the shape and scale parameters.
+        Separate machine learning models are fit to predict each component.
+
+        Args:
+            model_names: List of machine learning model names
+            model_objs: List of machine learning model objects.
+            input_columns: List of input variables
+            output_columns: Output columns, should contain Shape and Scale.
+
+        Returns:
+
+        """
         groups = np.unique(self.data["train"]["member"][self.group_col])
         for group in groups:
             print(group)
@@ -323,6 +338,7 @@ class TrackModeler(object):
                                          data_mode="forecast", location=6, calibrate=False):
         """
         Make predictions using fitted size distribution models.
+
         Args:
             model_names: Name of the models for predictions
             input_columns: Data columns used for input into ML models
@@ -366,6 +382,7 @@ class TrackModeler(object):
                                                    data_mode="forecast", location=6):
         """
         Make predictions using fitted size distribution models.
+
         Args:
             model_names: Name of the models for predictions
             input_columns: Data columns used for input into ML models
@@ -731,7 +748,7 @@ class TrackModeler(object):
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
         return
 
-    def output_forecasts_csv(self, forecasts, mode, csv_path):
+    def output_forecasts_csv(self, forecasts, mode, csv_path, run_date_format="%Y%m%d-%H%M"):
         """
         Output hail forecast values to csv files by run date and ensemble member.
         
@@ -741,13 +758,16 @@ class TrackModeler(object):
             csv_path: 
         Returns:
         """
+        matching_columns = np.intersect1d(forecasts["condition"].columns.values,
+                                          forecasts["dist"].columns.values)
         merged_forecasts = pd.merge(forecasts["condition"],
-                                    forecasts["dist"], on="Step_ID")
+                                    forecasts["dist"], on=matching_columns)
 
         all_members = self.data[mode]["combo"]["Ensemble_Member"]
         members = np.unique(all_members)
-        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"]) - \
-                        pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        # all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"]) - \
+        #                pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
         print(run_dates)
         for member in members:
@@ -757,7 +777,7 @@ class TrackModeler(object):
                 member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                                               member,
                                                                                               run_date.strftime(
-                                                                                                  "%Y%m%d"))))
+                                                                                                  run_date_format))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,

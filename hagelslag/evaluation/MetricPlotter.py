@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid.inset_locator import inset_axes, InsetPosition
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, InsetPosition
 
 
 def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
               xlabel="Probability of False Detection",
               ylabel="Probability of Detection",
               title="ROC Curve", ticks=np.arange(0, 1.1, 0.1), dpi=300,
-              legend_params=None, bootstrap_sets=None, ci=(2.5, 97.5)):
+              legend_params=None, bootstrap_sets=None, ci=(2.5, 97.5),
+              label_fontsize=14, title_fontsize=16, tick_fontsize=12):
     """
     Plots a set receiver/relative operating characteristic (ROC) curves from DistributedROC objects.
 
@@ -28,7 +29,12 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
         title (str): The title of the figure.
         ticks (numpy.ndarray): Values shown on the x and y axes.
         dpi (int): Figure resolution in dots per inch.
-        legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
+        legend_params (None, dict): Keyword arguments for the formatting of the figure legend.
+        bootstrap_sets (list): List of lists of DistributedROC objects that were bootstrap resampled for each model.
+        ci (tuple of 2 floats): Quantiles of the edges of the bootstrap confidence intervals ranging from 0 to 100.
+        label_fontsize (int): Font size of the x and y axis labels.
+        title_fontsize (int): Font size of the title.
+        tick_fontsize (int): Font size of the x and y tick labels.
 
     Examples:
 
@@ -41,7 +47,7 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
         >>> roc_curve([roc], ["Random"], ["orange"], ["o"], "random_roc.png")
     """
     if legend_params is None:
-        legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)
+        legend_params = dict(loc=4, fontsize=12, framealpha=1, frameon=True)
     plt.figure(figsize=figsize, dpi=dpi)
     plt.plot(ticks, ticks, "k--")
     if bootstrap_sets is not None:
@@ -57,11 +63,11 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
     for r, roc_obj in enumerate(roc_objs):
         roc_data = roc_obj.roc_curve()
         plt.plot(roc_data["POFD"], roc_data["POD"], marker=markers[r], color=colors[r], label=obj_labels[r])
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.xticks(ticks)
-    plt.yticks(ticks)
-    plt.title(title)
+    plt.xlabel(xlabel, fontsize=label_fontsize)
+    plt.ylabel(ylabel, fontsize=label_fontsize)
+    plt.xticks(ticks, fontsize=tick_fontsize)
+    plt.yticks(ticks, fontsize=tick_fontsize)
+    plt.title(title, fontsize=title_fontsize)
     plt.legend(**legend_params)
     plt.savefig(filename, dpi=dpi, bbox_inches="tight")
     plt.close()
@@ -72,7 +78,8 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
                         ylabel="Probability of Detection", ticks=np.arange(0, 1.1, 0.1),
                         dpi=300, csi_cmap="Blues",
                         csi_label="Critical Success Index", title="Performance Diagram",
-                        legend_params=None, bootstrap_sets=None, ci=(2.5, 97.5)):
+                        legend_params=None, bootstrap_sets=None, ci=(2.5, 97.5), label_fontsize=14,
+                        title_fontsize=16, tick_fontsize=12):
     """
     Draws a performance diagram from a set of DistributedROC objects.
 
@@ -102,7 +109,10 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
         legend_params (None or dict): Keyword arguments for the formatting of the figure legend.
         bootstrap_sets (list): A list of arrays of bootstrapped DistributedROC objects. If not None,
             confidence regions will be plotted.
-        ci (tuple): tuple of bootstrap confidence interval percentiles
+        ci (tuple): tuple of bootstrap confidence interval percentiles.
+        label_fontsize (int): Font size of the x and y axis labels.
+        title_fontsize (int): Font size of the title.
+        tick_fontsize (int): Font size of the x and y tick labels.
 
     Examples:
 
@@ -139,11 +149,11 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
         plt.plot(1 - perf_data["FAR"], perf_data["POD"], marker=markers[r], color=colors[r], label=obj_labels[r])
     cbar = plt.colorbar(csi_contour)
     cbar.set_label(csi_label)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.xticks(ticks)
-    plt.yticks(ticks)
-    plt.title(title)
+    plt.xlabel(xlabel, fontsize=label_fontsize)
+    plt.ylabel(ylabel, fontsize=label_fontsize)
+    plt.xticks(ticks, fontsize=tick_fontsize)
+    plt.yticks(ticks, fontsize=tick_fontsize)
+    plt.title(title, fontsize=title_fontsize)
     plt.legend(**legend_params)
     plt.savefig(filename, dpi=dpi, bbox_inches="tight")
     plt.close()
