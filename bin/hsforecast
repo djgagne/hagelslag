@@ -27,6 +27,8 @@ def main():
                 "load_models", "ensemble_members", "ml_grid_method", "neighbor_radius", "neighbor_sigma",
                 "ensemble_consensus_path", "ensemble_variables", "ensemble_variable_thresholds", "ensemble_data_path"]
     config = Config(args.config, required)
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%Y%m%d-%H%M"
     if any([args.train, args.fore]):
         track_modeler = TrackModeler(config.ensemble_name,
                                      config.train_data_path,
@@ -126,7 +128,8 @@ def output_forecasts(forecasts, track_modeler, config):
 
 
 def output_forecasts_csv(forecasts, track_modeler, config):
-    track_modeler.output_forecasts_csv(forecasts, "forecast", config.forecast_csv_path)
+    track_modeler.output_forecasts_csv(forecasts, "forecast", config.forecast_csv_path,
+                                       run_date_format=config.run_date_format)
     return
 
 

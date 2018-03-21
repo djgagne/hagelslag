@@ -31,6 +31,8 @@ def main():
                 'closest_matches']
     config = Config(args.config, required_attributes=required)
     config.json = args.json
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%Y%m%d-%H%M"
     if args.proc > 1:
         pool = Pool(args.proc)
         for run_date in config.dates:
@@ -144,7 +146,8 @@ def process_ensemble_member(run_date, member, config):
                     csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                   "obs",
                                                                                   member,
-                                                                                  run_date.strftime("%Y%m%d"))
+                                                                                  run_date.strftime(
+                                                                                      config.run_date_format))
                     table_data.to_csv(csv_filename,
                                       na_rep="nan",
                                       float_format="%0.5f",
@@ -169,7 +172,7 @@ def process_ensemble_member(run_date, member, config):
             csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                           config.ensemble_name,
                                                                           member,
-                                                                          run_date.strftime("%Y%m%d"))
+                                                                          run_date.strftime(config.run_date_format))
             table_data.to_csv(csv_filename,
                               na_rep="nan",
                               float_format="%0.5f",
@@ -523,7 +526,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     for f, forecast_track in enumerate(forecast_tracks):
         patch_count += forecast_track.times.size
     out_filename = join(config.nc_path, "{0}_{1}_{2}_model_patches.nc".format(ensemble_name,
-                                                                              run_date.strftime("%Y%m%d%H"),
+                                                                              run_date.strftime(config.run_date_format),
                                                                               member))
     out_file = Dataset(out_filename, "w")
     out_file.createDimension("p", patch_count)
@@ -537,7 +540,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     out_file.variables["col"][:] = np.arange(patch_radius * 2)
     out_file.Conventions = "CF-1.6"
     out_file.title = "{0} Storm Patches for run {1} member {2}".format(ensemble_name,
-                                                                       run_date.strftime("%Y%m%d%H"),
+                                                                       run_date.strftime(config.run_date_format),
                                                                        member)
     out_file.object_variable = config.watershed_variable
     meta_variables = ["lon", "lat", "i", "j", "x", "y", "masks"]
@@ -692,14 +695,14 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
     """
     for o, obs_track in enumerate(obs_tracks):
         obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
-                                                                    run_date.strftime("%Y%m%d-%H%M"),
+                                                                    run_date.strftime(config.run_date_format),
                                                                     obs_track.start_time,
                                                                     obs_track.end_time,
                                                                     o)
         start_date = run_date + timedelta(seconds=3600 * int(obs_track.start_time))
         end_date = run_date + timedelta(seconds=3600 * int(obs_track.end_time))
         duration = (end_date - start_date).total_seconds() / 3600.0 + 1
-        path_parts = [run_date.strftime("%Y%m%d"), member]
+        path_parts = [run_date.strftime(config.run_date_format), member]
         full_path = []
         for part in path_parts:
             full_path.append(part)
@@ -713,7 +716,7 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
 
         json_filename = config.geojson_path + "/".join(full_path) + \
                         "/{0}_{1}_{2}_obs_track_{3:03d}.json".format("mesh",
-                                                                     run_date.strftime("%Y%m%d"),
+                                                                     run_date.strftime(config.run_date_format),
                                                                      member,
                                                                      o)
         json_metadata = dict(id=obs_track_id,
