@@ -395,7 +395,6 @@ class TrackModeler(object):
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions[:, p]
-
         return predictions
 
     def fit_size_models(self, model_names,

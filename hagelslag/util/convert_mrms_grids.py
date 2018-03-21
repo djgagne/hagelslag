@@ -8,7 +8,7 @@ from scipy.spatial import cKDTree
 import pickle
 from netCDF4 import Dataset, date2num
 from datetime import datetime, timedelta
-from hagelslag.util.make_proj_grids import read_arps_map_file, make_proj_grids
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 from multiprocessing import Pool
 import warnings
 import traceback
@@ -99,7 +99,10 @@ def interpolate_mrms_day(start_date, variable, interp_type, mrms_path, map_filen
         if mrms.data is not None:
             if map_filename[-3:] == "map":
                 mapping_data = make_proj_grids(*read_arps_map_file(map_filename))
-                mrms.interpolate_to_netcdf(mapping_data['lon'], mapping_data['lat'], out_path)
+                mrms.interpolate_to_netcdf(mapping_data['lon'], mapping_data['lat'], out_path, interp_type=interp_type)
+            elif map_filename[-3:] == "txt":
+                mapping_data = make_proj_grids(*read_ncar_map_file(map_filename))
+                mrms.interpolate_to_netcdf(mapping_data["lon"], mapping_data["lat"], out_path, interp_type=interp_type)
             else:
                 lon, lat = load_map_coordinates(map_filename)
                 mrms.interpolate_to_netcdf(lon, lat, out_path, interp_type=interp_type)

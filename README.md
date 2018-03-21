@@ -20,7 +20,7 @@ djgagne at ou dot edu.
 Hagelslag is compatible with Python 2.7 and 3.5. Hagelslag is easiest to install with the help of the Anaconda Python Distribution, but it should work with other
 Python setups as well. Hagelslag requires the following packages and recommends the following versions:
 
-* numpy >= 1.9
+* numpy >= 1.10
 * scipy >= 0.15
 * matplotlib >= 1.4
 * scikit-learn >= 0.16

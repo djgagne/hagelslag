@@ -137,8 +137,7 @@ def process_ensemble_member(run_date, member, config):
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
                                             observed_tracks=mrms_tracks,
                                             track_errors=track_errors)
-                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                               track_pairings, model_tracks)
+                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                 print("Output csv", run_date, member)
                 for table_name, table_data in obs_data.items():
@@ -224,7 +223,7 @@ def process_observed_tracks(run_date, member, config):
         model_tracks = []
         if len(mrms_tracks) > 0:
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                           track_pairings, model_tracks)
+                                           )
             obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
             # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
             #    try:
@@ -296,7 +295,7 @@ def rematch_ensemble_tracks(run_date, member, config):
             forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                      config, track_proc.model_grid.proj, mrms_tracks, track_errors)
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                           track_pairings, model_tracks)
+                                          )
             for table_name, table_data in obs_data.items():
                 table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                  "obs",
@@ -342,14 +341,17 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
     """
     ensemble_name = config.ensemble_name
 
-    forecast_total_track_columns = ["Track_ID", "Start_Date", "End_Date",
+    forecast_total_track_columns = ["Track_ID", "Run_Date", "Start_Date", "End_Date",
                                     "Duration", "Ensemble_Name",
                                     "Ensemble_Member", "Object_Variable", "Obs_Track_ID",
                                     "Translation_Error_X", "Translation_Error_Y",
                                     "Start_Time_Error", "End_Time_Error"]
-    forecast_step_track_columns = ["Step_ID", "Track_ID", "Date",
+    forecast_step_track_columns = ["Step_ID", "Track_ID", "Ensemble_Name", "Ensemble_Member",
+                                   "Run_Date", "Valid_Date",
                                    "Forecast_Hour", "Valid_Hour_UTC", "Duration",
-                                   "Centroid_Lon", "Centroid_Lat", "Storm_Motion_U", "Storm_Motion_V"]
+                                   "Centroid_Lon", "Centroid_Lat",
+                                   "Centroid_X", "Centroid_Y",
+                                   "Storm_Motion_U", "Storm_Motion_V"]
     forecast_variables = config.storm_variables + [v + "-potential" for v in config.potential_variables]
     if hasattr(config, "tendency_variables"):
         forecast_variables.extend([v + "-tendency" for v in config.tendency_variables])
@@ -395,7 +397,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
             track_error_row = [obs_track_id] + track_errors.ix[f, 1:].tolist()
         else:
             track_error_row = [np.nan] * 5
-        forecast_data['track_total'].loc[f] = [track_id, start_date, end_date, duration,
+        forecast_data['track_total'].loc[f] = [track_id, run_date, start_date, end_date, duration,
                                                ensemble_name, member,
                                                config.watershed_variable] + track_error_row
         for s, step in enumerate(forecast_track.times):
@@ -403,7 +405,8 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
             step_date = run_date + timedelta(seconds=3600 * int(step))
             valid_hour_utc = step_date.hour
             step_duration = s + 1
-            centroid_lon, centroid_lat = proj(*forecast_track.center_of_mass(step), inverse=True)
+            centroid_x, centroid_y = forecast_track.center_of_mass(step)
+            centroid_lon, centroid_lat = proj(centroid_x, centroid_y, inverse=True)
             u_motion = forecast_track.u[s]
             v_motion = forecast_track.v[s]
             var_stat_vals = []
@@ -412,8 +415,9 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                     var_stat_vals.append(forecast_track.calc_attribute_statistic(attribute, statistic, step))
             if hasattr(config, "shape_variables"):
                 var_stat_vals.extend(forecast_track.calc_shape_step(config.shape_variables, step))
-            record = [step_id, track_id, step_date, step, valid_hour_utc,
-                      step_duration, centroid_lon, centroid_lat, u_motion, v_motion] + var_stat_vals
+            record = [step_id, track_id, ensemble_name, member, run_date, step_date, step, valid_hour_utc,
+                      step_duration, centroid_lon, centroid_lat, centroid_x, centroid_y,
+                      u_motion, v_motion] + var_stat_vals
             if config.unique_matches:
                 if forecast_track.observations is not None:
                     if hasattr(config, "label_type"):
@@ -445,7 +449,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
                         track_step_count += 1
                 else:
                     if config.label_type == "gamma":
-                        hail_label = [0, 0, 0, 0, 0 , 0]
+                        hail_label = [0, 0, 0, 0, 0, 0]
                     else:
                         hail_label = [0]
                     forecast_data['track_step'].loc[track_step_count] = record + hail_label
@@ -613,8 +617,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     out_file.close()
 
 
-
-def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairings, forecast_tracks):
+def make_obs_track_data(obs_tracks, member, run_date, config, proj):
     """
     Calculate statistics on observed storm tracks and out the information as a dataframe.
 
@@ -624,47 +627,31 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
         run_date: Date of the model run
         config: Config object
         proj: pyproj object with map projection information
-        track_pairings: list of tuples containing indices of the forecast tracks and their matching observed track
-        forecast_tracks: List of forecast storm tracks.
 
     Returns:
         A dictionary of pandas dataframes with total and step information about each observed storm track.
     """
     obs_total_track_columns = ["Obs_Track_ID", "Start_Date", "End_Date", "Duration", "Track_ID"]
-    obs_step_track_columns = ["Step_ID", "Obs_Track_ID", "Date", "Forecast_Hour",
+    obs_step_track_columns = ["Step_ID", "Obs_Track_ID", "Run_Date", "Valid_Date", "Forecast_Hour",
                               "Valid_Hour_UTC", "Duration",
-                              "Centroid_Lon", "Centroid_Lat"]
+                              "Centroid_Lon", "Centroid_Lat", "Centroid_X", "Centroid_Y"]
     var_stats = []
     for stat in config.variable_statistics:
         var_stats.append("MESH_" + stat)
+    if hasattr(config, "shape_variables"):
+        for var in config.shape_variables:
+            var_stats.append(var)
     obs_step_track_columns = obs_step_track_columns + var_stats
     obs_data = dict()
     obs_data['track_total'] = pd.DataFrame(columns=obs_total_track_columns)
     obs_data['track_step'] = pd.DataFrame(columns=obs_step_track_columns)
     track_step_count = 0
-    #if len(track_pairings) > 0 and type(track_pairings[0][1]) == tuple:
-    #    track_pairing_list = [(tp[0], tp[1][0]) for tp in track_pairings]
-    #    track_pairing_array = np.array(track_pairing_list)
-    #else:
-    #    track_pairing_array = np.array(track_pairings)
-
     for o, obs_track in enumerate(obs_tracks):
         obs_track_id = "obs_{0}_{1}_{2:02d}_{3:02d}_{4:03d}".format(member,
                                                                     run_date.strftime("%Y%m%d-%H%M"),
                                                                     obs_track.start_time,
                                                                     obs_track.end_time,
                                                                     o)
-        #if track_pairing_array.shape[0] > 0 and o in track_pairing_array[:, 1]:
-        #    f = track_pairing_array[np.where(track_pairing_array[:, 1] == o)[0][0], 0]
-        #    forecast_track = forecast_tracks[f]
-        #    track_id = "{0}_{1}_{2}_{3:02d}_{4:02d}_{5:03d}".format(member,
-        #                                                            config.watershed_variable,
-        #                                                            run_date.strftime("%Y%m%d-%H%M"),
-        #                                                            forecast_track.start_time,
-        #                                                            forecast_track.end_time,
-        #                                                            f,
-        #                                                            )
-        #else:
         track_id = "None"
         start_date = run_date + timedelta(seconds=3600 * int(obs_track.start_time))
         end_date = run_date + timedelta(seconds=3600 * int(obs_track.end_time))
@@ -675,12 +662,16 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_pairin
             step_date = run_date + timedelta(seconds=3600 * int(step))
             valid_hour_utc = step_date.hour
             step_duration = s + 1
-            centroid_lon, centroid_lat = proj(*obs_track.center_of_mass(step), inverse=True)
+            centroid_x, centroid_y = obs_track.center_of_mass(step)
+            centroid_lon, centroid_lat = proj(centroid_x, centroid_y, inverse=True)
             var_stat_vals = []
             for statistic in config.variable_statistics:
                 var_stat_vals.append(obs_track.calc_timestep_statistic(statistic, step))
-            record = [step_id, obs_track_id, step_date, step,
-                      valid_hour_utc, step_duration, centroid_lon, centroid_lat] + var_stat_vals
+            if hasattr(config, "shape_variables"):
+                var_stat_vals.extend(obs_track.calc_shape_step(config.shape_variables, step))
+            record = [step_id, obs_track_id, run_date, step_date, step,
+                      valid_hour_utc, step_duration, centroid_lon, centroid_lat,
+                      centroid_x, centroid_y] + var_stat_vals
             obs_data['track_step'].loc[track_step_count] = record
             track_step_count += 1
 

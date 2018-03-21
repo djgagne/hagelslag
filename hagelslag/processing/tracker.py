@@ -25,6 +25,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
         max_range: Maximum difference between the maximum and minimum value in an enhanced watershed object before
             growth is stopped.
         increment: Discretization increment for the enhanced watershed
+        gaussian_sd: Standard deviation of Gaussian filter applied to data
     Returns:
         label_grid: an ndarray with the same shape as data in which each pixel is labeled with a positive integer value.
     """
@@ -40,7 +41,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
     else:
         label_grid = np.zeros(data.shape, dtype=int)
         for t in range(data.shape[0]):
-            label_grid[t] = labeler.label(data[t])
+            label_grid[t] = labeler.label(gaussian_filter(data[t], gaussian_sd))
             label_grid[t][data[t] < min_intensity] = 0
             if min_area > 1:
                 label_grid[t] = labeler.size_filter(label_grid[t], min_area)
