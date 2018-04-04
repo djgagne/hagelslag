@@ -4,11 +4,13 @@ from .VSEModelGrid import VSEModelGrid
 from .NCARModelGrid import NCARModelGrid
 from .HRRRModelGrid import HRRRModelGrid
 from .HREFv2ModelGrid import HREFv2ModelGrid
+from .NCARStormEventModelGrid import NCARStormEventModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
+
 
 class ModelOutput(object):
     """
@@ -143,6 +145,14 @@ class ModelOutput(object):
                                self.start_date,
                                self.end_date,
                                self.path)
+            self.data, self.units = mg.load_data()
+            mg.close()
+        elif self.ensemble_name.upper() == "NCARSTORM":
+            mg = NCARStormEventModelGrid(self.run_date,
+                                         self.variable,
+                                         self.start_date,
+                                         self.end_date,
+                                         self.path)
             self.data, self.units = mg.load_data()
             mg.close()
         else:
