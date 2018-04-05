@@ -16,7 +16,8 @@ class NCARStormEventModelGrid(ModelGrid):
                                         (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
         filenames = []
         for hour in self.forecast_hours:
-            valid_time = run_date + timedelta(hours=hour)
+            print(hour)
+            valid_time = run_date + timedelta(hours=int(hour))
             filename = join(path, run_date.strftime("%Y%m%d%H"),
                             "diags_d01_{0}.nc".format(valid_time.strftime("%Y-%m-%d_%H_%M_%S")))
             filenames.append(filename)
