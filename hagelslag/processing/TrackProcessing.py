@@ -149,6 +149,9 @@ class TrackProcessor(object):
                 dims = model_obj.timesteps[-1].shape
                 if h > 0:
                     model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+            del scaled_data
+            del model_data
+            del hour_labels
         tracked_model_objects.extend(track_storms(model_objects, self.hours,
                                                   self.object_matcher.cost_function_components,
                                                   self.object_matcher.max_values,
@@ -214,6 +217,9 @@ class TrackProcessor(object):
                     if h > 0:
                         dims = model_objects[-1][-1].timesteps[0].shape
                         model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+            del hour_labels
+            del scaled_data
+            del model_data
         for h, hour in enumerate(self.hours):
             past_time_objs = []
             for obj in tracked_model_objects:
