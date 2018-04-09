@@ -80,6 +80,7 @@ def process_ensemble_member(run_date, member, config):
             patch_radius = config.patch_radius
         else:
             patch_radius = None
+        print("Patch Radius", patch_radius)
         track_proc = TrackProcessor(run_date,
                                     start_date,
                                     end_date,
@@ -105,7 +106,7 @@ def process_ensemble_member(run_date, member, config):
             model_tracks = track_proc.find_model_tracks()
         else:
             model_tracks = track_proc.find_model_patch_tracks()
-        print("Found this many model tracks: {0:d}".format(len(model_tracks)))
+        print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
         print("Extract model attributes", run_date, member)
         track_proc.extract_model_attributes(model_tracks,
                                             config.storm_variables,
@@ -161,8 +162,10 @@ def process_ensemble_member(run_date, member, config):
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         elif len(model_tracks) > 0:
+            print(run_date, member, "Make Forecast Track Data")
             forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
             if patch_radius is not None:
+                print(run_date, member, "Track Data to netCDF")
                 forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
             if config.json:
                 forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
@@ -173,6 +176,7 @@ def process_ensemble_member(run_date, member, config):
                                                                           config.ensemble_name,
                                                                           member,
                                                                           run_date.strftime(config.run_date_format))
+            print("Output csv file " + csv_filename)
             table_data.to_csv(csv_filename,
                               na_rep="nan",
                               float_format="%0.5f",
