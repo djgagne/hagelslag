@@ -58,9 +58,8 @@ class TrackModeler(object):
         """
         if mode in self.data.keys():
             run_dates = pd.DatetimeIndex(start=self.start_dates[mode],
-                                        end=self.end_dates[mode],
-                                        freq="1D")
-            run_date_str = [d.strftime("%Y%m%d") for d in run_dates.date]
+                                        end=self.end_dates[mode],freq="1D")
+            run_date_str = [d.strftime("%Y%m%d-%H%M") for d in run_dates.date]
             print(run_date_str)
             all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") + \
                                             "*total_" + self.ensemble_name + "*." + format))
@@ -93,8 +92,7 @@ class TrackModeler(object):
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
-                                                on=["Track_ID"], 
-                                                suffixes=("", "_Total"))
+                                                on=["Track_ID", "Ensemble_Name", "Ensemble_Member", "Run_Date"])
 	    self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
                                                 on="Ensemble_Member") 
@@ -188,12 +186,15 @@ class TrackModeler(object):
 	    output_data = np.where(group_data.loc[:,output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
+            num_elements = group_data[input_columns].shape[0]
             for m, model_name in enumerate(model_names):
                 print(model_name)
-                self.condition_models[group][model_name] = deepcopy(model_objs[m])
-		num_elements = group_data[input_columns].shape[0] 
-                kf = KFold(num_elements,n_folds=num_folds)  
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
+                self.condition_models[group][model_name] = deepcopy(model_objs[m])
+                try:
+                    kf = KFold(n_splits=num_folds)
+                except TypeError:
+                    kf = KFold(num_elements,n_folds=num_folds)  
                 #for train_index, test_index in kf.split(group_data[input_columns].values):
 		for train_index, test_index in kf: 
                     self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
@@ -722,7 +723,7 @@ class TrackModeler(object):
                 json.dump(track_obj, out_json_obj, indent=1, sort_keys=True)
         return
 
-    def output_forecasts_csv(self, forecasts, mode, csv_path):
+    def output_forecasts_csv(self, forecasts, mode, csv_path,run_date_format="%Y%m%d-%H%M"):
         """
         Output hail forecast values to csv files by run date and ensemble member.
         
@@ -733,12 +734,11 @@ class TrackModeler(object):
         Returns:
         """
         merged_forecasts = pd.merge(forecasts["condition"],
-                                    forecasts["dist"], on="Step_ID")
+                                    forecasts["dist"], on=["Step_ID","Track_ID","Ensemble_Member","Forecast_Hour"])
         
         all_members = self.data[mode]["combo"]["Ensemble_Member"]
         members = np.unique(all_members)
-        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])-\
-				 pd.TimedeltaIndex(self.data[mode]["combo"]["Forecast_Hour"], unit="h")
+        all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
       	print(run_dates)
         for member in members:
@@ -747,7 +747,7 @@ class TrackModeler(object):
                 member_forecast = merged_forecasts.loc[mem_run_index]
                 member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                                               member,
-                                                                                              run_date.strftime("%Y%m%d"))))
+                                                                                              run_date.strftime(run_date_format))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,
