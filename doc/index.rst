@@ -16,6 +16,7 @@ Contents:
    
    gettingstarted.rst
    data_processing.rst
+   machine_learning.rst
    evaluation.rst
    modules.rst
 

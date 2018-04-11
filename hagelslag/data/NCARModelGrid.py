@@ -1,6 +1,5 @@
 from .ModelGrid import ModelGrid
 import numpy as np
-from pandas import DatetimeIndex
 from datetime import timedelta
 
 

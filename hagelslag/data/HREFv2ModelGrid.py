@@ -1,13 +1,11 @@
 #!/usr/bin/env python
-
 import pandas as pd
 import pygrib
 import os
 import numpy as np
 from datetime import datetime
-from os.path import exists
 from pandas import DatetimeIndex
-
+from os.path import exists
 
 class ModelGrid(object):
 	"""

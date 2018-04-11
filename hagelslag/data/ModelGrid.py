@@ -1,7 +1,8 @@
 from netCDF4 import Dataset
 import numpy as np
-from pandas import DatetimeIndex, Timestamp
+from pandas import DatetimeIndex
 from os.path import exists
+
 
 class ModelGrid(object):
     """
