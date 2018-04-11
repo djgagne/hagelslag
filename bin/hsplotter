@@ -93,7 +93,7 @@ def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), con
     cmap = plt.get_cmap("Paired")
     colors = cmap(np.linspace(0, 0.5, cmap.N // 2))
     cmap2 = LinearSegmentedColormap.from_list("Lower Half Paired", colors)
-    ens_max = forecast_grid.data.max(axis=0, fill_value=0).max(axis=0, fill_value=0)
+    ens_max = forecast_grid.data.max(axis=0).max(axis=0)
     plt.figure(figsize=figsize)
     bmap.drawstates()
     bmap.drawcountries()
@@ -123,8 +123,12 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
                                          cmap="RdPu"):
     for threshold in thresholds:
         plt.figure(figsize=figsize)
-        neighbor_prob, n_lon, n_lat = forecast_grid.period_neighborhood_probability(radius,
-                                                                                    smoothing, threshold, stride)
+        neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, stride)
+        
+        n_lon = forecast_grid.lon[::stride, ::stride]
+        n_lat = forecast_grid.lat[::stride, ::stride]
+        neighbor_prob = neighbor_prob.mean(axis=0)
+        
         n_x, n_y = bmap(n_lon, n_lat)
         bmap.drawstates()
         bmap.drawcoastlines()
