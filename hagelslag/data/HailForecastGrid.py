@@ -89,7 +89,7 @@ class HailForecastGrid(object):
                 grbs.close()
         return
 
-    def period_neighborhood_probability(self, radius, smoothing, threshold, stride):
+    def period_neighborhood_probability(self, radius, smoothing, threshold, stride,start_time,end_time):
         """
         Calculate the neighborhood probability over the full period of the forecast
 
@@ -107,7 +107,7 @@ class HailForecastGrid(object):
         neighbor_kd_tree = cKDTree(np.vstack((neighbor_x.ravel(), neighbor_y.ravel())).T)
         neighbor_prob = np.zeros((self.data.shape[0], neighbor_x.shape[0], neighbor_x.shape[1]))
         for m in range(len(self.members)):
-            period_max = self.data[m].max(axis=0)
+            period_max = self.data[m,start_time:end_time,:,:].max(axis=0)
             valid_i, valid_j = np.where(period_max >= threshold)
             print(m, len(valid_i))
             if len(valid_i) > 0:
