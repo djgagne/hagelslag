@@ -7,7 +7,7 @@ from hagelslag.processing.tracker import label_storm_objects, extract_storm_obje
 
 class TestTracking(unittest.TestCase):
     def setUp(self):
-        self.model_path = "../testdata/spring2015_unidata/"
+        self.model_path = "testdata/spring2015_unidata/"
         self.ensemble_name = "SSEF"
         self.member ="wrf-s3cn_arw"
         self.run_date = datetime(2015, 6, 4)
@@ -25,7 +25,7 @@ class TestTracking(unittest.TestCase):
                                  self.model_path,
                                  single_step=False)
         self.model_grid.load_data()
-        self.model_grid.load_map_info("../mapfiles/ssef2015.map")
+        self.model_grid.load_map_info("mapfiles/ssef2015.map")
 
     def test_model_grid_loading(self):
 

@@ -14,8 +14,8 @@ install:
   - conda install --yes -c conda-forge pygrib scikit-learn scikit-image netcdf4 basemap
   - pip install arrow
   - pip install pytest
+  - pip install .
 script:
-  - cd ~/hagelslag/test/
-  - pytest
+  - py.test
 notifications:
   email: true
