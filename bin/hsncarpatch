@@ -85,7 +85,8 @@ def extract_ncar_member_storms(run_date, member, start_hour, end_hour, label_var
 
     """
     try:
-        print("Starting {0} {1} at {2}".format(run_date.strftime("%Y-%m-%d"), member, pd.Timestamp("now").strftime("%Y-%m-%d %H:%M:%S")))
+        print("Starting {0} {1} at {2}".format(run_date.strftime("%Y-%m-%d"), member,
+                                               pd.Timestamp("now").strftime("%Y-%m-%d %H:%M:%S")))
         forecast_hours = np.arange(start_hour, end_hour + 1)
         all_storm_patches = []
         all_forecast_hours = []
