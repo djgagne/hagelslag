@@ -11,7 +11,7 @@ before_install:
 install:
   - conda create -n testenv --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib
   - source activate testenv
-  - conda install --yes pygrib scikit-learn scikit-image netcdf4 basemap
+  - conda install --yes -c conda-forge pygrib scikit-learn scikit-image netcdf4 basemap
   - pip install arrow
   - pip install pytest
 script:
