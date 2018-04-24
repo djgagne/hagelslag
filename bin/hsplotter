@@ -25,7 +25,7 @@ def main():
     parser.add_argument("-s", "--start", help="Start Date of the model run time steps.")
     parser.add_argument("-e", "--end", help="End Date of the model run time steps.")
     parser.add_argument("-n", "--ens", help="Name of the ensemble.")
-    parser.add_argument("-a", "--map", help="Map file")      
+    parser.add_argument("-a", "--map_file", help="Map file")      
     parser.add_argument("-m", "--model", help="Name of the machine learning model")
     parser.add_argument("-b", "--members", help="Comma-separated list of members.")
     parser.add_argument("-v", "--var", default="hail", help="Variable being plotted.")
@@ -34,7 +34,7 @@ def main():
     parser.add_argument("-o", "--out", help="Path where figures are saved.")
     args = parser.parse_args()
     run_date = pd.Timestamp(args.run).to_pydatetime()
-    map = args.map
+    map_file = args.map_file
     start_date = pd.Timestamp(args.start).to_pydatetime()
     end_date = pd.Timestamp(args.end).to_pydatetime()
     ensemble_members = args.members.split(",")
@@ -62,9 +62,9 @@ def main():
                                      forecast_grid, bmap_full, args.out
                                    
     print("Output grib2 files")
-    output_grib2_files(forecast_grid,0,24,run_date,map,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
+    output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
         for time in range(0,21):
-            output_grib2_files(forecast_grid,time,(time+4),run_date,map,args.out,
+            output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
                                neighbor_radius,neighbor_smoothing,thresholds,stride)                             
 
     return
@@ -77,7 +77,7 @@ def load_hail_forecasts(run_date, start_date, end_date, ensemble_name, ml_model,
     forecast_grid.load_data()
     return forecast_grid
 
-def output_grib2_files(forecast_grid,start_time,end_time,run_date,map,out_path,
+def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
                        radius,smoothing,thresholds,stride):
     """
     Calculates the neighborhood probability and ensemble maximum hail
@@ -89,7 +89,7 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map,out_path,
             start_time: beginning hour for output grib files
             end_time: end hour for output grib files
             run_date: Date of input forecast grib file
-            map: Map associated with the input/output grib files
+            map_: Map associated with the input/output grib files
             out_path: path to where output grib files are stored
             radius: circular radius from each point in km
             smoothing: width of Gaussian smoother in km
@@ -105,14 +105,14 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map,out_path,
 
     ens_max = forecast_grid.data.max(axis=0)
     ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
-    grib = grib2_ouput(forecast_grid,start_time,ens_max,map,run_date,date_outpath,"Ensemble-Maximum",
+    grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
                        (start_time+12),(end_time+12))
 
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
-        grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map,run_date,date_outpath,
+        grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
                            "Neighborhood-Probability_{0}".format(threshold),(start_time+12),(end_time+12))
 
     return                                                         
@@ -233,17 +233,17 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         plt.close()
     return
                                      
-def grib2_ouput(forecast_grid,start_time,data,map,run_date,path,plot_mode,start,end):
+def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start,end):
     """
     Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
 
     Plot_mode should be either Ensemble Maximum or Neighborhood Probability 
     Time_mode should be hourly, total, or incremental. 
     """
-    if map[-3:] == "map":                                  
-        proj_dict, grid_dict = read_arps_map_file(map)
+    if map_[-3:] == "map":                                  
+        proj_dict, grid_dict = read_arps_map_file(map_)
     else:                                               
-        proj_dict, grid_dict = read_ncar_map_file(map)   
+        proj_dict, grid_dict = read_ncar_map_file(map_)   
 
 
     lscale = 1e6
