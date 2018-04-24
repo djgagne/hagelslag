@@ -252,7 +252,7 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
     """
     try:
         if exists(forecast_csv_path + "hail_forecasts_{0}_{1}_{2}.csv".format(ensemble_name, member,
-                                                                              run_date.strftime("%Y%m%d"))):
+                                                                              run_date.strftime("%Y%m%d-%H%M"))):
             ep = EnsembleMemberProduct(ensemble_name, model_names[0], member, run_date, variable,
                                        start_date, end_date, None, single_step, map_file=map_file,
                                        condition_model_name=neighbor_condition_model,

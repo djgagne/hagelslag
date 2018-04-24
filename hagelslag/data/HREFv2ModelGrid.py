@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 import pygrib
@@ -11,9 +12,8 @@ class ModelGrid(object):
     Base class for reading 2D model output grids from grib2 files.
     Given a list of file names, loads the values of a single variable from a model run. Supports model output in
     grib2 format
-
     Attributes:
-         filenames (list of str): List of grib2 files containing model output
+            filenames (list of str): List of grib2 files containing model output
             run_date (ISO date string or datetime.datetime object): Date of the initialization time of the model run.
             start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
             end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
@@ -91,11 +91,9 @@ class ModelGrid(object):
     def load_data(self):
         """
             Loads data from grib2 file objects or list of grib2 file objects. Handles specific grib2 variable names
-        and grib2 message numbers.
-
+            and grib2 message numbers.
             Returns:
                     Array of data loaded from files in (time, y, x) dimensions, Units
-
         """
         file_objects = self.file_objects
         var = self.variable
@@ -174,7 +172,6 @@ class HREFv2ModelGrid(ModelGrid):
         path (str): Path to model output files
         single_step (boolean (default=True): Whether variable information is stored with each time step in a separate
                 file (True) or one file containing all timesteps (False).
-
     """
 
     def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=True):

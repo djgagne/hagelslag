@@ -143,14 +143,14 @@ class EnsembleMemberProduct(object):
     def load_forecast_csv_data(self, csv_path):
         forecast_file = join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                     self.member,
-                                                                    self.run_date.strftime("%Y%m%d")))
+                                                                    self.run_date.strftime("%Y%m%d-%H%M")))
         if exists(forecast_file):
             self.hail_forecast_table = pd.read_csv(forecast_file)
         return
 
     def load_forecast_netcdf_data(self, nc_path):
         nc_file = join(nc_path, "{0}_{1}_{2}_model_patches.nc".format(self.ensemble_name,
-                                                                      self.run_date.strftime("%Y%m%d%H"),
+                                                                      self.run_date.strftime("%Y%m%d-%H%M"),
                                                                       self.member))
         print(nc_file)
         nc_patches = Dataset(nc_file)

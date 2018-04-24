@@ -5,9 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import argparse
+import os
+from os.path import exists
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids 
 from hagelslag.data.HailForecastGrid import HailForecastGrid
 from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import LinearSegmentedColormap
+
+try: 
+    from ncepgrib2 import Grib2Encode, dump
+    grib_support = True
+except ImportError("ncepgrib2 not available"):
+    grib_support = False   
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -15,6 +25,7 @@ def main():
     parser.add_argument("-s", "--start", help="Start Date of the model run time steps.")
     parser.add_argument("-e", "--end", help="End Date of the model run time steps.")
     parser.add_argument("-n", "--ens", help="Name of the ensemble.")
+    parser.add_argument("-a", "--map_file", help="Map file")      
     parser.add_argument("-m", "--model", help="Name of the machine learning model")
     parser.add_argument("-b", "--members", help="Comma-separated list of members.")
     parser.add_argument("-v", "--var", default="hail", help="Variable being plotted.")
@@ -23,24 +34,39 @@ def main():
     parser.add_argument("-o", "--out", help="Path where figures are saved.")
     args = parser.parse_args()
     run_date = pd.Timestamp(args.run).to_pydatetime()
+    map_file = args.map_file
     start_date = pd.Timestamp(args.start).to_pydatetime()
     end_date = pd.Timestamp(args.end).to_pydatetime()
     ensemble_members = args.members.split(",")
     neighbor_radius = 42.0
-    neighbor_smoothing = 42.0
+    neighbor_smoothing = 1.0
     thresholds = np.array([25, 50])
-    stride = 10
+    stride = 14
     print("Loading data")
     forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
                                         ensemble_members, args.var, args.grib, args.path)
     print("Get basemaps")
     bmap_sub = get_sub_basemap(forecast_grid, stride)
     bmap_full = get_full_basemap(forecast_grid)
-    print("Plot neighborhood probability")
+    
+    print("Daily plots: neighborhood probability, ensemble_max")
+    plot_period_ensemble_max(0,24,forecast_grid.start_date.strftime("%d %b %Y"), forecast_grid,bmap_full, args.out)
     plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing, thresholds,
-                                         stride, args.out)
-    print("Plot ensemble max")
-    plot_period_ensemble_max(forecast_grid, bmap_full, args.out)
+                                         stride, args.out,0,24)
+    
+    print("Hourly plots: neighborhood probability, ensemble_max")
+        for time in range(0,21):
+            plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing,
+                                                 thresholds,stride,args.out,time,(time+4))
+            plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
+                                     forecast_grid, bmap_full, args.out
+                                   
+    print("Output grib2 files")
+    output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
+        for time in range(0,21):
+            output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
+                               neighbor_radius,neighbor_smoothing,thresholds,stride)                             
+
     return
 
 
@@ -51,6 +77,45 @@ def load_hail_forecasts(run_date, start_date, end_date, ensemble_name, ml_model,
     forecast_grid.load_data()
     return forecast_grid
 
+def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
+                       radius,smoothing,thresholds,stride):
+    """
+    Calculates the neighborhood probability and ensemble maximum hail
+    over a specified time period, and outputs grib files.
+
+    
+    Args:
+            forecast_grid: data from input forecast grib file
+            start_time: beginning hour for output grib files
+            end_time: end hour for output grib files
+            run_date: Date of input forecast grib file
+            map_: Map associated with the input/output grib files
+            out_path: path to where output grib files are stored
+            radius: circular radius from each point in km
+            smoothing: width of Gaussian smoother in km
+            threshold: intensity of exceedance
+            stride: number of grid points to skip for reduced neighborhood grid
+    Returns:
+            Grib2 files of neighborhood probability and ensemble maximum 
+            over specified time period 
+        """
+    date_outpath=out_path+'{0}/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+    if not exists(date_outpath):
+        os.makedirs(date_outpath)
+
+    ens_max = forecast_grid.data.max(axis=0)
+    ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
+    grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
+                       (start_time+12),(end_time+12))
+
+    for threshold in thresholds:
+        neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
+                                                                      stride,start_time,end_time)
+        neighbor_prob = neighbor_prob.mean(axis=0)
+        grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
+                           "Neighborhood-Probability_{0}".format(threshold),(start_time+12),(end_time+12))
+
+    return                                                         
 
 def get_sub_basemap(forecast_grid, stride=14):
     bmap = Basemap(projection=forecast_grid.projparams["proj"], resolution="l",
@@ -88,43 +153,56 @@ def plot_hourly_neighborhood_probability():
     return
 
 
-def plot_period_ensemble_max(forecast_grid, bmap, out_path, figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
+def plot_period_ensemble_max((start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
+                              figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
                              cmap="inferno"):
     cmap = plt.get_cmap("Paired")
     colors = cmap(np.linspace(0, 0.5, cmap.N // 2))
     cmap2 = LinearSegmentedColormap.from_list("Lower Half Paired", colors)
-    ens_max = forecast_grid.data.max(axis=0, fill_value=0).max(axis=0, fill_value=0)
+    ens_max = forecast_grid.data.max(axis=0)
+    ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
     plt.figure(figsize=figsize)
     bmap.drawstates()
     bmap.drawcountries()
     bmap.drawcoastlines()
     x, y = bmap(forecast_grid.lon, forecast_grid.lat)
     plt.contourf(x, y, ens_max, contours, cmap=cmap2, extend="max")
-    plt.title("{0} {1} Ensemble Maximum {2} (mm) Valid {3}".format(forecast_grid.ensemble_name,
+                             
+    date_outpath=out_path+'{0}/png/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+    if not exists(date_outpath):
+        os.makedirs(date_outpath)
+                             
+    plt.title("{0} {1} Ensemble Maximum {2} (mm), Valid {3} {4}-{5} UTC".format(forecast_grid.ensemble_name,
                                                                    forecast_grid.ml_model.replace("-", " "),
                                                                    forecast_grid.variable.capitalize(),
-                                                                   forecast_grid.start_date.strftime("%d %b %Y")),
+                                                                   valid_date,
+                                                                   ((start_time+12)%24),((end_time+12)%24)),
               fontweight="bold",
               fontsize=12)
     plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
-    plt.savefig(out_path + "{0}_{1}_period_ens_max_{2}_{3}.png".format(forecast_grid.ensemble_name,
+    plt.savefig(date_outpath + "{0}_{1}_period_ens_max_{2}_{3}_time_{4}-{5}.png".format(forecast_grid.ensemble_name,
                                                                        forecast_grid.ml_model,
-                                                                       forecast_grid.start_date.strftime("%Y%m%d%H"),
-                                                                       forecast_grid.end_date.strftime("%Y%m%d%H")
-                                                                       ),
+                                                                       forecast_grid.start_date.strftime("%y%m%d"),
+                                                                       forecast_grid.end_date.strftime("%y%m%d"),
+                                                                       start_time+12),(end_time+12)),
                 bbox_inches="tight", dpi=300)
     plt.close()
     return
 
 
 def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing, thresholds, stride, out_path,
+                                         start_time,end_time,
                                          figsize=(10, 6),
                                          contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1))),
                                          cmap="RdPu"):
     for threshold in thresholds:
         plt.figure(figsize=figsize)
-        neighbor_prob, n_lon, n_lat = forecast_grid.period_neighborhood_probability(radius,
-                                                                                    smoothing, threshold, stride)
+        neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing,threshold,stride,start_time,end_time)
+        
+        n_lon = forecast_grid.lon[::stride, ::stride]
+        n_lat = forecast_grid.lat[::stride, ::stride]
+        neighbor_prob = neighbor_prob.mean(axis=0)
+        
         n_x, n_y = bmap(n_lon, n_lat)
         bmap.drawstates()
         bmap.drawcoastlines()
@@ -141,17 +219,70 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
             forecast_grid.start_date.strftime("%d %b %Y")),
             fontweight="bold",
             fontsize=10)
-        filename = out_path + "{0}_{1}_period_neighbor_prob_{2:d}_r_{3:d}_s_{4:d}_{5}_{6}.png".format(
+        filename = date_outpath + "{0}_{1}_period_neighbor_prob_{2:d}_r_{3:d}_s_{4:d}_{5}_{6}_time_{7}_{8}.png".format(
             forecast_grid.ensemble_name,
             forecast_grid.ml_model,
             int(threshold),
             int(radius),
             int(smoothing),
-            forecast_grid.start_date.strftime("%Y%m%d%H"),
-            forecast_grid.end_date.strftime("%Y%m%d%H"))
+            forecast_grid.start_date.strftime("%y%m%d"),
+            forecast_grid.end_date.strftime("%y%m%d"),
+            (start_time+12),(end_time+12))
         plt.savefig(filename,
                     bbox_inches="tight", dpi=300)
         plt.close()
+    return
+                                     
+def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start,end):
+    """
+    Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
+
+    Plot_mode should be either Ensemble Maximum or Neighborhood Probability 
+    Time_mode should be hourly, total, or incremental. 
+    """
+    if map_[-3:] == "map":                                  
+        proj_dict, grid_dict = read_arps_map_file(map_)
+    else:                                               
+        proj_dict, grid_dict = read_ncar_map_file(map_)   
+
+
+    lscale = 1e6
+    grib_id_start = [7, 0, 14, 14, 2]
+    gdsinfo = np.array([0, np.product(data.shape[-2:]), 0, 0, 30], dtype=np.int32)
+    lon_0 = proj_dict["lon_0"]
+    sw_lon = grid_dict["sw_lon"]
+    if lon_0 < 0:
+        lon_0 += 360
+    if sw_lon < 0:
+        sw_lon += 360
+
+    gdtmp1 = [1, 0, proj_dict['a'], 0, float(proj_dict['a']), 0, float(proj_dict['b']),
+            data.shape[-1], data.shape[-2], grid_dict["sw_lat"] * lscale,
+            sw_lon * lscale, 0, proj_dict["lat_0"] * lscale,
+            lon_0 * lscale,
+            grid_dict["dx"] * 1e-3, grid_dict["dy"] * 1e-3, 0b00000000, 0b01000000,
+            proj_dict["lat_1"] * lscale,
+            proj_dict["lat_2"] * lscale, -90 * lscale, 0]
+    pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)
+    drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
+    time_list = list(run_date.utctimetuple()[0:6])
+    grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+    grib_objects.addgrid(gdsinfo, gdtmp1)
+    pdtmp1[8] = start_time+12
+    pdtmp1[-2] = 0
+    grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
+    grib_objects.end()
+    filename = path + "{0}_{1}_{2}_{3}_{4}_Hours:{5}-{6}.grib2".format(forecast_grid.ensemble_name,
+                                                         forecast_grid.ml_model,
+                                                         plot_mode,
+                                                         forecast_grid.start_date.strftime("%y%m%d"),
+                                                         forecast_grid.end_date.strftime("%y%m%d"),
+                                                         start,end)
+    print("Writing to " + filename)
+    grib_file = open(filename, "wb")
+    grib_file.write(grib_objects.msg)
+    grib_file.close()
+
     return
 
 
