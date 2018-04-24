@@ -80,10 +80,10 @@ class TrackModeler(object):
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
                                                  ignore_index=True)
             self.data[mode]["total"] = self.data[mode]["total"].fillna(value=0)
-	    self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
+			self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
                                                 ignore_index=True)
-	    self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
+			self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
 	   
 	    if mode == "forecast":
@@ -93,7 +93,7 @@ class TrackModeler(object):
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
                                                 on=["Track_ID", "Ensemble_Name", "Ensemble_Member", "Run_Date"])
-	    self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
+			self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
                                                 on="Ensemble_Member") 
             self.data[mode]["total_group"] = pd.merge(self.data[mode]["total"],
@@ -179,7 +179,7 @@ class TrackModeler(object):
             None
         """
         print("Fitting condition models")
-	groups = self.data["train"]["member"][self.group_col].unique()
+		groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].iloc[
@@ -197,7 +197,7 @@ class TrackModeler(object):
                 except TypeError:
                     kf = KFold(num_elements,n_folds=num_folds)  
                 #for train_index, test_index in kf.split(group_data[input_columns].values):
-		for train_index, test_index in kf: 
+				for train_index, test_index in kf: 
                     self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
                                                                  output_data[train_index])
                     cv_preds = self.condition_models[group][model_name].predict_proba(
@@ -751,9 +751,9 @@ class TrackModeler(object):
         Returns:
         """
         merged_forecasts = pd.merge(forecasts["condition"],
-                                    forecasts["dist"], on=["Step_ID","Track_ID","Ensemble_Member","Forecast_Hour"])
-        
-        all_members = self.data[mode]["combo"]["Ensemble_Member"]
+                                    forecasts["dist"],
+									on=["Step_ID","Track_ID","Ensemble_Member","Forecast_Hour"])
+        all_members = self.data[mode]["combo"]["Ensemble_Member"
         members = np.unique(all_members)
         all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
@@ -764,8 +764,8 @@ class TrackModeler(object):
                 member_forecast = merged_forecasts.loc[mem_run_index]
                 member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                                               member,
-                                                                                              run_date.strftime(
-                                                                                                  run_date_format))))
+                                                                                              run_date.strftime
+																							  (run_date_format))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,
