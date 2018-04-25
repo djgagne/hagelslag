@@ -85,15 +85,14 @@ class TrackModeler(object):
                                                 ignore_index=True)
 			self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
-	   
-	    if mode == "forecast":
-                self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
-	    
+
+        if mode == "forecast":
+            self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
                                                 on=["Track_ID", "Ensemble_Name", "Ensemble_Member", "Run_Date"])
-			self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
+            self.data[mode]["combo"] = pd.merge(self.data[mode]["combo"],
                                                 self.data[mode]["member"],
                                                 on="Ensemble_Member") 
             self.data[mode]["total_group"] = pd.merge(self.data[mode]["total"],
@@ -166,7 +165,7 @@ class TrackModeler(object):
         """
         Fit models to predict hail/no-hail and use cross-validation to determine the probaility threshold that
         maximizes a skill score.
-        
+
         Args:
             model_names: List of machine learning model names
             model_objs: List of Scikit-learn ML models
@@ -195,9 +194,9 @@ class TrackModeler(object):
                 try:
                     kf = KFold(n_splits=num_folds)
                 except TypeError:
-                    kf = KFold(num_elements,n_folds=num_folds)  
+                    kf = KFold(num_elements,n_folds=num_folds)
                 #for train_index, test_index in kf.split(group_data[input_columns].values):
-				for train_index, test_index in kf: 
+                for train_index, test_index in kf:
                     self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
                                                                  output_data[train_index])
                     cv_preds = self.condition_models[group][model_name].predict_proba(
@@ -570,7 +569,7 @@ class TrackModeler(object):
                 out_filename = model_path + \
                                "{0}_{1}_condition.pkl".format(group,
                                                               model_name.replace(" ", "-"))
-                with open(out_filename, "w") as pickle_file:
+                with open(out_filename, "wb") as pickle_file:
                     pickle.dump(model_obj,
                                 pickle_file,
                                 pickle.HIGHEST_PROTOCOL)
@@ -579,7 +578,7 @@ class TrackModeler(object):
                 out_filename = model_path + \
                                "{0}_{1}_size.pkl".format(group,
                                                          model_name.replace(" ", "-"))
-                with open(out_filename, "w") as pickle_file:
+                with open(out_filename, "wb") as pickle_file:
                     pickle.dump(model_obj,
                                 pickle_file,
                                 pickle.HIGHEST_PROTOCOL)
@@ -590,7 +589,7 @@ class TrackModeler(object):
                                    "{0}_{1}_{2}_sizedist.pkl".format(group,
                                                                      model_name.replace(" ", "-"),
                                                                      model_type)
-                    with open(out_filename, "w") as pickle_file:
+                    with open(out_filename, "wb") as pickle_file:
                         pickle.dump(model_obj,
                                     pickle_file,
                                     pickle.HIGHEST_PROTOCOL)
@@ -601,7 +600,7 @@ class TrackModeler(object):
                                    "{0}_{1}_{2}_track.pkl".format(group,
                                                                   model_name.replace(" ", "-"),
                                                                   model_type)
-                    with open(out_filename, "w") as pickle_file:
+                    with open(out_filename, "wb") as pickle_file:
                         pickle.dump(model_obj,
                                     pickle_file,
                                     pickle.HIGHEST_PROTOCOL)
@@ -619,7 +618,7 @@ class TrackModeler(object):
                 if model_comps[0] not in self.condition_models.keys():
                     self.condition_models[model_comps[0]] = {}
                 model_name = model_comps[1].replace("-", " ")
-                with open(condition_model_file) as cmf:
+                with open(condition_model_file, "rb") as cmf:
                     if "condition_threshold" in condition_model_file:
                         self.condition_models[model_comps[0]][model_name + "_condition_threshold"] = pickle.load(cmf)
                     else:
@@ -632,7 +631,7 @@ class TrackModeler(object):
                 if model_comps[0] not in self.size_models.keys():
                     self.size_models[model_comps[0]] = {}
                 model_name = model_comps[1].replace("-", " ")
-                with open(size_model_file) as smf:
+                with open(size_model_file, "rb") as smf:
                     self.size_models[model_comps[0]][model_name] = pickle.load(smf)
 
         size_dist_model_files = sorted(glob(model_path + "*_sizedist.pkl"))
@@ -644,7 +643,7 @@ class TrackModeler(object):
                 if "_".join(model_comps[2:-1]) not in self.size_distribution_models[model_comps[0]].keys():
                     self.size_distribution_models[model_comps[0]]["_".join(model_comps[2:-1])] = {}
                 model_name = model_comps[1].replace("-", " ")
-                with open(dist_model_file) as dmf:
+                with open(dist_model_file, "rb") as dmf:
                     self.size_distribution_models[model_comps[0]]["_".join(model_comps[2:-1])][
                         model_name] = pickle.load(dmf)
 
@@ -659,7 +658,7 @@ class TrackModeler(object):
                     self.track_models[model_type] = {}
                 if group not in self.track_models[model_type].keys():
                     self.track_models[model_type][group] = {}
-                with open(track_model_file) as tmf:
+                with open(track_model_file, "rb") as tmf:
                     self.track_models[model_type][group][model_name] = pickle.load(tmf)
 
     def output_forecasts_json(self, forecasts,
@@ -743,17 +742,17 @@ class TrackModeler(object):
     def output_forecasts_csv(self, forecasts, mode, csv_path, run_date_format="%Y%m%d-%H%M"):
         """
         Output hail forecast values to csv files by run date and ensemble member.
-        
+
         Args:
-            forecasts: 
-            mode: 
-            csv_path: 
+            forecasts:
+            mode:
+            csv_path:
         Returns:
         """
         merged_forecasts = pd.merge(forecasts["condition"],
                                     forecasts["dist"],
-									on=["Step_ID","Track_ID","Ensemble_Member","Forecast_Hour"])
-        all_members = self.data[mode]["combo"]["Ensemble_Member"
+                                    on=["Step_ID","Track_ID","Ensemble_Member","Forecast_Hour"])
+        all_members = self.data[mode]["combo"]["Ensemble_Member"]
         members = np.unique(all_members)
         all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
@@ -765,7 +764,7 @@ class TrackModeler(object):
                 member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                                               member,
                                                                                               run_date.strftime
-																							  (run_date_format))))
+                                                                                              (run_date_format))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,
