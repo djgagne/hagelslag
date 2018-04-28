@@ -8,7 +8,7 @@ import numpy as np
 class TestProbabilityMetrics(unittest.TestCase):
     def setUp(self):
         self.num_forecasts = 1000
-        self.forecasts = dict(perfect=np.concatenate((np.ones(self.num_forecasts/2), np.zeros(self.num_forecasts/2))),
+        self.forecasts = dict(perfect=np.concatenate((np.ones(self.num_forecasts// 2), np.zeros(self.num_forecasts// 2))),
                               random=np.random.random(self.num_forecasts))
         self.observations= dict(perfect=self.forecasts['perfect'],
                                 random=self.forecasts['perfect'])
