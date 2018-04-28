@@ -86,8 +86,8 @@ class TrackModeler(object):
 			self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
 
-        if mode == "forecast":
-            self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
+        	if mode == "forecast":
+            	self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
             self.data[mode]["combo"] = pd.merge(self.data[mode]["step"],
                                                 self.data[mode]["total"],
