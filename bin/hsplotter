@@ -154,7 +154,7 @@ def plot_hourly_neighborhood_probability():
 
 
 def plot_period_ensemble_max(start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
-                              figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
+                              figsize=(10, 6), contours=np.concatenate([[1] + np.arange(5, 80, 5)]),
                              cmap="inferno"):
     cmap = plt.get_cmap("Paired")
     colors = cmap(np.linspace(0, 0.5, cmap.N // 2))
@@ -203,6 +203,10 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         n_lat = forecast_grid.lat[::stride, ::stride]
         neighbor_prob = neighbor_prob.mean(axis=0)
         
+        date_outpath=out_path+'{0}/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+        if not exists(date_outpath):
+            os.makedirs(date_outpath)
+
         n_x, n_y = bmap(n_lon, n_lat)
         bmap.drawstates()
         bmap.drawcoastlines()
