@@ -55,16 +55,16 @@ def main():
                                          stride, args.out,0,24)
     
     print("Hourly plots: neighborhood probability, ensemble_max")
-        for time in range(0,21):
-            plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing,
+    for time in range(0,21):
+        plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing,
                                                  thresholds,stride,args.out,time,(time+4))
-            plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
-                                     forecast_grid, bmap_full, args.out
+        plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
+                                     forecast_grid, bmap_full, args.out)
                                    
     print("Output grib2 files")
     output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
-        for time in range(0,21):
-            output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
+    for time in range(0,21):
+        output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
                                neighbor_radius,neighbor_smoothing,thresholds,stride)                             
 
     return
@@ -153,7 +153,7 @@ def plot_hourly_neighborhood_probability():
     return
 
 
-def plot_period_ensemble_max((start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
+def plot_period_ensemble_max(start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
                               figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
                              cmap="inferno"):
     cmap = plt.get_cmap("Paired")
@@ -184,7 +184,7 @@ def plot_period_ensemble_max((start_time,end_time,valid_date, forecast_grid, bma
                                                                        forecast_grid.ml_model,
                                                                        forecast_grid.start_date.strftime("%y%m%d"),
                                                                        forecast_grid.end_date.strftime("%y%m%d"),
-                                                                       start_time+12),(end_time+12)),
+                                                                       (start_time+12),(end_time+12)),
                 bbox_inches="tight", dpi=300)
     plt.close()
     return
