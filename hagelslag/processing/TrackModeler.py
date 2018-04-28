@@ -85,7 +85,6 @@ class TrackModeler(object):
                                                 ignore_index=True)
 			self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
-
         	if mode == "forecast":
             	self.data[mode]["step"] = self.data[mode]["step"].drop_duplicates("Step_ID")
             self.data[mode]["member"] = pd.read_csv(self.member_files[mode])
@@ -145,7 +144,7 @@ class TrackModeler(object):
             output_threshold: splitting threshold to determine if event has occurred. Default 0.0
         """
         print("Fitting condition models")
-        groups = self.data["train"]["member"][self.group_col].unique()
+		groups = self.data["train"]["member"][self.group_col].unique()
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group] 
@@ -756,7 +755,7 @@ class TrackModeler(object):
         members = np.unique(all_members)
         all_run_dates = pd.DatetimeIndex(self.data[mode]["combo"]["Run_Date"])
         run_dates = pd.DatetimeIndex(np.unique(all_run_dates))
-      	print(run_dates)
+		print(run_dates)
         for member in members:
             for run_date in run_dates:
                 mem_run_index = (all_run_dates == run_date) & (all_members == member)
@@ -764,7 +763,7 @@ class TrackModeler(object):
                 member_forecast.to_csv(join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
                                                                                               member,
                                                                                               run_date.strftime
-                                                                                              (run_date_format))))
+																							  (run_date_format))))
         return
 
     def output_forecasts_json_parallel(self, forecasts,
