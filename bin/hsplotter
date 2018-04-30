@@ -122,7 +122,7 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
         grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
-                           "NE_{0}mm".format(threshold),(start_time+12),(end_time+12))
+                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12))
 
     return                                                         
 
