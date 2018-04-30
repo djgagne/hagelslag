@@ -122,7 +122,7 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
         grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
-                           "Neighborhood-Probability_{0}".format(threshold),(start_time+12),(end_time+12))
+                           "NE_{0}mm".format(threshold),(start_time+12),(end_time+12))
 
     return                                                         
 
@@ -212,7 +212,7 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         n_lat = forecast_grid.lat[::stride, ::stride]
         neighbor_prob = neighbor_prob.mean(axis=0)
         
-        date_outpath=out_path+'{0}/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+        date_outpath=out_path+'{0}/png/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
         if not exists(date_outpath):
             os.makedirs(date_outpath)
 
@@ -285,11 +285,10 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
     pdtmp1[-2] = 0
     grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
     grib_objects.end()
-    filename = path + "{0}_{1}_{2}_{3}_{4}_Hours:{5}-{6}.grib2".format(forecast_grid.ensemble_name,
+    filename = path + "{0}_Hail_{1}_{2}_{3}_Hours_{4}-{5}.grib2".format(forecast_grid.ensemble_name,
                                                          forecast_grid.ml_model,
                                                          plot_mode,
                                                          forecast_grid.start_date.strftime("%y%m%d"),
-                                                         forecast_grid.end_date.strftime("%y%m%d"),
                                                          start,end)
     print("Writing to " + filename)
     grib_file = open(filename, "wb")
