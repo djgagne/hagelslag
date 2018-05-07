@@ -115,14 +115,14 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
     ens_max = forecast_grid.data.max(axis=0)
     ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
     grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
-                       (start_time+12),(end_time+12),1e3)
+                       (start_time+12),(end_time+12),stride)
 
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
         grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
-                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12),(1e3))
+                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12),stride)
 
     return                                                         
 
@@ -279,7 +279,7 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
             data.shape[-1], data.shape[-2], grid_dict["sw_lat"] * lscale,
             sw_lon * lscale, 0, proj_dict["lat_0"] * lscale,
             lon_0 * lscale,
-            grid_dict["dx"] * stride, grid_dict["dy"] * stride, 0b00000000, 0b01000000,
+            grid_dict["dx"] * 1e3 * stride, grid_dict["dy"] * 1e3 * stride, 0b00000000, 0b01000000,
             proj_dict["lat_1"] * lscale,
             proj_dict["lat_2"] * lscale, -90 * lscale, 0]
     pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)
