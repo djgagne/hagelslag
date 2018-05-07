@@ -115,7 +115,7 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
     ens_max = forecast_grid.data.max(axis=0)
     ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
     grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
-                       (start_time+12),(end_time+12),stride)
+                       (start_time+12),(end_time+12),1)
 
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
