@@ -32,6 +32,9 @@ def main():
     parser.add_argument("-g", "--grib", type=int, default=1, help="GRIB message number.")
     parser.add_argument("-p", "--path", help="Path to GRIB files")
     parser.add_argument("-o", "--out", help="Path where figures are saved.")
+    parser.add_argument("-i", "--grib_out", action="store_true", help="Generate grib2 files")
+    parser.add_argument("-t", "--image_out", action="store_true", help="Generate image files.")
+
     args = parser.parse_args()
     run_date = pd.Timestamp(args.run).to_pydatetime()
     map_file = args.map_file
@@ -42,31 +45,37 @@ def main():
     neighbor_smoothing = 1.0
     thresholds = np.array([25, 50])
     stride = 14
-    print("Loading data")
-    forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
-                                        ensemble_members, args.var, args.grib, args.path)
-    print("Get basemaps")
-    bmap_sub = get_sub_basemap(forecast_grid, stride)
-    bmap_full = get_full_basemap(forecast_grid)
     
-    print("Daily plots: neighborhood probability, ensemble_max")
-    plot_period_ensemble_max(0,24,forecast_grid.start_date.strftime("%d %b %Y"), forecast_grid,bmap_full, args.out)
-    plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing, thresholds,
-                                         stride, args.out,0,24)
-    
-    print("Hourly plots: neighborhood probability, ensemble_max")
-        for time in range(0,21):
-            plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius, neighbor_smoothing,
-                                                 thresholds,stride,args.out,time,(time+4))
-            plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
-                                     forecast_grid, bmap_full, args.out
-                                   
-    print("Output grib2 files")
-    output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
-        for time in range(0,21):
-            output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
-                               neighbor_radius,neighbor_smoothing,thresholds,stride)                             
+    if any([args.grib_out, args.image_out]):
+        print("Loading data")
+        forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
+                                            ensemble_members, args.var, args.grib, args.path)
+        if args.grib_out:
+            print("Output grib2 files")
+            output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,neighbor_radius,neighbor_smoothing,thresholds,stride)
+            for time in range(0,21):
+                output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
+                                   neighbor_radius,neighbor_smoothing,thresholds,stride)                             
 
+        if args.image_out:
+            print("Get basemaps")
+            bmap_sub = get_sub_basemap(forecast_grid, stride)
+            bmap_full = get_full_basemap(forecast_grid)
+       
+            print("Daily plots: neighborhood probability, ensemble_max")
+            plot_period_ensemble_max(0,24,forecast_grid.start_date.strftime("%d %b %Y"),
+                                     forecast_grid,bmap_full, args.out)
+            plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
+                                                 neighbor_smoothing, thresholds, stride, args.out,0,24)
+    
+            print("Hourly plots: neighborhood probability, ensemble_max")
+            for time in range(0,21):
+                plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
+                                                     neighbor_smoothing,thresholds,stride,args.out,time,(time+4))
+                plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
+                                         forecast_grid, bmap_full, args.out)
+                                   
+    
     return
 
 
@@ -113,7 +122,7 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
         grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
-                           "Neighborhood-Probability_{0}".format(threshold),(start_time+12),(end_time+12))
+                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12))
 
     return                                                         
 
@@ -153,8 +162,8 @@ def plot_hourly_neighborhood_probability():
     return
 
 
-def plot_period_ensemble_max((start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
-                              figsize=(10, 6), contours=np.array([1] + range(5, 80, 5)),
+def plot_period_ensemble_max(start_time,end_time,valid_date, forecast_grid, bmap, out_path, 
+                              figsize=(10, 6), contours=np.concatenate([[1] + np.arange(5, 80, 5)]),
                              cmap="inferno"):
     cmap = plt.get_cmap("Paired")
     colors = cmap(np.linspace(0, 0.5, cmap.N // 2))
@@ -184,7 +193,7 @@ def plot_period_ensemble_max((start_time,end_time,valid_date, forecast_grid, bma
                                                                        forecast_grid.ml_model,
                                                                        forecast_grid.start_date.strftime("%y%m%d"),
                                                                        forecast_grid.end_date.strftime("%y%m%d"),
-                                                                       start_time+12),(end_time+12)),
+                                                                       (start_time+12),(end_time+12)),
                 bbox_inches="tight", dpi=300)
     plt.close()
     return
@@ -203,6 +212,10 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         n_lat = forecast_grid.lat[::stride, ::stride]
         neighbor_prob = neighbor_prob.mean(axis=0)
         
+        date_outpath=out_path+'{0}/png/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+        if not exists(date_outpath):
+            os.makedirs(date_outpath)
+
         n_x, n_y = bmap(n_lon, n_lat)
         bmap.drawstates()
         bmap.drawcoastlines()
@@ -272,11 +285,10 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
     pdtmp1[-2] = 0
     grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
     grib_objects.end()
-    filename = path + "{0}_{1}_{2}_{3}_{4}_Hours:{5}-{6}.grib2".format(forecast_grid.ensemble_name,
+    filename = path + "{0}_Hail_{1}_{2}_{3}_Hours_{4}-{5}.grib2".format(forecast_grid.ensemble_name,
                                                          forecast_grid.ml_model,
                                                          plot_mode,
                                                          forecast_grid.start_date.strftime("%y%m%d"),
-                                                         forecast_grid.end_date.strftime("%y%m%d"),
                                                          start,end)
     print("Writing to " + filename)
     grib_file = open(filename, "wb")

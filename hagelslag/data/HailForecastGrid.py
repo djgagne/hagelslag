@@ -70,6 +70,8 @@ class HailForecastGrid(object):
                                      self.run_date.strftime("%Y%m%d%H") + "f{0:02d}".format(dt))
                     filename = self.path + self.run_date.strftime("%Y%m%d") + \
                                "/{0}_{1}_{2}_{3}_{4}.grib2".format(*filename_args)
+                    if not exists(filename):
+                        continue
                 grbs = pygrib.open(filename)
                 if self.lon is None:
                     self.lat, self.lon = grbs[self.message_number].latlons()
