@@ -115,14 +115,14 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
     ens_max = forecast_grid.data.max(axis=0)
     ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
     grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
-                       (start_time+12),(end_time+12))
+                       (start_time+12),(end_time+12),1)
 
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
         grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
-                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12))
+                           "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12),stride)
 
     return                                                         
 
@@ -220,7 +220,13 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         bmap.drawstates()
         bmap.drawcoastlines()
         bmap.drawcountries()
-        plt.contourf(n_x, n_y, neighbor_prob, contours, extend="max", cmap=cmap)
+        cmap = matplotlib.colors.ListedColormap(['#DBC6BD', '#C9AA9C', '#FFEB80', '#FFD322',
+                                                 '#FF6666', '#FF99FF', '#FF55FF', '#C18AF4',
+                                                 '#AA5BF0', '#3399FF', '#99CCFF', '#CCEEFF'])
+        bounds = [0.0, 0.04, 0.09, 0.19, 0.29, 0.39, 0.49, 0.59, 0.69, 0.79, 0.89, 0.99, 1.09]
+        norm = matplotlib.colors.BoundaryNorm(bounds, cmap.N)
+        plt.contourf(n_x, n_y, neighbor_prob, contours, extend="max", cmap=cmap, norm=norm)
+        #plt.contourf(n_x, n_y, neighbor_prob, contours, extend="max", cmap=cmap)
         plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
         plt.title("{0} {1} Ens. Neighbor Prob. of {2}>{3:d} mm\nR={4:d} km, $\sigma$={5:d} km, Valid {6}".format(
             forecast_grid.ensemble_name,
@@ -246,7 +252,7 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         plt.close()
     return
                                      
-def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start,end):
+def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start,end,stride):
     """
     Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
 
@@ -273,7 +279,7 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
             data.shape[-1], data.shape[-2], grid_dict["sw_lat"] * lscale,
             sw_lon * lscale, 0, proj_dict["lat_0"] * lscale,
             lon_0 * lscale,
-            grid_dict["dx"] * 1e-3, grid_dict["dy"] * 1e-3, 0b00000000, 0b01000000,
+            grid_dict["dx"] * 1e3 * stride, grid_dict["dy"] * 1e3 * stride, 0b00000000, 0b01000000,
             proj_dict["lat_1"] * lscale,
             proj_dict["lat_2"] * lscale, -90 * lscale, 0]
     pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)

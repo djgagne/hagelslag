@@ -730,7 +730,7 @@ class MachineLearningEnsembleProducts(EnsembleProducts):
                            self.data.shape[-2], self.data.shape[-1], self.grid_dict["sw_lat"] * lscale,
                            sw_lon * lscale, 0, self.proj_dict["lat_0"] * lscale,
                            lon_0 * lscale,
-                           self.grid_dict["dx"] * 1e-3, self.grid_dict["dy"] * 1e-3, 0,
+                           self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0,
                            self.proj_dict["lat_1"] * lscale,
                            self.proj_dict["lat_2"] * lscale, 0, 0], dtype=np.int32)
         pdtmp1 = np.array([1, 31, 2, 0, 116, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 192, 0, self.data.shape[0]], dtype=np.int32)

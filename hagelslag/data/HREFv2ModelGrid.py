@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 
 import pygrib
@@ -28,6 +27,7 @@ class ModelGrid(object):
                  start_date,
                  end_date,
                  variable,
+                 member,
                  frequency="1H"):
         self.filenames = filenames
         self.variable = variable
@@ -40,6 +40,7 @@ class ModelGrid(object):
                                          freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
+        self.member = member
         self.__enter__()
         self.data = None
         self.unknown_names = {3: "LCDC", 4: "MCDC", 5: "HCDC", 197: "RETOP", 198: "MAXREF", 199: "MXUPHL",
@@ -101,10 +102,11 @@ class ModelGrid(object):
         data = self.data
         unknown_names = self.unknown_names
         unknown_units = self.unknown_units
+        member = self.member
 
         if file_objects == []:
-            raise IOError()
-
+            raise IOError("No model runs on {0}".format(member))
+        
         else:
             for f, file in enumerate(file_objects):
                 grib = pygrib.open(file)
@@ -216,5 +218,5 @@ class HREFv2ModelGrid(ModelGrid):
                                                                                     member_name)
                     filenames.append(file)
 
-        super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable)
+        super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable,member)
         return
