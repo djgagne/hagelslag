@@ -366,6 +366,10 @@ def netcdf_output(forecast_grid, path, data, data_lon, data_lat, output_mode, st
     out_file.variables["Latitude"][:,:] = data_lat
     out_file.variables["Data"][:,:] = data
     out_file.projection = forecast_grid.projparams["proj"]
+    out_file.lon_0 = forecast_grid.projparams["lon_0"]
+    out_file.lat_0 = forecast_grid.projparams["lat_0"]
+    out_file.lat_1 = forecast_grid.projparams["lat_1"]
+    out_file.lat_2 = forecast_grid.projparams["lat_2"]
     out_file.close()
 
     print("Writing to " + out_filename)
