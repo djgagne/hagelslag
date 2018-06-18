@@ -28,8 +28,8 @@ MOCK_MODULES = ['numpy', 'scipy', 'pandas', 'skimage', 'netCDF4', 'basemap', 'ma
                 "pygrib", "mpl_toolkits", "mpl_toolkits.axes_grid", "mpl_toolkits.basemap", "mpl_toolkits.basemap.pyproj",
                 "sklearn", 'skimage.morphology', "scipy.ndimage", "matplotlib.pyplot", "scipy.stats", "scipy.signal",
                 "skimage.measure", "skimage.segmentation", "scipy.interpolate", "skimage.draw", 
-                "mpl_toolkits.axes_grid.inset_locator", "glue", "sklearn.linear_model", "glue.viewers.custom.qt", "glue.core",
-                "glue.config"]
+                "mpl_toolkits.axes_grid1.inset_locator", "glue", "sklearn.linear_model", "glue.viewers.custom.qt", "glue.core",
+                "glue.config", "sklearn.decomposition", "sklearn.model_selection", "arrow"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
