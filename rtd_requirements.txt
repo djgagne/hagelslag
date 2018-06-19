@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+scikit-learn
+scikit-image
+pandas
+netcdf4
+mock
+arrow>=0.8
