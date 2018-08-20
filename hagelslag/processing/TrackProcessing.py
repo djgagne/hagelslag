@@ -83,6 +83,7 @@ class TrackProcessor(object):
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
         self.model_path = model_path
+        self.model_map_file = model_map_file
         self.mrms_path = mrms_path
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
@@ -111,7 +112,7 @@ class TrackProcessor(object):
         Returns:
 
         """
-        self.model_grid.load_data()
+        self.model_grid.load_data(self.model_map_file)
         tracked_model_objects = []
         model_objects = []
         if self.model_grid.data is None:
@@ -168,7 +169,7 @@ class TrackProcessor(object):
         Returns:
             List of STObjects containing model track information.
         """
-        self.model_grid.load_data()
+        self.model_grid.load_data(self.model_map_file)
         model_objects = []
         tracked_model_objects = []
         if self.model_grid.data is None:
@@ -364,7 +365,7 @@ class TrackProcessor(object):
                                                  self.run_date, storm_var, self.start_date - timedelta(hours=1),
                                                  self.end_date,
                                                  self.model_path, self.single_step)
-            model_grids[storm_var].load_data()
+            model_grids[storm_var].load_data(self.model_map_file)
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
             if storm_var not in potential_variables and storm_var not in tendency_variables:
@@ -378,7 +379,7 @@ class TrackProcessor(object):
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date,
                                                          self.model_path, self.single_step)
-                model_grids[potential_var].load_data()
+                model_grids[potential_var].load_data(self.model_map_file)
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
             if potential_var not in tendency_variables:

@@ -10,7 +10,7 @@ from hagelslag.util.derived_vars import relative_humidity_pressure_level, meltin
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
-
+from pyproj import Proj
 
 class ModelOutput(object):
     """
@@ -58,7 +58,7 @@ class ModelOutput(object):
         self.units = ""
         self.single_step = single_step
 
-    def load_data(self):
+    def load_data(self, map_file):
         """
         Load the specified variable from the ensemble files, then close the files.
         """
@@ -121,14 +121,21 @@ class ModelOutput(object):
             self.data, self.units = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "HREFV2":
+
+            proj_dict, grid_dict = read_ncar_map_file(map_file)
+            mapping_data = make_proj_grids(proj_dict, grid_dict)     
+
             mg = HREFv2ModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
                                self.end_date,
                                self.path,
+                               mapping_data,
                                single_step=self.single_step)
+
             self.data, self.units = mg.load_data()
+
         elif self.ensemble_name.upper() == "VSE":
             mg = VSEModelGrid(self.member_name,
                                self.run_date,
@@ -189,6 +196,7 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
+
 
     def period_neighborhood_probability(self, radius, smoothing, threshold, stride, x=None, y=None, dx=None):
         """

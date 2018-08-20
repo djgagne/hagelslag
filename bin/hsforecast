@@ -25,7 +25,8 @@ def main():
                 "condition_output_column", "group_col",
                 "model_path", "metadata_columns", "data_json_path", "forecast_json_path",
                 "load_models", "ensemble_members", "ml_grid_method", "neighbor_radius", "neighbor_sigma",
-                "ensemble_consensus_path", "ensemble_variables", "ensemble_variable_thresholds", "ensemble_data_path"]
+                "ensemble_consensus_path", "ensemble_variables", "ensemble_variable_thresholds", "ensemble_data_path",
+                "size_dis_training_path"]
     config = Config(args.config, required)
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
@@ -219,7 +220,7 @@ def generate_ml_grids(config, mode="forecast"):
         for member in config.ensemble_members:
             args = (config.ensemble_name, ml_model_list, member, run_date, ml_var, start_date, end_date,
                     config.single_step, config.neighbor_condition_model, config.forecast_csv_path, config.netcdf_path,
-                    config.grib_path, config.model_map_file)
+                    config.grib_path, config.model_map_file,config.size_dis_training_path)
             pool.apply_async(generate_ml_member_grid, args)
     pool.close()
     pool.join()
@@ -228,7 +229,7 @@ def generate_ml_grids(config, mode="forecast"):
 
 def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variable, start_date, end_date,
                             single_step, neighbor_condition_model, forecast_csv_path, netcdf_path,
-                            grib_path, map_file):
+                            grib_path, map_file,size_distribution_training_path):
     """
 
 
@@ -246,6 +247,7 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
         netcdf_path:
         grib_path:
         map_file:
+        size_distribution_training_path:
 
     Returns:
 
@@ -254,9 +256,10 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
         if exists(forecast_csv_path + "hail_forecasts_{0}_{1}_{2}.csv".format(ensemble_name, member,
                                                                               run_date.strftime("%Y%m%d-%H%M"))):
             ep = EnsembleMemberProduct(ensemble_name, model_names[0], member, run_date, variable,
-                                       start_date, end_date, None, single_step, map_file=map_file,
-                                       condition_model_name=neighbor_condition_model,
-                                       )
+                                       start_date, end_date, None, single_step, 
+                                        size_distribution_training_path,
+                                       map_file=map_file,
+                                       condition_model_name=neighbor_condition_model)
             for model_name in model_names:
                 ep.model_name = model_name
                 ep.load_forecast_csv_data(forecast_csv_path)

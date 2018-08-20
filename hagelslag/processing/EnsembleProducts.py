@@ -25,7 +25,7 @@ except ImportError("ncepgrib2 not available"):
 
 class EnsembleMemberProduct(object):
     def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step,
-                 map_file=None, condition_model_name=None, condition_threshold=0.5):
+                size_distribution_training_path,map_file=None, condition_model_name=None, condition_threshold=0.5):
         self.ensemble_name = ensemble_name
         self.model_name = model_name
         self.member = member
@@ -37,6 +37,7 @@ class EnsembleMemberProduct(object):
         self.forecast_hours = (self.times - self.run_date).astype('timedelta64[h]').values
         self.path = path
         self.single_step = single_step
+        self.size_distribution_training_path = size_distribution_training_path
         self.track_forecasts = None
         self.data = None
         self.map_file = map_file
@@ -171,8 +172,17 @@ class EnsembleMemberProduct(object):
         mask_indices = np.where(self.nc_patches["masks"] == 1)
         obj_values = self.nc_patches["obj_values"][mask_indices]
         percentiles = np.linspace(0.1, 99.9, 100)
-        obj_per_vals = np.percentile(obj_values, percentiles)
-        per_func = interp1d(obj_per_vals, percentiles / 100.0, bounds_error=False, fill_value=(0.1, 99.9))
+        
+        if self.size_distribution_training_path:
+
+            train_period_obj_per_vals = pd.read_csv(self.size_distribution_training_path)
+            train_period_obj_per_vals = train_period_obj_per_vals.loc[:,"Values"].values
+            per_func = interp1d(train_period_obj_per_vals, percentiles / 100.0, 
+                                bounds_error=False, fill_value=(0.1, 99.9))
+        else:
+            obj_per_vals = np.percentile(obj_values, percentiles)
+            per_func = interp1d(obj_per_vals, percentiles / 100.0, bounds_error=False, fill_value=(0.1, 99.9))
+
         obj_percentiles = np.zeros(self.nc_patches["masks"].shape)
         obj_percentiles[mask_indices] = per_func(obj_values)
         obj_hail_sizes = np.zeros(obj_percentiles.shape)
