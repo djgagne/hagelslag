@@ -10,7 +10,7 @@ from hagelslag.util.derived_vars import relative_humidity_pressure_level, meltin
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
-
+from pyproj import Proj
 
 class ModelOutput(object):
     """
@@ -26,6 +26,8 @@ class ModelOutput(object):
         path (str): Path to model output
         single_step (bool): If true, each model timestep is in a separate file.
             If false, all timesteps are together in the same file.
+
+        map_file (str): path to data map file
     """
     def __init__(self, 
                  ensemble_name, 
@@ -35,6 +37,7 @@ class ModelOutput(object):
                  start_date, 
                  end_date,
                  path,
+                 map_file,
                  single_step=True):
         self.ensemble_name = ensemble_name
         self.member_name = member_name
@@ -47,6 +50,7 @@ class ModelOutput(object):
         self.data = None
         self.valid_dates = None
         self.path = path
+        self.map_file = map_file
         self.lat = None
         self.lon = None
         self.x = None
@@ -121,14 +125,21 @@ class ModelOutput(object):
             self.data, self.units = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "HREFV2":
+
+            proj_dict, grid_dict = read_ncar_map_file(self.map_file)
+            mapping_data = make_proj_grids(proj_dict, grid_dict)     
+
             mg = HREFv2ModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
                                self.end_date,
                                self.path,
+                               mapping_data,
                                single_step=self.single_step)
+
             self.data, self.units = mg.load_data()
+
         elif self.ensemble_name.upper() == "VSE":
             mg = VSEModelGrid(self.member_name,
                                self.run_date,
@@ -189,6 +200,7 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
+
 
     def period_neighborhood_probability(self, radius, smoothing, threshold, stride, x=None, y=None, dx=None):
         """

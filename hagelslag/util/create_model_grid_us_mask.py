@@ -42,7 +42,7 @@ def create_mask_grid(mask_shape_file, mapping_data, proj_dict, grid_dict):
     sf = shapefile.Reader(mask_shape_file)
     s = 0
     for state_shape in sf.shapeRecords():
-        print(s, state_shape.record[5])
+        print(s, state_shape.record[4]) #changed [5])
         part_start = list(state_shape.shape.parts)
         part_end = list(state_shape.shape.parts[1:]) + [len(state_shape.shape.points)]
         for p in range(len(part_start)):

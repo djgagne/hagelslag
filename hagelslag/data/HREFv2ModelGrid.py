@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+from pyproj import Proj
+from scipy.spatial import cKDTree
+
 import pygrib
 import numpy as np
 from os.path import exists
@@ -17,8 +20,9 @@ class ModelGrid(object):
             start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
             end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
             freqency (str): spacing between model time steps.
-            valid_dates: DatetimeIndex of all model timesteps
-            forecast_hours: array of all hours in the forecast
+            mapping_data(str):File specifying the projection information.
+            valid_dates(dattime.datetime): DatetimeIndex of all model timesteps
+            forecast_hours(array): array of all hours in the forecast
             file_objects (list): List of the file objects for each model time step
     """
 
@@ -28,6 +32,7 @@ class ModelGrid(object):
                  end_date,
                  variable,
                  member,
+                 mapping_data,
                  frequency="1H"):
         self.filenames = filenames
         self.variable = variable
@@ -41,8 +46,11 @@ class ModelGrid(object):
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
         self.member = member
+        self.mapping_data = mapping_data
         self.__enter__()
         self.data = None
+        self.lat = None
+        self.lon = None
         self.unknown_names = {3: "LCDC", 4: "MCDC", 5: "HCDC", 197: "RETOP", 198: "MAXREF", 199: "MXUPHL",
                               200: "MNUPHL", 220: "MAXUVV", 221: "MAXDVV", 222: "MAXUW", 223: "MAXVW"}
         self.unknown_units = {3: "%", 4: "%", 5: "%", 197: "m", 198: "dB", 199: "m**2 s**-2", 200: "m**2 s**-2",
@@ -103,18 +111,24 @@ class ModelGrid(object):
         unknown_names = self.unknown_names
         unknown_units = self.unknown_units
         member = self.member
+        lat = self.lat
+        lon = self.lon
 
-        if file_objects == []:
-            raise IOError("No model runs on {0}".format(member))
+    
         
+        if file_objects == []:
+            raise IOError("No {0} model runs on {1}".format(member,self.run_date))
+
         else:
             for f, file in enumerate(file_objects):
                 grib = pygrib.open(file)
                 if type(var) is int:
                     data_values = grib[var].values
+                    lat, lon = grib[var].latlons()
+                    proj  = Proj(grib[var].projparams)
                     if grib[var].units == 'unknown':
                         Id = grib[var].parameterNumber
-                        units = self.unknown_units[Id]
+                        units = self.unknown_units[Id] 
                     else:
                         units = grib[var].units
                 elif type(var) is str:
@@ -124,29 +138,61 @@ class ModelGrid(object):
                         if variable in unknown_names.values():
                             Id, units = self.format_grib_name(variable)
                             data_values = grib.select(parameterNumber=Id, level=level)[0].values
+                            lat, lon =  grib.select(parameterNumber=Id, level=level)[0].latlons()
+                            proj = Proj(grib.select(parameterNumber=Id, level=level)[0].projparams)
+
                         else:
                             data_values = grib.select(name=variable, level=level)[0].values
                             units = grib.select(name=variable, level=level)[0].units
-                    elif '_' not in var:
+                            lat, lon  = grib.select(name=variable, level=level)[0].latlons()
+                            proj = Proj(grib.select(name=variable, level=level)[0].projparams)
+                    else:
                         if var in unknown_names.values():
                             Id, units = self.format_grib_name(var)
                             data_values = grib.select(parameterNumber=Id)[0].values
+                            lat, lon = grib.select(parameterNumber=Id)[0].latlons() 
+                            proj = Proj(grib.select(parameterNumber=Id)[0].projparams)
+
                         elif len(grib.select(name=var)) > 1:
-                            raise NameError(
-                                "Multiple {0} records found. Rename with associated level, in format:'{0}_level'".format(
-                                    var))
+                            raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(var))
+
                         else:
                             data_values = grib.select(name=var)[0].values
                             units = grib.select(name=var)[0].units
+                            lat, lon = grib.select(name=var)[0].latlons()
+                            proj = Proj(grib.select(name=var)[0].projparams)
 
                 if data is None:
                     data = np.empty((len(valid_date), data_values.shape[0], data_values.shape[1]), dtype=float)
                     data[f] = data_values[:]
                 else:
                     data[f] = data_values[:]
+        
 
-        return data, units
+            x, y = proj(lon,lat)
+        
+            out_x = self.mapping_data["x"]
+            out_y = self.mapping_data["y"]
+        
+            if x.shape == out_x.shape:
+                out_data = data
 
+            else:
+                print("Evaluating {0} Sector Data: {1}, {2}".format(self.member,var,str(self.run_date)[:10]))
+
+                out_data = np.zeros((data.shape[0], out_x.shape[0], out_x.shape[1]))
+                in_ = np.vstack((x.flatten(),y.flatten())).T
+                out_ = np.vstack((out_x.flatten(), out_y.flatten())).T
+        
+                sector_data_tree = cKDTree(in_)
+                dist, inds = sector_data_tree.query(out_,k=1)
+
+                for d in range(data.shape[0]):
+                    out_data[d] = data[d].flatten()[inds].reshape(out_x.shape)
+            
+        
+        return out_data, units
+        
     def __exit__(self):
         """
         Close links to all open file objects and delete the objects.
@@ -176,7 +222,7 @@ class HREFv2ModelGrid(ModelGrid):
                 file (True) or one file containing all timesteps (False).
     """
 
-    def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=True):
+    def __init__(self, member, run_date, variable, start_date, end_date, path, mapping_data, single_step=True):
         self.path = path
         self.member = member
         filenames = []
@@ -218,5 +264,5 @@ class HREFv2ModelGrid(ModelGrid):
                                                                                     member_name)
                     filenames.append(file)
 
-        super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable,member)
+        super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable, member, mapping_data)
         return
