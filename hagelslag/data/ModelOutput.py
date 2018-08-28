@@ -26,6 +26,8 @@ class ModelOutput(object):
         path (str): Path to model output
         single_step (bool): If true, each model timestep is in a separate file.
             If false, all timesteps are together in the same file.
+
+        map_file (str): path to data map file
     """
     def __init__(self, 
                  ensemble_name, 
@@ -35,6 +37,7 @@ class ModelOutput(object):
                  start_date, 
                  end_date,
                  path,
+                 map_file,
                  single_step=True):
         self.ensemble_name = ensemble_name
         self.member_name = member_name
@@ -47,6 +50,7 @@ class ModelOutput(object):
         self.data = None
         self.valid_dates = None
         self.path = path
+        self.map_file = map_file
         self.lat = None
         self.lon = None
         self.x = None
@@ -58,7 +62,7 @@ class ModelOutput(object):
         self.units = ""
         self.single_step = single_step
 
-    def load_data(self, map_file):
+    def load_data(self):
         """
         Load the specified variable from the ensemble files, then close the files.
         """
@@ -122,7 +126,7 @@ class ModelOutput(object):
             mg.close()
         elif self.ensemble_name.upper() == "HREFV2":
 
-            proj_dict, grid_dict = read_ncar_map_file(map_file)
+            proj_dict, grid_dict = read_ncar_map_file(self.map_file)
             mapping_data = make_proj_grids(proj_dict, grid_dict)     
 
             mg = HREFv2ModelGrid(self.member_name,

@@ -71,7 +71,7 @@ class EnsembleMemberProduct(object):
         self.num_samples = num_samples
         if self.model_name.lower() in ["wrf"]:
             mo = ModelOutput(self.ensemble_name, self.member, self.run_date, self.variable,
-                             self.start_date, self.end_date, self.path, self.single_step)
+                             self.start_date, self.end_date, self.path, self.map_file, self.single_step)
             mo.load_data()
             self.data = mo.data[:]
             if mo.units == "m":
@@ -435,7 +435,7 @@ class EnsembleProducts(object):
         """
         for m, member in enumerate(self.members):
             mo = ModelOutput(self.ensemble_name, member, self.run_date, self.variable,
-                             self.start_date, self.end_date, self.path, self.single_step)
+                             self.start_date, self.end_date, self.path, self.map_file, self.single_step)
             mo.load_data()
             if self.data is None:
                 self.data = np.zeros((len(self.members), mo.data.shape[0], mo.data.shape[1], mo.data.shape[2]),
