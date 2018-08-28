@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import pyresample
 from pyproj import Proj
 from scipy.spatial import cKDTree
 
@@ -8,7 +7,7 @@ import pygrib
 import numpy as np
 from os.path import exists
 from pandas import DatetimeIndex
-#from scipy.interpolate import griddata
+
 
 class ModelGrid(object):
     """
