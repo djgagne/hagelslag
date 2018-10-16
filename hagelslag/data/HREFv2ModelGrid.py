@@ -116,79 +116,83 @@ class ModelGrid(object):
 
     
         
-        if file_objects == []:
-            raise IOError("No {0} model runs on {1}".format(member,self.run_date))
+        if not file_objects:
+            print()
+            print("No {0} model runs on {1}".format(member,self.run_date))
+            print()
+            units = None
+            return self.data, units
 
-        else:
-            for f, file in enumerate(file_objects):
-                grib = pygrib.open(file)
-                if type(var) is int:
-                    data_values = grib[var].values
-                    lat, lon = grib[var].latlons()
-                    proj  = Proj(grib[var].projparams)
-                    if grib[var].units == 'unknown':
-                        Id = grib[var].parameterNumber
-                        units = self.unknown_units[Id] 
-                    else:
-                        units = grib[var].units
-                elif type(var) is str:
-                    if '_' in var:
-                        variable = var.split('_')[0]
-                        level = int(var.split('_')[1])
-                        if variable in unknown_names.values():
-                            Id, units = self.format_grib_name(variable)
-                            data_values = grib.select(parameterNumber=Id, level=level)[0].values
-                            lat, lon =  grib.select(parameterNumber=Id, level=level)[0].latlons()
-                            proj = Proj(grib.select(parameterNumber=Id, level=level)[0].projparams)
-
-                        else:
-                            data_values = grib.select(name=variable, level=level)[0].values
-                            units = grib.select(name=variable, level=level)[0].units
-                            lat, lon  = grib.select(name=variable, level=level)[0].latlons()
-                            proj = Proj(grib.select(name=variable, level=level)[0].projparams)
-                    else:
-                        if var in unknown_names.values():
-                            Id, units = self.format_grib_name(var)
-                            data_values = grib.select(parameterNumber=Id)[0].values
-                            lat, lon = grib.select(parameterNumber=Id)[0].latlons() 
-                            proj = Proj(grib.select(parameterNumber=Id)[0].projparams)
-
-                        elif len(grib.select(name=var)) > 1:
-                            raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(var))
-
-                        else:
-                            data_values = grib.select(name=var)[0].values
-                            units = grib.select(name=var)[0].units
-                            lat, lon = grib.select(name=var)[0].latlons()
-                            proj = Proj(grib.select(name=var)[0].projparams)
-
-                if data is None:
-                    data = np.empty((len(valid_date), data_values.shape[0], data_values.shape[1]), dtype=float)
-                    data[f] = data_values[:]
+    
+        for f, file in enumerate(file_objects):
+            grib = pygrib.open(file)
+            if type(var) is int:
+                data_values = grib[var].values
+                lat, lon = grib[var].latlons()
+                proj  = Proj(grib[var].projparams)
+                if grib[var].units == 'unknown':
+                    Id = grib[var].parameterNumber
+                    units = self.unknown_units[Id] 
                 else:
-                    data[f] = data_values[:]
+                    units = grib[var].units
+            elif type(var) is str:
+                if '_' in var:
+                    variable = var.split('_')[0]
+                    level = int(var.split('_')[1])
+                    if variable in unknown_names.values():
+                        Id, units = self.format_grib_name(variable)
+                        data_values = grib.select(parameterNumber=Id, level=level)[0].values
+                        lat, lon =  grib.select(parameterNumber=Id, level=level)[0].latlons()
+                        proj = Proj(grib.select(parameterNumber=Id, level=level)[0].projparams)
+
+                    else:
+                        data_values = grib.select(name=variable, level=level)[0].values
+                        units = grib.select(name=variable, level=level)[0].units
+                        lat, lon  = grib.select(name=variable, level=level)[0].latlons()
+                        proj = Proj(grib.select(name=variable, level=level)[0].projparams)
+                else:
+                    if var in unknown_names.values():
+                        Id, units = self.format_grib_name(var)
+                        data_values = grib.select(parameterNumber=Id)[0].values
+                        lat, lon = grib.select(parameterNumber=Id)[0].latlons() 
+                        proj = Proj(grib.select(parameterNumber=Id)[0].projparams)
+
+                    elif len(grib.select(name=var)) > 1:
+                        raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(var))
+
+                    else:
+                        data_values = grib.select(name=var)[0].values
+                        units = grib.select(name=var)[0].units
+                        lat, lon = grib.select(name=var)[0].latlons()
+                        proj = Proj(grib.select(name=var)[0].projparams)
+
+            if data is None:
+                data = np.empty((len(valid_date), data_values.shape[0], data_values.shape[1]), dtype=float)
+                data[f] = data_values[:]
+            else:
+                data[f] = data_values[:]
         
 
-            x, y = proj(lon,lat)
+        x, y = proj(lon,lat)
         
-            out_x = self.mapping_data["x"]
-            out_y = self.mapping_data["y"]
+        out_x = self.mapping_data["x"]
+        out_y = self.mapping_data["y"]
         
-            if x.shape == out_x.shape:
+        if x.shape == out_x.shape:
                 out_data = data
 
-            else:
-                print("Evaluating {0} Sector Data: {1}, {2}".format(self.member,var,str(self.run_date)[:10]))
+        else:
+            print("Evaluating {0} Sector Data: {1}, {2}".format(self.member,var,str(self.run_date)[:10]))
 
-                out_data = np.zeros((data.shape[0], out_x.shape[0], out_x.shape[1]))
-                in_ = np.vstack((x.flatten(),y.flatten())).T
-                out_ = np.vstack((out_x.flatten(), out_y.flatten())).T
+            out_data = np.zeros((data.shape[0], out_x.shape[0], out_x.shape[1]))
+            in_ = np.c_[x.ravel(),y.ravel()]
+            out_ = np.c_[out_x.ravel(), out_y.ravel()]
         
-                sector_data_tree = cKDTree(in_)
-                dist, inds = sector_data_tree.query(out_,k=1)
+            sector_data_tree = cKDTree(in_)
+            dist, inds = sector_data_tree.query(out_,k=1)
 
-                for d in range(data.shape[0]):
-                    out_data[d] = data[d].flatten()[inds].reshape(out_x.shape)
+            for d in range(data.shape[0]):
+                out_data[d] = data[d].flatten()[inds].reshape(out_x.shape)
             
         
         return out_data, units

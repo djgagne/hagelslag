@@ -190,22 +190,33 @@ class TrackModeler(object):
                 print(model_name)
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
+
                 try:
                     kf = KFold(n_splits=num_folds)
+                    for train_index, test_index in kf.split(group_data[input_columns].values):
+                        self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
+                                                                     output_data[train_index])
+
+                        cv_preds = self.condition_models[group][model_name].predict_proba(
+                                    group_data.iloc[test_index][input_columns])[:,1]
+
+                        roc.update(cv_preds, output_data[test_index])
+
                 except TypeError:
                     kf = KFold(num_elements,n_folds=num_folds)
-                #for train_index, test_index in kf.split(group_data[input_columns].values):
-                for train_index, test_index in kf:
-                    self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
+                    for train_index, test_index in kf:
+                        self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
                                                                  output_data[train_index])
-                    cv_preds = self.condition_models[group][model_name].predict_proba(
-                        group_data.iloc[test_index][input_columns])[:, 1]
-                    roc.update(cv_preds, output_data[test_index])
+                        cv_preds = self.condition_models[group][model_name].predict_proba(
+                            group_data.iloc[test_index][input_columns])[:, 1]
+                        roc.update(cv_preds, output_data[test_index])
+
                 self.condition_models[group][
                     model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
                 print(model_name + " condition threshold: {0:0.3f}".format(
                     self.condition_models[group][model_name + "_condition_threshold"]))
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
+
 
     def predict_condition_models(self, model_names,
                                  input_columns,

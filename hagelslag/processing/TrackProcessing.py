@@ -274,12 +274,18 @@ class TrackProcessor(object):
         tracked_obs_objects = []
         if self.mrms_ew is not None:
             self.mrms_grid.load_data()
+            
+            if len(self.mrms_grid.data) != len(self.hours):
+                print('Less than 24 hours of observation data found')
+                
+                return tracked_obs_objects
+         
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
                 mrms_data[mrms_data < 0] = 0
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
-                                                                                          self.gaussian_window)),
+                                                                                      self.gaussian_window)),
                                                        self.size_filter)
                 hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
                 obj_slices = find_objects(hour_labels)
@@ -317,6 +323,7 @@ class TrackProcessor(object):
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
+        
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
