@@ -9,4 +9,4 @@ pyproj
 scikit-image
 pygrib
 arrow>=0.8
-basemap
+
