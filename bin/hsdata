@@ -108,10 +108,15 @@ def process_ensemble_member(run_date, member, config):
             model_tracks = track_proc.find_model_patch_tracks()
         print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
         print("Extract model attributes", run_date, member)
+        if hasattr(config, "future_variables"):
+            future_variables = config.future_variables
+        else:
+            future_variables = None
         track_proc.extract_model_attributes(model_tracks,
                                             config.storm_variables,
                                             config.potential_variables,
-                                            config.tendency_variables)
+                                            config.tendency_variables,
+                                            future_variables=future_variables)
         if config.train and len(model_tracks) > 0:
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
