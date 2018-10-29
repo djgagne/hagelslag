@@ -23,6 +23,7 @@ class TestTracking(unittest.TestCase):
                                  self.start_date,
                                  self.end_date,
                                  self.model_path,
+                                 "mapfiles/ssef2015.map",
                                  single_step=False)
         self.model_grid.load_data()
         self.model_grid.load_map_info("mapfiles/ssef2015.map")

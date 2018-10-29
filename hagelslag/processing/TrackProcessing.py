@@ -83,11 +83,13 @@ class TrackProcessor(object):
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
         self.model_path = model_path
+        self.model_map_file = model_map_file
         self.mrms_path = mrms_path
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
-                                      self.start_date, self.end_date, self.model_path, single_step=self.single_step)
-        self.model_grid.load_map_info(model_map_file)
+                                      self.start_date, self.end_date, self.model_path, self.model_map_file,
+                                      single_step=self.single_step)
+        self.model_grid.load_map_info(self.model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
@@ -368,7 +370,7 @@ class TrackProcessor(object):
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
                                                  self.run_date, storm_var, self.start_date - timedelta(hours=1),
                                                  self.end_date + timedelta(hours=1),
-                                                 self.model_path, self.single_step)
+                                                 self.model_path,self.model_map_file, self.single_step)
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
@@ -381,7 +383,7 @@ class TrackProcessor(object):
                                                          self.run_date, potential_var,
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
-                                                         self.model_path, self.single_step)
+                                                         self.model_path, self.model_map_file, self.single_step)
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
@@ -407,7 +409,7 @@ class TrackProcessor(object):
                                                         self.run_date, tendency_var,
                                                         self.start_date - timedelta(hours=1),
                                                         self.end_date,
-                                                        self.model_path, self.single_step)
+                                                        self.model_path, self.model_map_file, self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]

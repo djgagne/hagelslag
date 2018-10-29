@@ -56,11 +56,11 @@ class MRMSGrid(object):
             file_index = np.where(mrms_file_dates == self.all_dates[t].strftime("%Y%m%d"))[0]
             if len(file_index) > 0:
                 mrms_file = mrms_files[file_index][0]
-                if mrms_file != old_mrms_file:
+                if mrms_file is not None:
                     if file_obj is not None:
                         file_obj.close()
                     file_obj = Dataset(self.path + self.variable + "/" + mrms_file)
-                    old_mrms_file = mrms_file
+                    #old_mrms_file = mrms_file
                     
                     if "time" in file_obj.variables.keys():
                         time_var = "time"
