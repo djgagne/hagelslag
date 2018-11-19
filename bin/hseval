@@ -10,7 +10,9 @@ from multiprocessing import Pool
 from hagelslag.evaluation.ObjectEvaluator import ObjectEvaluator
 from hagelslag.evaluation.GridEvaluator import GridEvaluator
 from hagelslag.evaluation.NeighborEvaluator import NeighborEvaluator
-from hagelslag.data import MRMSGrid, ModelOutput, HailForecastGrid
+from hagelslag.data.MRMSGrid import MRMSGrid
+from hagelslag.data.ModelOutput import ModelOutput
+from hagelslag.data.HailForecastGrid import HailForecastGrid
 from datetime import datetime, timedelta
 from netCDF4 import Dataset
 from os.path import isdir

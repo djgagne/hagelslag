@@ -12,7 +12,6 @@ import pandas as pd
 from datetime import timedelta
 from scipy.stats import gamma
 from netCDF4 import Dataset
-import pdb
 
 
 class TrackProcessor(object):
@@ -390,7 +389,7 @@ class TrackProcessor(object):
             if potential_var not in tendency_variables + future_variables:
                 del model_grids[potential_var]
         for future_var in future_variables:
-            print("Potential {0} {1} {2}".format(future_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            print("Future {0} {1} {2}".format(future_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             if future_var not in model_grids.keys():
                 model_grids[future_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
                                                          self.run_date, future_var,
@@ -399,7 +398,7 @@ class TrackProcessor(object):
                                                          self.model_path, self.single_step)
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
-                model_obj.extract_attribute_grid(model_grids[future_var], potential=True)
+                model_obj.extract_attribute_grid(model_grids[future_var], future=True)
             if future_var not in tendency_variables:
                 del model_grids[future_var]
         for tendency_var in tendency_variables:
