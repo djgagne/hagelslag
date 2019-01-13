@@ -80,6 +80,11 @@ def process_ensemble_member(run_date, member, config):
             patch_radius = config.patch_radius
         else:
             patch_radius = None
+        if hasattr(config, "sector_indices_data_path"):
+            sector_ind_path = config.sector_indices_data_path
+        else:
+            sector_ind_path = None
+        
         print("Patch Radius", patch_radius)
         track_proc = TrackProcessor(run_date,
                                     start_date,
@@ -94,6 +99,7 @@ def process_ensemble_member(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
+                                    sector_ind_path,
                                     match_steps=match_steps,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,

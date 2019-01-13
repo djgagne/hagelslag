@@ -411,7 +411,8 @@ def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, 
     return
 
 
-def training_data_percentiles(members, ensemble_name, watershed_obj, training_data_path, start_date, end_date, csv_outpath):
+def training_data_percentiles(members, ensemble_name, watershed_obj, training_data_path, 
+                                start_date, end_date, csv_outpath):
 
     """
     Creates watershed object distribution of sizes for a given set of training netcdf patches
@@ -432,12 +433,12 @@ def training_data_percentiles(members, ensemble_name, watershed_obj, training_da
 
 
     obj_data = dict()
-    date_index = pd.DatetimeIndex(start=start_date, end=end_date, freq='1D')
-    training_date = date_index.strftime("%Y%m%d")
+    training_date = pd.DatetimeIndex(start=start_date["train"], end=end_date["train"], freq='1D').strftime("%Y%m%d")
 
+    print('Creating Distribution of Watershed Object Sizes')
     for m in members:
         for date in training_date:
-            print("Model: {0}, Date: {1}".format(m,date))
+            #print("Model: {0}, Date: {1}".format(m,date))
             data_path = training_data_path+'{0}_{1}-0000_{2}_model_patches.nc'.format(ensemble_name,date,m)
             if exists(data_path):
                 dataset  = Dataset(data_path)

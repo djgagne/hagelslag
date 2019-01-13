@@ -183,40 +183,50 @@ class TrackModeler(object):
             group_data = self.data["train"]["combo"].iloc[
                 np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
-            print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
+            ones = np.count_nonzero(output_data > 0)
+            print("Ones: ", ones, "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
             num_elements = group_data[input_columns].shape[0]
+            
             for m, model_name in enumerate(model_names):
-                print(model_name)
+                print(model_name)    
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
 
                 try:
                     kf = KFold(n_splits=num_folds)
                     for train_index, test_index in kf.split(group_data[input_columns].values):
-                        self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
-                                                                     output_data[train_index])
-
-                        cv_preds = self.condition_models[group][model_name].predict_proba(
-                                    group_data.iloc[test_index][input_columns])[:,1]
-
-                        roc.update(cv_preds, output_data[test_index])
+                        if np.count_nonzero(output_data[train_index]) > 0:
+                            self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
+                                                output_data[train_index])
+                            cv_preds = self.condition_models[group][model_name].predict_proba(
+                                group_data.iloc[test_index][input_columns])[:,1]
+                            
+                            roc.update(cv_preds, output_data[test_index])
+                        
+                        else:
+                            continue
 
                 except TypeError:
                     kf = KFold(num_elements,n_folds=num_folds)
                     for train_index, test_index in kf:
-                        self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
-                                                                 output_data[train_index])
-                        cv_preds = self.condition_models[group][model_name].predict_proba(
-                            group_data.iloc[test_index][input_columns])[:, 1]
-                        roc.update(cv_preds, output_data[test_index])
+
+                        if np.count_nonzero(output_data[train_index]) > 0:
+                            self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
+                                                output_data[train_index])
+                            cv_preds = self.condition_models[group][model_name].predict_proba(
+                                group_data.iloc[test_index][input_columns])[:, 1]
+                            
+                            roc.update(cv_preds, output_data[test_index])
+                        
+                        else:
+                            continue
 
                 self.condition_models[group][
                     model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
                 print(model_name + " condition threshold: {0:0.3f}".format(
-                    self.condition_models[group][model_name + "_condition_threshold"]))
+                self.condition_models[group][model_name + "_condition_threshold"]))
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
-
 
     def predict_condition_models(self, model_names,
                                  input_columns,

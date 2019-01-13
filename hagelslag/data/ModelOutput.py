@@ -24,7 +24,8 @@ class ModelOutput(object):
         start_date (datetime.datetime): Date of the first timestep loaded.
         end_date (datetime.datetime): Date of the last timestep loaded.
         path (str): Path to model output
-        single_step (bool): If true, each model timestep is in a separate file.
+        sector_ind_path (str): Path to the indices associated with lat/lon sector data
+        single_step (bool): If true, each model timestep is in a separate file
             If false, all timesteps are together in the same file.
 
         map_file (str): path to data map file
@@ -38,6 +39,7 @@ class ModelOutput(object):
                  end_date,
                  path,
                  map_file,
+                 sector_ind_path,
                  single_step=True):
         self.ensemble_name = ensemble_name
         self.member_name = member_name
@@ -51,6 +53,7 @@ class ModelOutput(object):
         self.valid_dates = None
         self.path = path
         self.map_file = map_file
+        self.sector_ind_path = sector_ind_path
         self.lat = None
         self.lon = None
         self.x = None
@@ -136,6 +139,7 @@ class ModelOutput(object):
                                self.end_date,
                                self.path,
                                mapping_data,
+                               self.sector_ind_path,
                                single_step=self.single_step)
 
             self.data, self.units = mg.load_data()
