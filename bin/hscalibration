@@ -1,0 +1,346 @@
+#!/work/05612/aburke/stampede2/miniconda3/envs/hail/bin/python
+from netCDF4 import Dataset
+from hagelslag.util.Config import Config
+from glob import glob
+from multiprocessing import Pool
+from copy import deepcopy
+import pandas as pd
+import numpy as np
+
+import matplotlib
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
+
+import os
+import argparse
+import pickle
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help="Configuration file") 
+    parser.add_argument("-t", "--train", action="store_true", help="Train calibration models.")
+    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts from calibration models.")
+    args = parser.parse_args()
+    required = ["calibration_model_names", "calibration_model_objs", "ensemble_name", 
+                "forecast_model_names","train_data_path", "forecast_data_path", 
+                "target_data_path", "target_data_names", "model_path", 
+                "run_date_format","size_threshold","sector"] 
+    config = Config(args.config, required)
+
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%y%m%d"
+    
+    if args.train:
+        trained_models = train_calibration(config)
+        saving_cali_models(trained_models,config)
+    
+    if args.fore:
+        pp_models, lsr_models = load_cali_models(config)
+        pp_forecasts, lsr_forecasts = create_calibration_forecasts(
+                                                            pp_models,
+                                                            lsr_models,
+                                                            config)
+        #output_forecasts(pp_forecasts, lsr_forecasts,config)
+    
+    return
+
+
+def train_calibration(config):
+    """
+    Trains machine learning models to calibrate forecasts towards a chosen target dataset. 
+
+    Args:
+        track_modeler (hagelslag.TrackModeler): an initialized TrackModeler object
+        config: Config object
+    """
+    
+    pool = Pool(config.num_procs)
+    
+    run_dates = pd.DatetimeIndex(start=config.start_dates["train"],
+                                 end=config.end_dates["train"],
+                                 freq='1D').strftime(config.run_date_format)
+    
+    pp_calib_models = {}
+    lsr_calib_models = {}
+
+    train_data,lsr_data,pp_data = {},{},{}
+    
+    print()
+    print('Loading Data')
+
+    for size in config.size_threshold:
+        pp_calib_models[size],lsr_calib_models[size]  = {},{}
+        train_files, pp_files, lsr_files = [], [], []
+        for date in run_dates: 
+            train_data_files = config.train_data_path+ \
+                    "20{3}/netcdf/{0}_Hail_{1}_NEP_{2}_{3}_Hours_{4}-{5}.nc".format(
+                        config.ensemble_name, config.forecast_model_names,size,date,
+                        config.start_hour,config.end_hour)
+                
+            if config.sector:
+                lsr_data_files = config.target_data_path+'lsr/{0}_{1}_{2}_mask.nc'.format(
+                            date,size,config.sector)
+                pp_data_files = config.target_data_path+'pp/pperf40km_rlog_20{0}.nc'.format(
+                            date,config.sector)
+                
+            else:
+                lsr_data_files = config.target_data_path+'lsr/{0}_{1}_mask.nc'.format(date,size)
+                pp_data_files = config.target_data_path+'pp/pperf40km_rlog_20{0}.nc'.format(date)
+            
+            if os.path.exists(train_data_files) & os.path.exists(lsr_data_files):
+                train_files.append(train_data_files)
+                lsr_files.append(lsr_data_files)
+                pp_files.append(pp_data_files)
+            
+            else:
+                continue
+            
+        t_data = [Dataset(x).variables["Data"][:] for x in train_files]
+        
+        data_chunks = int(len(t_data)/4)
+   
+        t_chunk_data  = [np.array(t_data[i:i+data_chunks]).flatten() 
+                    for i in range(0,len(t_data),data_chunks)]
+        train_data = np.array(t_chunk_data).flatten()
+        
+        if size < 50: 
+            p_data = [Dataset(x).variables["20_Hour_All_16z_12z"][:] for x in pp_files]     
+        else:
+            p_data = [Dataset(x).variables["20_Hour_Sig_16z_12z"][:] for x in pp_files]
+        
+        p_chunk_data = [np.array(p_data[i:i+data_chunks]).flatten() 
+                        for i in range(0,len(p_data),data_chunks)]
+        pp_data = np.array(p_chunk_data).flatten()
+    
+
+        l_data = [Dataset(x).variables["24_Hour_All_12z_12z"][:] for x in lsr_files]        
+        lsr_chunk_data = [np.array(l_data[i:i+data_chunks]).flatten() 
+                        for i in range(0,len(l_data),data_chunks)]
+        lsr_data = np.array(lsr_chunk_data).flatten()
+        print("Training {0} data".format(size))
+        
+        for ind,model_name in enumerate(config.calibration_model_names):
+            pp_calib_models[size][model_name] = deepcopy(config.calibration_model_objs[ind])
+            pp_calib_models[size][model_name].fit(np.array(t_chunk_data).flatten(), 
+                                                np.array(p_chunk_data).flatten())
+
+            lsr_calib_models[size][model_name] = deepcopy(config.calibration_model_objs[ind])
+            lsr_calib_models[size][model_name].fit(train_data,lsr_data)
+    pool.close()
+    pool.join()
+    
+    return[pp_calib_models,lsr_calib_models]
+
+
+
+def saving_cali_models(target_models,config):
+
+    """
+    Save calibration machine learning models to pickle files.
+
+    Args:
+        target_models(list): list of target models for calibration
+    """
+    
+    print('Saving Models')
+    if config.size_threshold:
+        for index, target_dataset_model in enumerate(target_models):
+            for size, calibration_model in target_dataset_model.items():
+                for model_name, model_objs in calibration_model.items():
+                    out_cali_filename = config.model_path + \
+                                    '{0}_{1}_{2}mm_calibration.pkl'.format(
+                                    model_name.replace(" ", "-"),
+                                    config.target_data_names[index],size)
+                    
+                    print('Writing out: {0}'.format(out_cali_filename)) 
+
+                    with open(out_cali_filename, "wb") as pickle_file:
+                        pickle.dump(model_objs, 
+                        pickle_file,
+                        pickle.HIGHEST_PROTOCOL)
+                    
+    return
+
+
+
+def load_cali_models(config):
+    """
+    Load calibration models from pickle files.
+    """
+    print()
+    print("Load models")
+
+    pp_cali_model = {}
+    lsr_cali_model = {}
+    
+    pp_calibration_model_files = sorted(glob(config.model_path + "*pp*_calibration.pkl"))
+    lsr_calibration_model_files = sorted(glob(config.model_path + "*lsr*_calibration.pkl"))
+
+    for size in config.size_threshold:
+        
+        pp_cali_model[size] = {}
+        lsr_cali_model[size] = {}
+
+        for model_name in config.calibration_model_names:
+            if len(pp_calibration_model_files) > 0:
+                for pp_file in pp_calibration_model_files:
+                    with open(pp_file,"rb") as pp_cmf:
+                        pp_cali_model[size][model_name] = pickle.load(pp_cmf)            
+
+            if len(lsr_calibration_model_files) > 0:
+                for lsr_file in lsr_calibration_model_files:
+                    with open(lsr_file,"rb") as lsr_cmf:
+                        lsr_cali_model[size][model_name] = pickle.load(lsr_cmf)
+
+    return pp_cali_model, lsr_cali_model
+
+
+def create_calibration_forecasts(pp_models,lsr_models,config):
+    
+    """
+    Generate  calibrated predictions. 
+    
+    Returns:
+        Two dictionaries containing practically perfect (pp) and local
+        storm report (lsr) calibrated forecast values. 
+    """
+ 
+    run_dates = pd.DatetimeIndex(start=config.start_dates["forecast"],
+                                 end=config.end_dates["forecast"],
+                                 freq='1D').strftime(config.run_date_format)
+
+    print('Forecast run date(s): {0}'.format(run_dates))
+    
+    train_data = {}
+    pp_calibrated_forecasts = {}
+    lsr_calibrated_forecasts = {}
+
+    print('Loading forecast data')
+    print('Creating calibrated forecast')
+
+    if config.size_threshold:
+        for size in config.size_threshold:
+            train_file = []
+            pp_calibrated_forecasts[size] = {}
+            lsr_calibrated_forecasts[size] = {}
+            
+            for date in run_dates: 
+                train_data_files = config.train_data_path+\
+                    "20{3}/netcdf/{0}_Hail_{1}_NEP_{2}_{3}_Hours_{4}-{5}.nc".format(
+                    config.ensemble_name, config.forecast_model_names,size,date,
+                    config.start_hour,config.end_hour)
+            
+                if os.path.exists(train_data_files): 
+                    train_file.append(train_data_files)
+            
+            
+            t_data = [Dataset(x).variables["Data"][:] for x in train_file]
+            train_data[size]=np.concatenate(t_data).flatten()
+            
+            for model_name in config.calibration_model_names:
+                #pp_calibrated_forecasts[size][model_name] =\  
+                #pp_models[size][model_name].transform(train_data[size])
+                
+                lsr_calibrated_forecasts[size][model_name] =\
+                lsr_models[size][model_name].transform(train_data[size]) 
+               
+                data_shape = (len(run_dates),np.shape(t_data[0])[0],np.shape(t_data[0])[1])
+                #pp_calibrated_forecasts[size][model_name].reshape(np.shape(t_data[0]))
+                predict = lsr_calibrated_forecasts[size][model_name].reshape(data_shape)
+               
+                
+                m  = Basemap(projection='lcc',
+                    area_thresh=1000.,
+                    resolution="l",
+                    lon_0=262.5,
+                    lat_0=38.5,
+                    lat_1=38.5,
+                    lat_2=38.5,
+                    llcrnrlon=237.28,
+                    llcrnrlat=21.138,
+                    urcrnrlon=299.08216099,
+                    urcrnrlat=47.84237791)
+
+                m.drawcoastlines()
+                m.drawstates()
+                m.drawcountries()
+                m.fillcontinents(color='gray',alpha=0.2)
+             
+                y1 = np.arange(0,np.shape(t_data[0])[0]*3000,3000)
+                x1 = np.arange(0,np.shape(t_data[0])[1]*3000,3000)
+
+                x1, y1 = np.meshgrid(x1, y1)
+
+                x1 = x1[::14, ::14]
+                y1 = y1[::14, ::14]
+
+                predict = predict[0][::14, ::14]
+                
+                cmap = matplotlib.colors.ListedColormap(['#DBC6BD','#AD8877','#FCEA8D', 'gold','#F76E67','#F2372E',
+                                                        '#F984F9','#F740F7','#AE7ADD','#964ADB',
+                                                        '#99CCFF', '#99CCFF','#3399FF'])
+                        
+                levels = [0.01,0.05,0.15, 0.225, 0.30, 0.375, 0.45, 0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
+                
+                plt.contourf(x1,y1,predict,cmap=cmap,levels=levels)
+                cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+                cbar.set_ticks([0.01,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
+                cbar.set_ticklabels([1,5,15,30,45,60,80,100])
+
+                plt.show()
+
+
+
+    return pp_calibrated_forecasts, lsr_calibrated_forecasts 
+
+def plotting(forecasts):
+                m  = Basemap(projection='lcc',
+                    area_thresh=1000.,
+                    resolution="l",
+                    lon_0=262.5,
+                    lat_0=38.5,
+                    lat_1=38.5,
+                    lat_2=38.5,
+                    llcrnrlon=237.28,
+                    llcrnrlat=21.138,
+                    urcrnrlon=299.08216099,
+                    urcrnrlat=47.84237791)
+
+                m.drawcoastlines()
+                m.drawstates()
+                m.drawcountries()
+                m.fillcontinents(color='gray',alpha=0.2)
+             
+                y1 = np.arange(0,np.shape(t_data[0])[0]*3000,3000)
+                x1 = np.arange(0,np.shape(t_data[0])[1]*3000,3000)
+
+                x1, y1 = np.meshgrid(x1, y1)
+
+                x1 = x1[::14, ::14]
+                y1 = y1[::14, ::14]
+
+                predict = predict[0][::14, ::14]
+                
+                cmap = matplotlib.colors.ListedColormap(['#DBC6BD','#AD8877','#FCEA8D', 'gold','#F76E67','#F2372E',
+                                                        '#F984F9','#F740F7','#AE7ADD','#964ADB',
+                                                        '#99CCFF', '#99CCFF','#3399FF'])
+                        
+                levels = [0.01,0.05,0.15, 0.225, 0.30, 0.375, 0.45, 0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
+                
+                plt.contourf(x1,y1,predict,cmap=cmap,levels=levels)
+                cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+                cbar.set_ticks([0.01,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
+                cbar.set_ticklabels([1,5,15,30,45,60,80,100])
+
+                plt.show()
+
+    return
+
+def output_forecasts(pp_forecast, lsr_forecast, config):
+    
+    
+    
+    return
+
+if __name__ == "__main__":
+    main()
