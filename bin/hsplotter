@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/tmp/aburke/miniconda3/envs/hail/bin/python
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -45,7 +45,7 @@ def main():
     end_date = pd.Timestamp(args.end).to_pydatetime()
     ensemble_members = args.members.split(",")
     neighbor_radius = 42.0
-    neighbor_smoothing = 1.0
+    neighbor_smoothing = 14 #number of gridpoints 
     thresholds = np.array([25, 50])
     stride = 1
    
@@ -57,14 +57,14 @@ def main():
             print("Output grib2 files")
             output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,
                                 neighbor_radius,neighbor_smoothing,thresholds,stride)
-            for time in range(0,21):
+            for time in range(5,10):
                 output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
                                    neighbor_radius,neighbor_smoothing,thresholds,stride)                             
         if args.netcdf_out:
             print("Output netcdf files")
             output_netcdf_files(forecast_grid,0,24,args.out,neighbor_radius,
                                 neighbor_smoothing,thresholds,stride)
-            for time in range(0,21):
+            for time in range(5,10):
                 output_netcdf_files(forecast_grid,time,(time+4),args.out,neighbor_radius,
                                      neighbor_smoothing,thresholds,stride)
 
@@ -83,7 +83,7 @@ def main():
                                                      stride, args.out,0,24)
 
                 print("Hourly plots: neighborhood probability, ensemble_max")
-                for time in range(0,21):
+                for time in range(5,10):
                     plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
                                             forecast_grid, bmap_full, args.out)
 
@@ -306,7 +306,6 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
                                          start_time,end_time,figsize=(10, 6),
                                          contours=np.concatenate((np.array([0.01, 0.05]), np.arange(0.1, 1.1, 0.1))),
                                          cmap="RdPu"):
-    stride = 14
     for threshold in thresholds:
         plt.figure(figsize=figsize)
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing,threshold,stride,start_time,end_time)
@@ -343,7 +342,7 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
             forecast_grid.variable.capitalize(),
             int(threshold),
             int(radius),
-            int(smoothing),
+            int(smoothing*3),
             forecast_grid.start_date.strftime("%d %b %Y")),
             fontweight="bold",
             fontsize=10)
@@ -352,7 +351,7 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
             forecast_grid.ml_model,
             int(threshold),
             int(radius),
-            int(smoothing),
+            int(smoothing*3),
             forecast_grid.start_date.strftime("%y%m%d"),
             (start_time+12),(end_time+12))
         plt.savefig(filename,

@@ -21,8 +21,6 @@ class ModelGrid(object):
             start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
             end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
             freqency (str): spacing between model time steps.
-            mapping_data(str):File specifying the projection information.
-            sector_ind_data_path (str): Path to the indices associated with lat/lon sector data
             valid_dates(dattime.datetime): DatetimeIndex of all model timesteps
             forecast_hours(array): array of all hours in the forecast
             file_objects (list): List of the file objects for each model time step
@@ -34,8 +32,6 @@ class ModelGrid(object):
                  end_date,
                  variable,
                  member,
-                 mapping_data,
-                 sector_ind_data_path,
                  frequency="1H"):
         self.filenames = filenames
         self.variable = variable
@@ -49,8 +45,6 @@ class ModelGrid(object):
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
         self.member = member
-        self.mapping_data = mapping_data
-        self.sector_ind_data_path = sector_ind_data_path
         self.__enter__()
         self.data = None
         self.lat = None
@@ -176,44 +170,7 @@ class ModelGrid(object):
             else:
                 data[f] = data_values[:]
         
-
-        x, y = proj(lon,lat)
-        
-        out_x = self.mapping_data["x"]
-        out_y = self.mapping_data["y"]
-        
-        if x.shape == out_x.shape:
-                out_data = data
-
-        else:
-            
-            out_data = np.zeros((data.shape[0], out_x.shape[0], out_x.shape[1]))
-            sector_filename = self.sector_ind_data_path+'sector_data_indices.csv'
-            
-            if os.path.exists(sector_filename):
-                inds_file = pd.read_csv(sector_filename)
-                inds = inds_file.loc[:,'indices']
-                
-                for d in range(data.shape[0]):
-                    out_data[d] = data[d].flatten()[inds].reshape(out_x.shape)
-                
-            else:
-
-                in_ = np.c_[x.ravel(),y.ravel()]
-                out_ = np.c_[out_x.ravel(), out_y.ravel()]
-        
-                sector_data_tree = cKDTree(in_)
-                dist, inds = sector_data_tree.query(out_,k=1)
-                inds_dataframe = pd.DataFrame(data=inds,columns=['indices'])
-                
-                if self.sector_ind_data_path:
-                    inds_dataframe.to_csv(sector_filename,index=False)
-                    print('Writing out sector indices to {0}'.format(sector_filename))
-
-                for d in range(data.shape[0]):
-                    out_data[d] = data[d].flatten()[inds].reshape(out_x.shape)
-        
-        return out_data, units
+        return data, units
         
     def __exit__(self):
         """
@@ -240,13 +197,12 @@ class HREFv2ModelGrid(ModelGrid):
         start_date (datetime.datetime object): First time step extracted.
         end_date (datetime.datetime object): Last time step extracted.
         path (str): Path to model output files
-        sector_ind_path (str): Path to the indices associated with lat/lon sector data
         single_step (boolean (default=True): Whether variable information is stored with each time step in a separate
                 file (True) or one file containing all timesteps (False).
     """
 
     def __init__(self, member, run_date, variable, start_date, 
-                end_date, path, mapping_data, sector_ind_path, single_step=True):
+                end_date, path,single_step=True):
         self.path = path
         self.member = member
         filenames = []
@@ -289,5 +245,5 @@ class HREFv2ModelGrid(ModelGrid):
                     filenames.append(file)
 
         super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, 
-                                            variable, member, mapping_data, sector_ind_path)
+                                            variable, member)
         return

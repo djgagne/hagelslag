@@ -24,7 +24,6 @@ class ModelOutput(object):
         start_date (datetime.datetime): Date of the first timestep loaded.
         end_date (datetime.datetime): Date of the last timestep loaded.
         path (str): Path to model output
-        sector_ind_path (str): Path to the indices associated with lat/lon sector data
         single_step (bool): If true, each model timestep is in a separate file
             If false, all timesteps are together in the same file.
 
@@ -39,7 +38,6 @@ class ModelOutput(object):
                  end_date,
                  path,
                  map_file,
-                 sector_ind_path,
                  single_step=True):
         self.ensemble_name = ensemble_name
         self.member_name = member_name
@@ -53,7 +51,6 @@ class ModelOutput(object):
         self.valid_dates = None
         self.path = path
         self.map_file = map_file
-        self.sector_ind_path = sector_ind_path
         self.lat = None
         self.lon = None
         self.x = None
@@ -128,18 +125,12 @@ class ModelOutput(object):
             self.data, self.units = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "HREFV2":
-
-            proj_dict, grid_dict = read_ncar_map_file(self.map_file)
-            mapping_data = make_proj_grids(proj_dict, grid_dict)     
-
             mg = HREFv2ModelGrid(self.member_name,
                                self.run_date,
                                self.variable,
                                self.start_date,
                                self.end_date,
                                self.path,
-                               mapping_data,
-                               self.sector_ind_path,
                                single_step=self.single_step)
 
             self.data, self.units = mg.load_data()
