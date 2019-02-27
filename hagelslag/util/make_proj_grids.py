@@ -1,7 +1,4 @@
-try:
-    from mpl_toolkits.basemap.pyproj import Proj
-except ImportError:
-    from pyproj import Proj
+from pyproj import Proj
 import numpy as np
 
 

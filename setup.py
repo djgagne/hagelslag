@@ -21,7 +21,6 @@ else:
                 "matplotlib>=1.5",
                 "netCDF4",
                 "scikit-learn>=0.16",
-                "basemap",
                 "scikit-image",
                 "pyproj",
                 "pygrib",

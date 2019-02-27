@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+import matplotlib
+
+matplotlib.use("Qt4Agg")
+from PySide import QtGui, QtCore
+from hagelslag.processing.STObject import read_geojson
+from datetime import datetime
+import matplotlib.pyplot as plt
+from glob import glob
+import sys
+import numpy as np
+
+
+def load_storm_objects(path, run_date, member, model_format):
+    storm_tracks = []
+    model_files = sorted(glob(path + run_date.strftime("%Y%m%d/") + member + "/" + model_format + "*.json"))
+    for model_file in model_files:
+        storm_tracks.append(read_geojson(model_file))
+    return storm_tracks
+
+
+def get_storm_polygons(storm_tracks):
+    storm_polygons = []
+    bounds = np.zeros(4)
+    for storm_track in storm_tracks:
+        x_min = np.array([storm_track.x[t].min() for t in range(len(storm_track.x))]).min()
+        y_min = np.array([storm_track.y[t].min() for t in range(len(storm_track.y))]).min()
+        x_max = np.array([storm_track.x[t].max() for t in range(len(storm_track.x))]).max()
+        y_max = np.array([storm_track.y[t].max() for t in range(len(storm_track.y))]).max()
+        bounds[0] = np.minimum(x_min, bounds[0])
+        bounds[1] = np.minimum(y_min, bounds[1])
+        bounds[2] = np.maximum(x_max, bounds[2])
+        bounds[3] = np.maximum(y_max, bounds[3])
+        poly_series = [storm_track.boundary_polygon(time) for time in storm_track.times]
+        storm_polygons.append([])
+        for poly in poly_series:
+            points = [QtCore.QPointF(p[0], p[1]) for p in poly.T[::-1]]
+            storm_polygons[-1].append(QtGui.QPolygonF())
+            for t in range(len(points)):
+                storm_polygons[-1][-1].append(points[t])
+            storm_polygons[-1][-1].append(points[0])
+    return storm_polygons, bounds
+
+
+class JumpingRect(QtGui.QGraphicsRectItem):
+    def __init__(self, *args, **kwargs):
+        super(JumpingRect, self).__init__(*args, **kwargs)
+
+    def mouseReleaseEvent(self, pos):
+        if not self.contains(pos - self.pos().toPoint()):
+            self.setPos(pos)
+
+
+class Viewer(QtGui.QGraphicsView):
+    def __init__(self, *args, **kwargs):
+        super(Viewer, self).__init__(*args, **kwargs)
+        self.init_ui()
+
+    def init_ui(self):
+        self.scene = QtGui.QGraphicsScene(0, 0, 600, 600, parent=self)
+        self.setScene(self.scene)
+        px = QtGui.QPixmap.fromImage(img.scaled(300, 600))
+        self.pxi = QtGui.QGraphicsPixmapItem(px, scene=self.scene)
+        self.pxi.setOffset(10, 100)
+        self.rect = JumpingRect(0, 0, 100, 200, scene=self.scene)
+        grad = QtGui.QRadialGradient(QtCore.QPointF(50, 100), 100)
+        grad.setColorAt(0, QtCore.Qt.darkRed)
+        grad.setColorAt(1, QtCore.Qt.cyan)
+        brush = QtGui.QBrush(grad)
+
+        self.rect.setBrush(brush)
+
+        print self.rect
+        self.show()
+
+    def mouseReleaseEvent(self, qme):
+        pos = qme.pos()
+        self.rect.mouseReleaseEvent(pos)
+
+
+class StormViewer(QtGui.QGraphicsView):
+    def __init__(self, bounds, *args, **kwargs):
+        print bounds
+        super(StormViewer, self).__init__(*args, **kwargs)
+        self.setGeometry(0, 0, 700, 700)
+        self.scene = QtGui.QGraphicsScene(bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1],
+                                          parent=self)
+        self.setScene(self.scene)
+
+        self.scale_vals = np.array([1 / 2000.0, 1 / 1000.0, 1 / 100.0, 1 / 10.0, 1])
+        self.scale_index = 0
+        self.scale(self.scale_vals[self.scale_index],
+                   self.scale_vals[self.scale_index])
+        self.show()
+
+    def addStorms(self, storms, color):
+        for storm in storms:
+            for sp in storm:
+                self.scene.addPolygon(sp, brush=color)
+                # def wheelEvent(self, e):
+                #    steps = e.delta() / 15
+                #    if steps > 0 and self.scale_index < self.scale_vals.size-1:
+                #        self.scale_index += 1
+                #        self.scale(self.scale_vals[self.scale_index],
+                #                   self.scale_vals[self.scale_index])
+                #        self.centerOn(self.mapToScene(e.pos()))
+                #    elif steps < 0 and self.scale_index > 0:
+                #        self.scale_index -= 1
+                #        self.scale(self.scale_vals[self.scale_index],
+                #                   self.scale_vals[self.scale_index])
+                #        self.centerOn(self.mapToScene(e.pos()))
+
+
+def main():
+    json_path = "/Users/djgagne/research/track_data_spring2015_unique_json/"
+    run_date = datetime(2015, 5, 27)
+    members = ["wrf-s3cn_arw", "wrf-s3m8_arw"]
+    colors = [QtGui.QBrush(QtCore.Qt.red), QtGui.QBrush(QtCore.Qt.blue)]
+    model_format = "SSEF"
+    storm_polygons = {}
+
+    app = QtGui.QApplication(sys.argv)
+    widget = QtGui.QWidget()
+    widget.setWindowTitle("Hagelslag Storm Viewer")
+    widget.setGeometry(0, 0, 800, 700)
+    widget.show()
+    for member in members:
+        storm_objects = load_storm_objects(json_path, run_date, member, model_format)
+        storm_polygons[member], bounds = get_storm_polygons(storm_objects)
+    viewer = StormViewer(bounds, parent=widget)
+    for m, member in enumerate(members):
+        viewer.addStorms(storm_polygons[member], colors[m])
+    viewer.move(QtCore.QPoint(50, 50))
+    sys.exit(app.exec_())
+    return
+
+if __name__ == "__main__":
+    main()

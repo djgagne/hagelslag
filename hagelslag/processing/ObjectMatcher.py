@@ -45,7 +45,7 @@ class ObjectMatcher(object):
         assignments = []
         if len(good_rows) > 0 and len(good_cols) > 0:
             munk = Munkres()
-            initial_assignments = munk.compute(costs[np.meshgrid(good_rows, good_cols, indexing='ij')].tolist())
+            initial_assignments = munk.compute(costs[tuple(np.meshgrid(good_rows, good_cols, indexing='ij'))].tolist())
             initial_assignments = [(good_rows[x[0]], good_cols[x[1]]) for x in initial_assignments]
             for a in initial_assignments:
                 if costs[a[0], a[1]] < 100:
