@@ -32,7 +32,10 @@ class ModelGrid(object):
                  end_date,
                  variable,
                  member,
+                 mapping_data,
+                 sector_ind_path,
                  frequency="1H"):
+
         self.filenames = filenames
         self.variable = variable
         self.run_date = np.datetime64(run_date)
@@ -45,6 +48,8 @@ class ModelGrid(object):
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
         self.member = member
+        self.mapping_data = mapping_data
+        self.sector_ind_path = sector_ind_path
         self.__enter__()
         self.data = None
         self.lat = None
@@ -111,8 +116,11 @@ class ModelGrid(object):
         member = self.member
         lat = self.lat
         lon = self.lon
-
-    
+      
+        if self.sector_ind_path:
+            inds_file = pd.read_csv(self.sector_ind_path+'sector_data_indices.csv') 
+            inds = inds_file.loc[:,'indices']  
+        out_x = self.mapping_data["x"]
         
         if not file_objects:
             print()
@@ -126,8 +134,8 @@ class ModelGrid(object):
             grib = pygrib.open(file)
             if type(var) is int:
                 data_values = grib[var].values
-                lat, lon = grib[var].latlons()
-                proj  = Proj(grib[var].projparams)
+                #lat, lon = grib[var].latlons()
+                #proj = Proj(grib[var].projparams)
                 if grib[var].units == 'unknown':
                     Id = grib[var].parameterNumber
                     units = self.unknown_units[Id] 
@@ -140,20 +148,20 @@ class ModelGrid(object):
                     if variable in unknown_names.values():
                         Id, units = self.format_grib_name(variable)
                         data_values = grib.select(parameterNumber=Id, level=level)[0].values
-                        lat, lon =  grib.select(parameterNumber=Id, level=level)[0].latlons()
-                        proj = Proj(grib.select(parameterNumber=Id, level=level)[0].projparams)
+                        #lat, lon =  grib.select(parameterNumber=Id, level=level)[0].latlons()
+                        #proj = Proj(grib.select(parameterNumber=Id, level=level)[0].projparams)
 
                     else:
                         data_values = grib.select(name=variable, level=level)[0].values
                         units = grib.select(name=variable, level=level)[0].units
-                        lat, lon  = grib.select(name=variable, level=level)[0].latlons()
-                        proj = Proj(grib.select(name=variable, level=level)[0].projparams)
+                        #lat, lon  = grib.select(name=variable, level=level)[0].latlons()
+                        #proj = Proj(grib.select(name=variable, level=level)[0].projparams)
                 else:
                     if var in unknown_names.values():
                         Id, units = self.format_grib_name(var)
                         data_values = grib.select(parameterNumber=Id)[0].values
-                        lat, lon = grib.select(parameterNumber=Id)[0].latlons() 
-                        proj = Proj(grib.select(parameterNumber=Id)[0].projparams)
+                        #lat, lon = grib.select(parameterNumber=Id)[0].latlons() 
+                        #proj = Proj(grib.select(parameterNumber=Id)[0].projparams)
 
                     elif len(grib.select(name=var)) > 1:
                         raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(var))
@@ -161,14 +169,20 @@ class ModelGrid(object):
                     else:
                         data_values = grib.select(name=var)[0].values
                         units = grib.select(name=var)[0].units
-                        lat, lon = grib.select(name=var)[0].latlons()
-                        proj = Proj(grib.select(name=var)[0].projparams)
+                        #lat, lon = grib.select(name=var)[0].latlons()
+                        #proj = Proj(grib.select(name=var)[0].projparams)
 
             if data is None:
-                data = np.empty((len(valid_date), data_values.shape[0], data_values.shape[1]), dtype=float)
-                data[f] = data_values[:]
+                data = np.empty((len(valid_date), out_x.shape[0], out_x.shape[1]), dtype=float)
+                if self.sector_ind_path:
+                    data[f] = data_values[:].flatten()[inds].reshape(out_x.shape)
+                else:
+                    data[f]=data_values[:]
             else:
-                data[f] = data_values[:]
+                if self.sector_ind_path:
+                    data[f] = data_values[:].flatten()[inds].reshape(out_x.shape)
+                else:
+                    data[f]=data_values[:]
         
         return data, units
         
@@ -202,7 +216,7 @@ class HREFv2ModelGrid(ModelGrid):
     """
 
     def __init__(self, member, run_date, variable, start_date, 
-                end_date, path,single_step=True):
+                end_date, path,mapping_data,sector_ind_path,single_step=True):
         self.path = path
         self.member = member
         filenames = []
@@ -245,5 +259,5 @@ class HREFv2ModelGrid(ModelGrid):
                     filenames.append(file)
 
         super(HREFv2ModelGrid, self).__init__(filenames, run_date, start_date, end_date, 
-                                            variable, member)
+                                            variable, member,mapping_data,sector_ind_path)
         return

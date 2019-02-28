@@ -281,7 +281,6 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                 ep.model_name = model_name
                 ep.load_forecast_csv_data(forecast_csv_path)
                 ep.load_forecast_netcdf_data(netcdf_path)
-                
                 try:
                     ep.quantile_match()
                     #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
@@ -291,7 +290,7 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                             os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
                         except OSError:
                             pass
-                    ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("/%Y%m%d/"))
+                    ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("%Y%m%d/"))
                 except:
                     print("No {0} {1} netcdf files found".format(run_date.strftime("%Y%m%d"),member))
         else:

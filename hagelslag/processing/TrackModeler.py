@@ -8,7 +8,7 @@ from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
-from hagelslag.evaluation import DistributedROC
+from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
 from os.path import join
 from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
 
