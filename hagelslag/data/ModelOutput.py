@@ -38,7 +38,7 @@ class ModelOutput(object):
                  end_date,
                  path,
                  map_file,
-                 sector_ind_path,
+                 sector_ind_path=None,
                  single_step=True):
         self.ensemble_name = ensemble_name
         self.member_name = member_name
