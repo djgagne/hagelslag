@@ -55,6 +55,7 @@ class TrackProcessor(object):
                  track_matcher_params,
                  size_filter,
                  gaussian_window,
+                 sector_ind_path,
                  match_steps=True,
                  mrms_path=None,
                  mrms_variable=None,
@@ -81,13 +82,14 @@ class TrackProcessor(object):
             self.track_step_matcher = None
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
+        self.sector_ind_path = sector_ind_path
         self.model_path = model_path
         self.model_map_file = model_map_file
         self.mrms_path = mrms_path
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, self.model_map_file,
-                                      single_step=self.single_step)
+                                      self.sector_ind_path,single_step=self.single_step)
         self.model_grid.load_map_info(self.model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
@@ -273,12 +275,18 @@ class TrackProcessor(object):
         tracked_obs_objects = []
         if self.mrms_ew is not None:
             self.mrms_grid.load_data()
+            
+            if len(self.mrms_grid.data) != len(self.hours):
+                print('Less than 24 hours of observation data found')
+                
+                return tracked_obs_objects
+         
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
                 mrms_data[mrms_data < 0] = 0
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
-                                                                                          self.gaussian_window)),
+                                                                                      self.gaussian_window)),
                                                        self.size_filter)
                 hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
                 obj_slices = find_objects(hour_labels)
@@ -316,6 +324,7 @@ class TrackProcessor(object):
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
+        
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
@@ -369,7 +378,8 @@ class TrackProcessor(object):
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
                                                  self.run_date, storm_var, self.start_date - timedelta(hours=1),
                                                  self.end_date + timedelta(hours=1),
-                                                 self.model_path,self.model_map_file, self.single_step)
+                                                 self.model_path,self.model_map_file, 
+                                                 self.sector_ind_path,self.single_step)
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
@@ -382,7 +392,8 @@ class TrackProcessor(object):
                                                          self.run_date, potential_var,
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
-                                                         self.model_path, self.model_map_file, self.single_step)
+                                                         self.model_path, self.model_map_file, 
+                                                         self.sector_ind_path,self.single_step)
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
@@ -395,7 +406,8 @@ class TrackProcessor(object):
                                                          self.run_date, future_var,
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
-                                                         self.model_path, self.single_step)
+                                                         self.model_path, self.model_map_file,
+                                                         self.sector_ind_path,self.single_step)
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[future_var], future=True)
@@ -408,7 +420,8 @@ class TrackProcessor(object):
                                                         self.run_date, tendency_var,
                                                         self.start_date - timedelta(hours=1),
                                                         self.end_date,
-                                                        self.model_path, self.model_map_file, self.single_step)
+                                                        self.model_path, self.model_map_file, 
+                                                        self.sector_ind_path,self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]

@@ -25,7 +25,7 @@ except ImportError("ncepgrib2 not available"):
 
 class EnsembleMemberProduct(object):
     def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step,
-                size_distribution_training_path,map_file=None, condition_model_name=None, condition_threshold=0.5):
+                size_distribution_training_path, watershed_obj, map_file=None, condition_model_name=None, condition_threshold=0.5):
         self.ensemble_name = ensemble_name
         self.model_name = model_name
         self.member = member
@@ -38,6 +38,7 @@ class EnsembleMemberProduct(object):
         self.path = path
         self.single_step = single_step
         self.size_distribution_training_path = size_distribution_training_path
+        self.watershed_obj = watershed_obj
         self.track_forecasts = None
         self.data = None
         self.map_file = map_file
@@ -153,33 +154,39 @@ class EnsembleMemberProduct(object):
         nc_file = join(nc_path, "{0}_{1}_{2}_model_patches.nc".format(self.ensemble_name,
                                                                       self.run_date.strftime("%Y%m%d-%H%M"),
                                                                       self.member))
-        print(nc_file)
-        nc_patches = Dataset(nc_file)
-        nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
+        if exists(nc_file):
+            print(nc_file)
+            nc_patches = Dataset(nc_file)
+            nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
                                              nc_patches.variables["time"].units))
-        time_indices = np.in1d(nc_times, self.times)
-        self.nc_patches = dict()
-        self.nc_patches["time"] = nc_times[time_indices]
-        self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
-        self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable + "_curr"][time_indices]
-        self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
-        self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
-        self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
-        nc_patches.close()
+            time_indices = np.in1d(nc_times, self.times)
+            self.nc_patches = dict()
+            self.nc_patches["time"] = nc_times[time_indices]
+            self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
+            self.nc_patches["obj_values"] = nc_patches.variables[nc_patches.object_variable + "_curr"][time_indices]
+            self.nc_patches["masks"] = nc_patches.variables["masks"][time_indices]
+            self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
+            self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
+            nc_patches.close()
+        
         return
 
     def quantile_match(self):
+        
         mask_indices = np.where(self.nc_patches["masks"] == 1)
         obj_values = self.nc_patches["obj_values"][mask_indices]
+        obj_values = np.array(obj_values)
         percentiles = np.linspace(0.1, 99.9, 100)
         
-        if self.size_distribution_training_path:
+        try:
+            filename = self.size_distribution_training_path + '{0}_{1}_Size_Distribution.csv'.format(self.ensemble_name,
+                                                                                                    self.watershed_obj)
 
-            train_period_obj_per_vals = pd.read_csv(self.size_distribution_training_path)
+            train_period_obj_per_vals = pd.read_csv(filename)
             train_period_obj_per_vals = train_period_obj_per_vals.loc[:,"Values"].values
             per_func = interp1d(train_period_obj_per_vals, percentiles / 100.0, 
                                 bounds_error=False, fill_value=(0.1, 99.9))
-        else:
+        except:
             obj_per_vals = np.percentile(obj_values, percentiles)
             per_func = interp1d(obj_per_vals, percentiles / 100.0, bounds_error=False, fill_value=(0.1, 99.9))
 
