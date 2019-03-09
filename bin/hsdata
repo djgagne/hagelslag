@@ -1,4 +1,4 @@
-#!/home/tmp/aburke/miniconda3/envs/hail/bin/python -u
+#!/usr/bin/env python
 import argparse, pdb
 from multiprocessing import Pool
 from hagelslag.util.Config import Config
