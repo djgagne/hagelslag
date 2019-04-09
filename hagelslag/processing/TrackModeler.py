@@ -8,8 +8,9 @@ from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
 from sklearn.linear_model import LinearRegression
-from hagelslag.evaluation import DistributedROC
+from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
 from os.path import join
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
 
 try:
     from sklearn.model_selection import KFold
@@ -31,6 +32,8 @@ class TrackModeler(object):
                  member_files,
                  start_dates,
                  end_dates,
+                 sector,
+                 map_file,
                  group_col="Microphysics"):
         self.train_data_path = train_data_path
         self.forecast_data_path = forecast_data_path
@@ -45,7 +48,16 @@ class TrackModeler(object):
         self.track_models = {"translation-x": {},
                              "translation-y": {},
                              "start-time": {}}
+        self.sector = sector
+        self.map_file = map_file
         self.group_col = group_col
+            
+        if self.map_file[-3:] == "map":                                  
+            self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
+        else:                                               
+            self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)   
+            
+        
         return
 
     def load_data(self, mode="train", format="csv"):
@@ -145,16 +157,35 @@ class TrackModeler(object):
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
+        
+        weights = None
+
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group] 
+            if self.sector:
+        
+                lon_obj = data.loc[:,'Centroid_Lon']
+                lat_obj = data.loc[:,'Centroid_Lat']
+
+                left_lon,right_lon = self.grid_dict["sw_lon"],self.grid_dict["ne_lon"]
+                lower_lat,upper_lat = self.grid_dict["sw_lat"],self.grid_dict["ne_lat"]
+
+                weights = np.where((left_lon<=lon_obj)&(right_lon>=lon_obj) &\
+                    (lower_lat<=lat_obj)&(upper_lat>=lat_obj),1,0.3)
+            
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
             for m, model_name in enumerate(model_names):
                 print(model_name)
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
-                self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
+                try:
+                    self.condition_models[group][model_name].fit(group_data[input_columns], 
+                                output_data,sample_weight=weights)
+                except:
+                    self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
+
                 if hasattr(self.condition_models[group][model_name], "best_estimator_"):
                     print(self.condition_models[group][model_name].best_estimator_)
                     print(self.condition_models[group][model_name].best_score_)
@@ -178,33 +209,86 @@ class TrackModeler(object):
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
+        
+        weights=None
+
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].iloc[
                 np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
+            
+            if self.sector:
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+            
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+            
+                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
+
+                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
+                weights = np.array(distance_0_1)
+        
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
-            print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
+            ones = np.count_nonzero(output_data > 0)
+            print("Ones: ", ones, "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
             num_elements = group_data[input_columns].shape[0]
+            
             for m, model_name in enumerate(model_names):
-                print(model_name)
+                print(model_name)    
                 roc = DistributedROC(thresholds=np.arange(0, 1.1, 0.01))
                 self.condition_models[group][model_name] = deepcopy(model_objs[m])
+
                 try:
                     kf = KFold(n_splits=num_folds)
+                    for train_index, test_index in kf.split(group_data[input_columns].values):
+                        if np.count_nonzero(output_data[train_index]) > 0:
+                            try:
+                                self.condition_models[group][model_name].fit(
+                                        group_data.iloc[train_index][input_columns],
+                                        output_data[train_index],sample_weight=weights[train_index])
+                            except:
+                                self.condition_models[group][model_name].fit(
+                                        group_data.iloc[train_index][input_columns],
+                                        output_data[train_index])
+                            
+                            cv_preds = self.condition_models[group][model_name].predict_proba(
+                                group_data.iloc[test_index][input_columns])[:,1]
+                            
+                            roc.update(cv_preds, output_data[test_index])
+                        
+                        else:
+                            continue
+
                 except TypeError:
                     kf = KFold(num_elements,n_folds=num_folds)
-                #for train_index, test_index in kf.split(group_data[input_columns].values):
-                for train_index, test_index in kf:
-                    self.condition_models[group][model_name].fit(group_data.iloc[train_index][input_columns],
-                                                                 output_data[train_index])
-                    cv_preds = self.condition_models[group][model_name].predict_proba(
-                        group_data.iloc[test_index][input_columns])[:, 1]
-                    roc.update(cv_preds, output_data[test_index])
+                    for train_index, test_index in kf:
+
+                        if np.count_nonzero(output_data[train_index]) > 0:
+                            try:
+                                self.condition_models[group][model_name].fit(
+                                        group_data.iloc[train_index][input_columns],
+                                        output_data[train_index],sample_weight=weights[train_index])
+                            except:
+                                self.condition_models[group][model_name].fit(
+                                        group_data.iloc[train_index][input_columns],
+                                        output_data[train_index])
+                            cv_preds = self.condition_models[group][model_name].predict_proba(
+                                group_data.iloc[test_index][input_columns])[:, 1]
+                            
+                            roc.update(cv_preds, output_data[test_index])
+                        
+                        else:
+                            continue
+
                 self.condition_models[group][
                     model_name + "_condition_threshold"], _ = roc.max_threshold_score(threshold_score)
                 print(model_name + " condition threshold: {0:0.3f}".format(
-                    self.condition_models[group][model_name + "_condition_threshold"]))
+                self.condition_models[group][model_name + "_condition_threshold"]))
                 self.condition_models[group][model_name].fit(group_data[input_columns], output_data)
 
     def predict_condition_models(self, model_names,
@@ -256,10 +340,29 @@ class TrackModeler(object):
         if output_columns is None:
             output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
+        
+        weights=None
+        
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data[group_data[output_columns[-1]] > 0]
+            if self.sector:
+        
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+            
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+            
+                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
+
+                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
+                weights = np.array(distance_0_1)
+
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
                 self.size_distribution_models[group]["calshape"] = {}
@@ -272,7 +375,12 @@ class TrackModeler(object):
             for m, model_name in enumerate(model_names):
                 print(group, model_name)
                 self.size_distribution_models[group]["multi"][model_name] = deepcopy(model_objs[m])
-                self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
+                try:
+                    self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
+                                                                              (log_labels - log_means) / log_sds,
+                                                                        sample_weight=weights)
+                except:
+                    self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                               (log_labels - log_means) / log_sds)
                 if calibrate:
                     training_predictions = self.size_distribution_models[
@@ -281,12 +389,15 @@ class TrackModeler(object):
                     self.size_distribution_models[group]["calshape"][model_name].fit(training_predictions[:, 0:1],
                                                                                      (log_labels[:, 0] - log_means[0]) /
                                                                                      log_sds[
-                                                                                         0])
+                                                                                         0],
+                                                                                    sample_weight=weights)
                     self.size_distribution_models[group]["calscale"][model_name] = LinearRegression()
                     self.size_distribution_models[group]["calscale"][model_name].fit(training_predictions[:, 1:],
                                                                                      (log_labels[:, 1] - log_means[1]) /
                                                                                      log_sds[
-                                                                                         1])
+                                                                                         1],
+                                                                            sample_weight=weights)
+
 
     def fit_size_distribution_component_models(self, model_names, model_objs, input_columns, output_columns):
         """
@@ -303,11 +414,32 @@ class TrackModeler(object):
 
         """
         groups = np.unique(self.data["train"]["member"][self.group_col])
+        
+        weights=None
+
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data[output_columns[-1]] > 0]
+            
+            if self.sector:
+        
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+            
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+            
+                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
+
+                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
+                weights = np.array(distance_0_1)
+
+            
             self.size_distribution_models[group] = {"lognorm": {}}
             self.size_distribution_models[group]["lognorm"]["pca"] = PCA(n_components=len(output_columns))
             log_labels = np.log(group_data[output_columns].values)
@@ -324,8 +456,14 @@ class TrackModeler(object):
                     print(model_name, comp)
                     self.size_distribution_models[group][
                         "pc_{0:d}".format(comp)][model_name] = deepcopy(model_objs[m])
-                    self.size_distribution_models[group][
-                        "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
+                    try:
+                        self.size_distribution_models[group][
+                            "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
+                                                                 out_pc_labels[:, comp],
+                                                            sample_weight=weights)
+                    except:
+                        self.size_distribution_models[group][
+                            "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
                                                                  out_pc_labels[:, comp])
         return
 
