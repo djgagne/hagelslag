@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+#!/home/tmp/aburke/miniconda3/envs/hail/bin/python
 import argparse
+from netCDF4 import Dataset
 from hagelslag.util.Config import Config
 from hagelslag.processing.TrackModeler import TrackModeler
 from multiprocessing import Pool, Manager
@@ -47,11 +48,10 @@ def main():
         if args.train:
 
             train_models(track_modeler, config)
-            
             training_data_percentiles(config.ensemble_members,
                                         config.ensemble_name,
                                         config.watershed_variable,
-                                        config.netcdf_path,
+                                        config.train_data_path,
                                         config.start_dates,
                                         config.end_dates,
                                         config.size_dis_training_path)
@@ -281,18 +281,15 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                 ep.model_name = model_name
                 ep.load_forecast_csv_data(forecast_csv_path)
                 ep.load_forecast_netcdf_data(netcdf_path)
-                try:
-                    ep.quantile_match()
-                    #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
-                    grib_objects = ep.encode_grib2_data()
-                    if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
-                        try:
-                            os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
-                        except OSError:
-                            pass
-                    ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("%Y%m%d/"))
-                except:
-                    print("No {0} {1} netcdf files found".format(run_date.strftime("%Y%m%d"),member))
+                ep.quantile_match()
+                #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
+                grib_objects = ep.encode_grib2_data()
+                if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
+                    try:
+                        os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
+                    except OSError:
+                        pass
+                ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("%Y%m%d/"))
         else:
             print("No model runs on " + run_date.strftime("%Y%m%d") + " " +  member)
     except Exception as e:
@@ -421,14 +418,14 @@ def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, 
     return
 
 
-def training_data_percentiles(members, ensemble_name, watershed_obj, training_data_path, 
-                                start_date, end_date, csv_outpath):
+def training_data_percentiles(member_list, ensemble_name, watershed_obj, training_data_path, 
+                                start_date, end_date, csv_outpath, sector_mask=None):
 
     """
     Creates watershed object distribution of sizes for a given set of training netcdf patches
 
     Args:
-            members (list of str): List of ensemble members in netcdf file
+            member_list (list of str): List of ensemble members in netcdf file
             ensemble_name (str): Name of ensemble member in netcdf file
             watershed_obj (str): Watershed object used in config files
             training_data_path (str): Path to netcdf files
@@ -441,36 +438,34 @@ def training_data_percentiles(members, ensemble_name, watershed_obj, training_da
             
     """
 
-
-    obj_data = dict()
     training_date = pd.DatetimeIndex(start=start_date["train"], end=end_date["train"], freq='1D').strftime("%Y%m%d")
 
     print('Creating Distribution of Watershed Object Sizes')
-    for m in members:
+    for member in member_list:
+        member_obj_data = []
         for date in training_date:
-            #print("Model: {0}, Date: {1}".format(m,date))
-            data_path = training_data_path+'{0}_{1}-0000_{2}_model_patches.nc'.format(ensemble_name,date,m)
+            data_path = training_data_path+'track_step_{0}_{1}_{2}-0000.csv'.format(
+                                ensemble_name,member,date)
             if exists(data_path):
-                dataset  = Dataset(data_path)
-                mask_index  = np.where(dataset.variables["masks"][:]==1)
-                obj_data["{0}_model".format(m)] = dataset.variables["{0}_curr".format(watershed_obj)][:]
-                obj_data["masked_model_{0}_{1}".format(m,date)] = obj_data["{0}_model".format(m)][mask_index]
+                dataset  = pd.read_csv(data_path)
+                matched_data = dataset.loc[:,"Matched"]
+                matched_hail_index  = np.where(matched_data == 1)[0]
+                member_obj_data.append(dataset.loc[matched_hail_index,"{0}_max".format(watershed_obj)])
 
-    obj_values = np.concatenate([obj_data["masked_model_{0}_{1}".format(mem,t)]\
-                                for mem in members for t in training_date if "masked_model_{0}_{1}".format(mem,t)\
-                                in obj_data.keys()], axis=0)
+        obj_values = np.concatenate(member_obj_data)
+        print() 
+        print('Number of {0} {1} model objects found: {2}'.format(watershed_obj,member,obj_values.shape[0]))
 
-    print('Number of {0} Objects Found: {1}'.format(watershed_obj,obj_values.shape[0]))
+        percentiles = np.linspace(0.1, 99.9, 100)
+        obj_percent_val = np.percentile(obj_values, percentiles)
+        dataframe_values = {'Obj_Values':obj_percent_val, 'Percentiles':percentiles}
+        obj_value_percentile = pd.DataFrame(data=dataframe_values)
+        if csv_outpath:
+            csv_path = csv_outpath+'{0}_{1}_{2}_Size_Distribution.csv'.format(ensemble_name,
+                                    watershed_obj,member)
+            obj_value_percentile.to_csv(csv_path, index=False)
 
-    percentiles = np.linspace(0.1, 99.9, 100)
-    obj_percent_val = np.percentile(obj_values, percentiles)
-    dataframe_values = {'Obj_Values':obj_percent_val, 'Percentiles':percentiles}
-    obj_value_percentile = pd.DataFrame(data=dataframe_values)
-    if csv_outpath:
-        csv_path = csv_outpath+'{0}_{1}_Size_Distribution.csv'.format(ensemble_name,watershed_obj)
-        obj_value_percentile.to_csv(csv_path, index=False)
-
-        print('Output csv: {0}'.format(csv_path))
+            print('Output csv: {0}'.format(csv_path))
     return
 
 

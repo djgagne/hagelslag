@@ -35,6 +35,7 @@ class TrackModeler(object):
                  sector,
                  map_file,
                  group_col="Microphysics"):
+        
         self.train_data_path = train_data_path
         self.forecast_data_path = forecast_data_path
         self.ensemble_name = ensemble_name
@@ -57,7 +58,6 @@ class TrackModeler(object):
         else:                                               
             self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)   
             
-        
         return
 
     def load_data(self, mode="train", format="csv"):
@@ -167,12 +167,16 @@ class TrackModeler(object):
         
                 lon_obj = data.loc[:,'Centroid_Lon']
                 lat_obj = data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                #center_lon, center_lat = self.sector_center_points.loc[0,"region_lon"] ,\
+                #        self.sector_center_points.loc[0,"region_lat"]
+            
+                distances = [np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points]
 
-                left_lon,right_lon = self.grid_dict["sw_lon"],self.grid_dict["ne_lon"]
-                lower_lat,upper_lat = self.grid_dict["sw_lat"],self.grid_dict["ne_lat"]
-
-                weights = np.where((left_lon<=lon_obj)&(right_lon>=lon_obj) &\
-                    (lower_lat<=lat_obj)&(upper_lat>=lat_obj),1,0.3)
+                weights = np.exp(-0.2*distances)*7.0
             
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
@@ -222,15 +226,14 @@ class TrackModeler(object):
                 lat_obj = group_data.loc[:,'Centroid_Lat']
                 
                 conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                #center_lon, center_lat = self.sector_center_points.loc[0,"region_lon"] ,\
+                #        self.sector_center_points.loc[0,"region_lat"]
             
                 distances = np.array([np.sqrt((x-center_lon)**2+\
                         (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
             
-                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
-
-                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
+                weights = np.exp(-0.2*distances)*7.0
         
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
             ones = np.count_nonzero(output_data > 0)
@@ -353,15 +356,14 @@ class TrackModeler(object):
                 lat_obj = group_data.loc[:,'Centroid_Lat']
                 
                 conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                #center_lon, center_lat = self.sector_center_points.loc[0,"region_lon"] ,\
+                #        self.sector_center_points.loc[0,"region_lat"]
             
                 distances = np.array([np.sqrt((x-center_lon)**2+\
                         (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
             
-                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
-
-                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
+                weights = np.exp(-0.2*distances)*7.0
 
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
@@ -429,16 +431,13 @@ class TrackModeler(object):
                 lat_obj = group_data.loc[:,'Centroid_Lat']
                 
                 conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"],self.proj_dict["lat_0"] 
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                        #sector_center_points.loc[0,"region_lon"] ,\
+                        #self.sector_center_points.loc[0,"region_lat"]
             
                 distances = np.array([np.sqrt((x-center_lon)**2+\
                         (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-            
-                min_dist, max_minus_min = min(distances),max(distances)-min(distances)
-
-                distance_0_1 = [1.0-((d - min_dist)/(max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
-
+                weights = np.exp(-0.2*distances)*7.0
             
             self.size_distribution_models[group] = {"lognorm": {}}
             self.size_distribution_models[group]["lognorm"]["pca"] = PCA(n_components=len(output_columns))

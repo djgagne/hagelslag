@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/tmp/aburke/miniconda3/envs/hail/bin/python
 from netCDF4 import Dataset
 from glob import glob
 from multiprocessing import Pool
@@ -28,15 +28,15 @@ def main():
     parser.add_argument("config", help="Configuration file") 
     parser.add_argument("-t", "--train", action="store_true", help="Train calibration models.")
     parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts from calibration models.")
-    parser.add_argument("-g", "--grib_out", action="store_true", help="generate grib2 files.")
-    parser.add_argument("-n", "--netcdf_out", action="store_true", help="generate netcdf files.")
+    parser.add_argument("-g", "--grib_out", action="store_true", help="Generate grib2 files.")
+    parser.add_argument("-n", "--netcdf_out", action="store_true", help="Generate netcdf files.")
     parser.add_argument("-p", "--plot_out", action="store_true", help="Plot calibrated forecasts.")
     
     args = parser.parse_args()
     required = ["calibration_model_names", "calibration_model_objs", "ensemble_name", 
                 "forecast_model_names","train_data_path", "forecast_data_path", 
-                "target_data_path", "target_data_names", "model_path", 
-                "run_date_format","size_threshold","sector","out_path","map_file"] 
+                "target_data_path", "target_data_names", "target_data_minimum_grid_coverage", 
+                "model_path", "run_date_format","size_threshold","forecast_out_path","map_file"] 
     config = Config(args.config, required)
     
     stride=1
@@ -45,8 +45,8 @@ def main():
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%y%m%d"
     
-    run_date = config.start_dates['forecast']
-    run_date_str = run_date.strftime(config.run_date_format)
+    if not hasattr(config, "sector"):
+        config.sector = None
     
     if config.map_file[-3:] == "map":                                  
         proj_dict, grid_dict = read_arps_map_file(config.map_file)
@@ -58,45 +58,52 @@ def main():
         saving_cali_models(trained_models,config)
     
     if args.fore: 
+        run_date = pd.DatetimeIndex(start=config.start_dates["forecast"],
+                                 end=config.end_dates["forecast"],
+                                 freq='1D')
+        run_date_str = run_date.strftime(config.run_date_format)
+        
         print()
         print('Forecast run date(s): {0}'.format(run_date_str))
         
-        lsr_models = load_cali_models(config)
-        
-        print('Creating calibrated forecasts')    
-        
+        target_dataset_models = load_cali_models(config)
+
+        print('Creating calibrated forecasts')  
         print()
         print('Full 24 hour forecast')
         
         start_time = config.start_hour
         end_time = config.end_hour  
                 
-        lsr_NEP =  create_calibration_forecasts(lsr_models,
+        target_NMEP =  create_calibration_forecasts(
+                                            target_dataset_models,
                                             start_time,end_time,
                                             stride,
+                                            run_date_str,
                                             config)
+
         for size in config.size_threshold:
             for cali_model_name in config.calibration_model_names:
                 if args.plot_out:    
-                    forecast_plotting(lsr_NEP[size][cali_model_name],
+                    forecast_plotting(target_NMEP[size][cali_model_name],
                                     proj_dict,grid_dict,start_time,
-                                    end_time,stride,size,smoothing
-                                    config)
+                                    end_time,stride,size,smoothing,
+                                    run_date,config)
 
                 if args.grib_out:
                     output_grib2(
-                            lsr_NEP[size][cali_model_name],
+                            target_NMEP[size][cali_model_name],
                             proj_dict,grid_dict,start_time,end_time,
                             stride,size,run_date,config.target_data_names,
                             smoothing,config)
                 
                 if args.netcdf_out:
                     output_netcdf(
-                            lsr_NEP[size][cali_model_name],
+                            target_NMEP[size][cali_model_name],
                             proj_dict,grid_dict,start_time,end_time,
                             stride,size,run_date,config.target_data_names,
                             smoothing,config)
-    
+           
         print()
         print('Four-hour forecasts') 
 
@@ -104,30 +111,34 @@ def main():
             start_time = hour
             end_time = hour+4
                     
-            lsr_NEP_hour = create_calibration_forecasts(lsr_models,
+            target_NMEP_hour = create_calibration_forecasts(
+                                                    target_dataset_models,
                                                     start_time,end_time,
                                                     stride,
+                                                    run_date_str,
                                                     config)
             for size in config.size_threshold:
                 for cali_model_name in config.calibration_model_names:
                     if args.plot_out:    
-                        forecast_plotting(lsr_NEP_hour[size][cali_model_name],
+                        forecast_plotting(target_NMEP_hour[size][cali_model_name],
                                     proj_dict,grid_dict,start_time,
-                                    end_time,stride,size,smoothing,config)
+                                    end_time,stride,size,smoothing,
+                                    run_date,config)
         
                     if args.grib_out:
                         output_grib2(
-                            lsr_NEP[size][cali_model_name],
-                            proj_dict,grid_dict,start_time,end_time,
-                            stride,size,run_date,config.target_data_names,
-                            smoothing,config)
+                                target_NMEP_hour[size][cali_model_name],
+                                proj_dict,grid_dict,start_time,end_time,
+                                stride,size,run_date,config.target_data_names,
+                                smoothing,config)
                 
                     if args.netcdf_out:
                         output_netcdf(
-                            lsr_NEP[size][cali_model_name],
-                            proj_dict,grid_dict,start_time,end_time,
-                            stride,size,run_date,config.target_data_names,
-                            smoothing,config)
+                                target_NMEP_hour[size][cali_model_name],
+                                proj_dict,grid_dict,start_time,end_time,
+                                stride,size,run_date,config.target_data_names,
+                                smoothing,config)
+        
     return
 
 
@@ -139,60 +150,65 @@ def train_calibration(config):
     Local Storm Reports (LSRs) 
 
     """
-    
     pool = Pool(config.num_procs)
     
     run_dates = pd.DatetimeIndex(start=config.start_dates["train"],
                                  end=config.end_dates["train"],
                                  freq='1D').strftime(config.run_date_format)
     
-    lsr_calib_models = {}
-
+    target_calib_models = {}
+    print()
     print('Loading Data')
 
-    for size in config.size_threshold:
-        lsr_calib_models[size] = {}
-        train_files, lsr_files = [], []
+    for size_index,size in enumerate(config.size_threshold):
+        target_calib_models[size] = {}
+        train_files, target_files = [], []
         for date in run_dates: 
             train_data_files = config.train_data_path+ \
                     "20{3}/netcdf/{0}_Hail_{1}_NEP_{2}_{3}_Hours_{4}-{5}.nc".format(
                         config.ensemble_name, config.forecast_model_names,size,date,
                         config.start_hour,config.end_hour)
-                
+            
             if config.sector:
-                lsr_data_files = config.target_data_path+'lsr/{0}_{1}_{2}_mask.nc'.format(
-                            date,size,config.sector)
-                
+                target_data_files = config.target_data_path+'{0}_{1}_{2}_mask.nc'.format(
+                            date,size,config.sector)    
             else:
-                lsr_data_files = config.target_data_path+'lsr/{0}_{1}_mask.nc'.format(date,size)
+                target_data_files = config.target_data_path+'{0}_{1}_mask.nc'.format(date,size)
             
-            if os.path.exists(train_data_files) & os.path.exists(lsr_data_files):
-                train_files.append(train_data_files)
-                lsr_files.append(lsr_data_files)
-            
-            else:
-                continue
-            
-        t_data = [Dataset(x).variables["Data"][:] for x in train_files]
-        train_data = np.array(t_data).flatten()
+            if os.path.exists(target_data_files):
+                target = Dataset(target_data_files).variables["24_Hour_All_12z_12z"][:] 
+                if np.all(target == 0):
+                    continue
 
+                if config.target_data_minimum_grid_coverage:
+                    min_coverage = config.target_data_minimum_grid_coverage
+                    if (np.count_nonzero(target) <= min_coverage[size_index]):
+                        continue
+                
+                if os.path.exists(train_data_files):    
+                    train_files.append(train_data_files)
+                    target_files.append(target_data_files)
         
-        l_data = [Dataset(x).variables["24_Hour_All_12z_12z"][:] for x in lsr_files]        
-        lsr_data = np.array(l_data).flatten()
+        t_data = [Dataset(x).variables["Data"][:] for x in train_files]        
+        train_data = np.array(t_data).flatten()
+        
+        tar_data = [Dataset(x).variables["24_Hour_All_12z_12z"][:] for x in target_files]        
+        target_data = np.array(tar_data).flatten()
+
         print("Training size data: {0}".format(size))
         
         for ind,model_name in enumerate(config.calibration_model_names):
-            lsr_calib_models[size][model_name] = deepcopy(config.calibration_model_objs[ind])
-            lsr_calib_models[size][model_name].fit(train_data,lsr_data)
+            target_calib_models[size][model_name] = deepcopy(config.calibration_model_objs[ind])
+            target_calib_models[size][model_name].fit(train_data,target_data)
     
     pool.close()
     pool.join()
     
-    return[lsr_calib_models]
+    return target_calib_models
 
 
 
-def saving_cali_models(config):
+def saving_cali_models(target_dataset_model, config):
 
     """
     Save calibration machine learning models to pickle files.
@@ -200,20 +216,16 @@ def saving_cali_models(config):
     """
     
     print('Saving Models')
-    if config.size_threshold:
-        for size, calibration_model in target_dataset_model.items():
-            for model_name, model_objs in calibration_model.items():
-                out_cali_filename = config.model_path + \
+    for size, calibration_model in target_dataset_model.items():
+        for model_name, model_objs in calibration_model.items():
+            out_cali_filename = config.model_path + \
                                     '{0}_{1}_{2}mm_calibration.pkl'.format(
                                     model_name.replace(" ", "-"),
                                     config.target_data_names,size)
                     
-                print('Writing out: {0}'.format(out_cali_filename)) 
+            print('Writing out: {0}'.format(out_cali_filename)) 
+            pickle.dump(model_objs,open(out_cali_filename,'wb'))
 
-                with open(out_cali_filename, "wb") as pickle_file:
-                        pickle.dump(model_objs, 
-                        pickle_file,
-                        pickle.HIGHEST_PROTOCOL)
                     
     return
 
@@ -228,26 +240,25 @@ def load_cali_models(config):
     print()
     print("Load models")
     
-    lsr_cali_model = {}
+    target_calib_model = {}
     
-    lsr_calibration_model_files = sorted(glob(config.model_path + "*lsr*_calibration.pkl"))
-
     for size in config.size_threshold:
-        
-        lsr_cali_model[size] = {}
-
+        target_calib_model[size] = {}
         for model_name in config.calibration_model_names:
-            if len(lsr_calibration_model_files) > 0:
-                for lsr_file in lsr_calibration_model_files:
-                    with open(lsr_file,"rb") as lsr_cmf:
-                        lsr_cali_model[size][model_name] = pickle.load(lsr_cmf)
+            target_file  = config.model_path + \
+                        '{0}_{1}_{2}mm_calibration.pkl'.format(
+                        model_name.replace(" ", "-"),
+                        config.target_data_names,size)
+            target_calib_model[size][model_name] =\
+                    pickle.load(open(target_file,'rb'))
+            print("Opening {0}".format(target_file)) 
+    
+    return target_calib_model 
 
-    return lsr_cali_model
 
-
-def create_calibration_forecasts(lsr_models,
+def create_calibration_forecasts(target_calib_model,
                                 start_hour,end_hour,
-                                stride,config):
+                                stride,run_dates,config):
     
     """
     Generate calibrated Neighborhood Ensemble Probability (NEP) predictions. 
@@ -255,44 +266,46 @@ def create_calibration_forecasts(lsr_models,
     Returns:
         A dictionary containing local storm report (lsr) calibrated forecast NEP values. 
     """
+    
+    ################################################
+    
     lon = None
     lat = None
 
-
-    run_dates = pd.DatetimeIndex(start=config.start_dates["forecast"],
-                                 end=config.end_dates["forecast"],
-                                 freq='1D').strftime(config.run_date_format)
-
-    lsr_cali_fore = {}
+    target_cali_forecast = {}
     
     if config.size_threshold:
         for size in config.size_threshold:
-            train_file = []
-            lsr_cali_fore[size] = {}
-            
+            test_file = []
+            target_cali_forecast[size] = {}
             for date in run_dates: 
-                train_data_files = config.forecast_data_path+\
+                test_data_files = config.forecast_data_path+\
                     "20{3}/netcdf/{0}_Hail_{1}_NEP_{2}_{3}_Hours_{4}-{5}.nc".format(
-                    config.ensemble_name, config.forecast_model_names,size,date,
-                    start_hour,end_hour)
-
-                if os.path.exists(train_data_files): 
-                    train_file.append(train_data_files)
+                    config.ensemble_name,config.forecast_model_names,size,date,
+                    start_hour,end_hour)    
+                
+                if os.path.exists(test_data_files): 
+                    test_file.append(test_data_files)
             
-            t_data = [Dataset(x).variables["Data"][:] for x in train_file]
-            train_data=np.array(t_data).flatten()
+            all_test_files = [Dataset(x).variables["Data"][:] for x in test_file]
+            test_data=np.array(all_test_files).flatten()
             
             for model_name in config.calibration_model_names:
-                data_shape = (len(run_dates),np.shape(t_data[0])[0],np.shape(t_data[0])[1])
-                
-                lsr_cali_fore[size][model_name]=\
-                lsr_models[size][model_name].transform(train_data).reshape(data_shape)
+                data_shape = (len(run_dates),np.shape(all_test_files[0])[0],\
+                            np.shape(all_test_files[0])[1])
 
-    return lsr_cali_fore
+                target_cali_forecast[size][model_name]=\
+                    target_calib_model[size][model_name].transform(test_data)
+               
+                target_cali_forecast[size][model_name]=\
+                    target_cali_forecast[size][model_name].reshape(data_shape)
+
+
+    return target_cali_forecast
 
 def forecast_plotting(forecast,proj_dict,grid_dict,
                     start_hour,end_hour,stride,size,
-                    smoothing,config):
+                    smoothing,run_date,config):
     
     """
     Plot calibrated predictions. 
@@ -305,15 +318,9 @@ def forecast_plotting(forecast,proj_dict,grid_dict,
         end_hour (int): Ending hour of chosen forecast period
         stride (int): Smoohing factor
         size (int): hail size threshold
+        smoothing (int): sigma value for Gaussian smoother
+        run_date(datetime): Valid date for forecast
     """
-
-    date_outpath = config.out_path+'{0}/'.format(config.start_dates['forecast'].strftime("%Y%m%d"))
-    
-    if not os.path.exists(date_outpath):
-        os.makedirs(date_outpath)
-    
-    filtered_forecast = gaussian_filter(forecast[0][::stride,::stride],smoothing)
-    
     map_data = make_proj_grids(proj_dict,grid_dict)
     lons = map_data["lon"]
     lats = map_data["lat"]
@@ -332,45 +339,51 @@ def forecast_plotting(forecast,proj_dict,grid_dict,
                 urcrnrlon=lons[-1,-1],
                 urcrnrlat=lats[-1,-1])
     
-    m.drawcoastlines()
-    m.drawstates()
-    m.drawcountries()
-    m.fillcontinents(color='gray',alpha=0.2)
-    
     x1,y1 = m(lons,lats)
     x1, y1 = x1[::stride,::stride], y1[::stride,::stride]
-    
     cmap = matplotlib.colors.ListedColormap(['#DBC6BD','#AD8877','#FCEA8D', 'gold','#F76E67','#F2372E',
-                                                        '#F984F9','#F740F7','#AE7ADD','#964ADB',
-                                                        '#99CCFF', '#99CCFF','#3399FF'])
-                        
+                                            '#F984F9','#F740F7','#AE7ADD','#964ADB',
+                                            '#99CCFF', '#99CCFF','#3399FF'])                    
     levels = [0.01,0.05,0.15, 0.225, 0.30, 0.375, 0.45, 0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
-                
-    plt.contourf(x1,y1,filtered_forecast,cmap=cmap,levels=levels)
-    cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
-    cbar.set_ticks([0.01,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
-    cbar.set_ticklabels([1,5,15,30,45,60,80,100])
     
-    plt.title("{0} LSR Calibrated >{1}mm NEP \n Valid {2}, Hours: {3}-{4}UTC".format(
+    for d,date in enumerate(run_date):
+        date_outpath = config.forecast_out_path+'{0}/png/'.format(
+                    date.strftime("%Y%m%d"))
+    
+        if not os.path.exists(date_outpath):
+            os.makedirs(date_outpath)
+    
+        filtered_forecast = forecast[d]
+
+        m.drawcoastlines()
+        m.drawstates()
+        m.drawcountries()
+        m.fillcontinents(color='gray',alpha=0.2)
+                
+        plt.contourf(x1,y1,filtered_forecast,cmap=cmap,levels=levels)
+        cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+        cbar.set_ticks([0.01,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
+        cbar.set_ticklabels([1,5,15,30,45,60,80,100])
+    
+        plt.title("{0} {5} Calibrated >{1}mm NMEP \n Valid {2}, Hours: {3}-{4}UTC".format(
             config.ensemble_name,
             size,
-            config.start_dates["forecast"].strftime("%d %b %Y"),
-            start_hour%24,end_hour%24),
+            date.strftime("%d %b %Y"),
+            start_hour%24,end_hour%24,
+            config.target_data_names.upper()),
             fontweight="bold",
-            fontsize=16)
+            fontsize=14)
     
-    filename = date_outpath + "{0}_hail_{1}_cali_NEP_{2}mm_{3}_Hours_{4}-{5}.png".format(
+        filename = date_outpath + "{0}_hail_{1}_cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.png".format(
                             config.ensemble_name,
                             config.target_data_names,
                             size,
-                            config.start_dates["forecast"].strftime("%y%m%d"),
+                            date.strftime("%y%m%d"),
                             start_hour,end_hour)
     
-    
-    #plt.savefig(filename,bbox_inches="tight", dpi=300)
-    plt.show()
-    print("Writing to " + filename)
-    plt.close()
+        plt.savefig(filename,bbox_inches="tight", dpi=300)
+        print("Writing to " + filename)
+        plt.close()
     
     return
     
@@ -391,52 +404,54 @@ def output_grib2(data,proj_dict,grid_dict,start_hour,end_hour,
         run_date (dataframe): Valid date for forecast
         target_dataset(str): Name of the dataset being calibrated towards
     """
+    for d,date in enumerate(run_date):
+        date_outpath = config.forecast_out_path+'{0}/grib/'.format(
+                    date.strftime("%Y%m%d"))
     
-    date_outpath = config.out_path+'{0}/'.format(run_date.strftime("%Y%m%d"))
-    
-    if not os.path.exists(date_outpath):
-        os.makedirs(date_outpath)
+        if not os.path.exists(date_outpath):
+            os.makedirs(date_outpath)
 
-    lscale = 1e6
-    grib_id_start = [7, 0, 14, 14, 2]
+        lscale = 1e6
+        grib_id_start = [7, 0, 14, 14, 2]
    
-    filtered_forecast = gaussian_filter(data[0][::stride,::stride],smoothing)
-    gdsinfo = np.array([0, np.product(data.shape[-2:]), 0, 0, 30], dtype=np.int32)
-    
-    lon_0 = proj_dict["lon_0"]
-    sw_lon = grid_dict["sw_lon"]
+        filtered_forecast = data[d]
         
-    if lon_0 < 0:
-        lon_0 += 360
-    if sw_lon < 0:
-        sw_lon += 360
+        gdsinfo = np.array([0, np.product(filtered_forecast.shape[-2:]), 0, 0, 30], dtype=np.int32)
+    
+        lon_0 = proj_dict["lon_0"]
+        sw_lon = grid_dict["sw_lon"]
+        
+        if lon_0 < 0:
+            lon_0 += 360
+        if sw_lon < 0:
+            sw_lon += 360
 
-    gdtmp1 = [1, 0, proj_dict['a'], 0, float(proj_dict['a']), 0, float(proj_dict['b']),
-            data.shape[-1], data.shape[-2], grid_dict["sw_lat"] * lscale,
+        gdtmp1 = [1, 0, proj_dict['a'], 0, float(proj_dict['a']), 0, float(proj_dict['b']),
+            filtered_forecast.shape[-1], filtered_forecast.shape[-2], grid_dict["sw_lat"] * lscale,
             sw_lon * lscale, 0, proj_dict["lat_0"] * lscale,
             lon_0 * lscale,
             grid_dict["dx"] * 1e3 * stride, grid_dict["dy"] * 1e3 * stride, 0b00000000, 0b01000000,
             proj_dict["lat_1"] * lscale,
             proj_dict["lat_2"] * lscale, -90 * lscale, 0]
-    pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)
-    drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
-    time_list = list(run_date.utctimetuple()[0:6])
-    grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
-    grib_objects.addgrid(gdsinfo, gdtmp1)
-    pdtmp1[8] = start_hour
-    pdtmp1[-2] = 0
-    grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
-    grib_objects.end()
-    filename = date_outpath + "{0}_hail_{1}_cali_NEP_{2}mm_{3}_Hours_{4}-{5}.grib2".format(config.ensemble_name,
+        pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)
+        drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
+        time_list = list(date.utctimetuple()[0:6])
+        grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+        grib_objects.addgrid(gdsinfo, gdtmp1)
+        pdtmp1[8] = start_hour
+        pdtmp1[-2] = 0
+        grib_objects.addfield(1, pdtmp1, 0, drtmp1, filtered_forecast)
+        grib_objects.end()
+        filename = date_outpath + "{0}_hail_{1}_cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.grib2".format(config.ensemble_name,
                                                          target_dataset,
                                                          size,
-                                                         run_date.strftime("%y%m%d"),
+                                                         date.strftime("%y%m%d"),
                                                          start_hour,end_hour)
-    print("Writing to " + filename)
+        print("Writing to " + filename  )
         
-    grib_file = open(filename, "wb")
-    grib_file.write(grib_objects.msg)
-    grib_file.close()
+        grib_file = open(filename, "wb")
+        grib_file.write(grib_objects.msg)
+        grib_file.close()
 
     return
 
@@ -459,44 +474,46 @@ def output_netcdf(data,proj_dict,grid_dict,start_hour,end_hour,
         target_dataset(str): Name of the dataset being calibrated towards
     """
     
-    y1 = np.arange(0,np.shape(data[0])[0]*grid_dict['dy'],grid_dict['dy'])
-    x1 = np.arange(0,np.shape(data[0])[1]*grid_dict['dx'],grid_dict['dx'])
+    for d,date in enumerate(run_date):
+        date_outpath = config.forecast_out_path+'{0}/netcdf/'.format(
+                    date.strftime("%Y%m%d"))
+    
+    
+        if not os.path.exists(date_outpath):
+            os.makedirs(date_outpath)
+    
+        y1 = np.arange(0,np.shape(data[d])[0]*grid_dict['dy'],grid_dict['dy'])
+        x1 = np.arange(0,np.shape(data[d])[1]*grid_dict['dx'],grid_dict['dx'])
              
-    x1, y1 = np.meshgrid(x1, y1)
-    x1, y1 = x1[::stride,::stride], y1[::stride,::stride]
+        x1, y1 = np.meshgrid(x1, y1)
+        x1, y1 = x1[::stride,::stride], y1[::stride,::stride]
 
-    filtered_forecast = gaussian_filter(data[0][::stride,::stride],smoothing)
+        filtered_forecast = data[d]
     
-    date_outpath = config.out_path+'{0}/'.format(run_date.strftime("%Y%m%d"))
-    
-    if not os.path.exists(date_outpath):
-        os.makedirs(date_outpath)
-    
-    filename = "{0}_hail_{1}_cali_NEP_{2}mm_{3}_Hours_{4}-{5}.nc".format(config.ensemble_name,
+        filename = "{0}_hail_{1}_cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.nc".format(config.ensemble_name,
                                                          target_dataset,
                                                          size,
-                                                         run_date.strftime("%y%m%d"),
+                                                         date.strftime("%y%m%d"),
                                                          start_hour,end_hour)
-    out_filename = date_outpath+filename
+        out_filename = date_outpath+filename
     
+        out_file = Dataset(out_filename, "w")
+        out_file.createDimension("x", filtered_forecast.shape[0])
+        out_file.createDimension("y", filtered_forecast.shape[1])
+        out_file.createVariable("Longitude", "f4", ("x", "y"))
+        out_file.createVariable("Latitude", "f4",("x", "y"))
+        out_file.createVariable("Data", "f4", ("x", "y"))
+        out_file.variables["Longitude"][:,:] = x1
+        out_file.variables["Latitude"][:,:] = y1
+        out_file.variables["Data"][:,:] = filtered_forecast
+        out_file.projection = proj_dict["proj"]
+        out_file.lon_0 = proj_dict["lon_0"]
+        out_file.lat_0 = proj_dict["lat_0"]
+        out_file.lat_1 = proj_dict["lat_1"]
+        out_file.lat_2 = proj_dict["lat_2"]
+        out_file.close()
     
-    out_file = Dataset(out_filename, "w")
-    out_file.createDimension("x", filtered_forecast.shape[0])
-    out_file.createDimension("y", filtered_forecast.shape[1])
-    out_file.createVariable("Longitude", "f4", ("x", "y"))
-    out_file.createVariable("Latitude", "f4",("x", "y"))
-    out_file.createVariable("Data", "f4", ("x", "y"))
-    out_file.variables["Longitude"][:,:] = x1
-    out_file.variables["Latitude"][:,:] = y1
-    out_file.variables["Data"][:,:] = filtered_forecast
-    out_file.projection = proj_dict["proj"]
-    out_file.lon_0 = proj_dict["lon_0"]
-    out_file.lat_0 = proj_dict["lat_0"]
-    out_file.lat_1 = proj_dict["lat_1"]
-    out_file.lat_2 = proj_dict["lat_2"]
-    out_file.close()
-    
-    print("Writing to " + out_filename)
+        print("Writing to " + out_filename)
 
     return
 if __name__ == "__main__":
