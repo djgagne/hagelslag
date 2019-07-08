@@ -9,6 +9,7 @@ classifiers = ['Development Status :: 4 - Beta',
                'Programming Language :: Python :: 2.7',
                'Programming Language :: Python :: 3',
                'Programming Language :: Python :: 3.5',
+               'Programming Language :: Python :: 3.6',
                ]
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
 
     setup(name="hagelslag",
-          version="0.2",
+          version="0.3",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
           author_email="djgagne@ou.edu",
