@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/tmp/aburke/miniconda3/envs/hail/bin/python
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -53,45 +53,52 @@ def main():
         print("Loading data")
         forecast_grid = load_hail_forecasts(run_date, start_date, end_date, args.ens, args.model,
                                             ensemble_members, args.var, args.grib, args.path)
-        if args.grib_out:
-            print("Output grib2 files")
-            output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,
+        if forecast_grid.data is None:
+            print('No grib hail forecasts found')
+        else:
+            if args.grib_out:
+                print("Output grib2 files")
+                output_grib2_files(forecast_grid,0,24,run_date,map_file,args.out,
                                 neighbor_radius,neighbor_smoothing,thresholds,stride)
-            for time in range(5,10):
-                output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
+                for time in range(0,21):
+                    output_grib2_files(forecast_grid,time,(time+4),run_date,map_file,args.out,
                                    neighbor_radius,neighbor_smoothing,thresholds,stride)                             
-        if args.netcdf_out:
-            print("Output netcdf files")
-            output_netcdf_files(forecast_grid,0,24,args.out,neighbor_radius,
+                for time in range(0,24):
+                    output_grib2_files(forecast_grid,time,(time+1),run_date,map_file,args.out,
+                                   neighbor_radius,neighbor_smoothing,thresholds,stride)                             
+            if args.netcdf_out:
+                print("Output netcdf files")
+                output_netcdf_files(forecast_grid,0,24,args.out,neighbor_radius,
                                 neighbor_smoothing,thresholds,stride)
-            for time in range(5,10):
-                output_netcdf_files(forecast_grid,time,(time+4),args.out,neighbor_radius,
+                print()
+                for time in range(0,21):
+                    output_netcdf_files(forecast_grid,time,(time+4),args.out,neighbor_radius,
                                      neighbor_smoothing,thresholds,stride)
-
+                    print()
     
-        if any([args.image_out,args.subplot_out]):
-            print("Get basemaps")
-            bmap_sub = get_sub_basemap(forecast_grid, stride)
-            bmap_full = get_full_basemap(forecast_grid)
+            if any([args.image_out,args.subplot_out]):
+                print("Get basemaps")
+                bmap_sub = get_sub_basemap(forecast_grid, stride)
+                bmap_full = get_full_basemap(forecast_grid)
 
-            if args.image_out:
-                print("Daily plots: neighborhood probability, ensemble_max")
-                plot_period_ensemble_max(0,24,forecast_grid.start_date.strftime("%d %b %Y"),
+                if args.image_out:
+                    print("Daily plots: neighborhood probability, ensemble_max")
+                    plot_period_ensemble_max(0,24,forecast_grid.start_date.strftime("%d %b %Y"),
                                    forecast_grid,bmap_full, args.out)
-                plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
+                    plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
                                                      neighbor_smoothing, thresholds,
                                                      stride, args.out,0,24)
 
-                print("Hourly plots: neighborhood probability, ensemble_max")
-                for time in range(5,10):
-                    plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
+                    print("Hourly plots: neighborhood probability, ensemble_max")
+                    for time in range(4,21):
+                        plot_period_ensemble_max(time,(time+4),forecast_grid.start_date.strftime("%d %b %Y"),
                                             forecast_grid, bmap_full, args.out)
 
-                    plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
+                        plot_period_neighborhood_probability(forecast_grid, bmap_sub, neighbor_radius,
                                                      neighbor_smoothing,thresholds,stride,
                                                      args.out,time,(time+4))
-            if args.subplot_out:
-                plot_subplots(0,24,forecast_grid.start_date.strftime("%d %b %Y"),
+                if args.subplot_out:
+                    plot_subplots(0,24,forecast_grid.start_date.strftime("%d %b %Y"),
                                 forecast_grid,bmap_full, args.out,"ens_max",ensemble_members)
     return
 
@@ -125,20 +132,20 @@ def output_grib2_files(forecast_grid,start_time,end_time,run_date,map_,out_path,
             Grib2 files of neighborhood probability and ensemble maximum 
             over specified time period 
         """
-    date_outpath=out_path+'{0}/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+    date_outpath=out_path+'{0}/grib/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
     if not exists(date_outpath):
         os.makedirs(date_outpath)
-
+    
     ens_max = forecast_grid.data.max(axis=0)
     ens_max = ens_max[start_time:end_time,:,:].max(axis=0)
-    grib = grib2_ouput(forecast_grid,start_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
+    grib = grib2_ouput(forecast_grid,end_time,ens_max,map_,run_date,date_outpath,"Ensemble-Maximum",
                        (start_time+12),(end_time+12),1)
 
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold, 
                                                                       stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
-        grib = grib2_ouput(forecast_grid,start_time,neighbor_prob,map_,run_date,date_outpath,
+        grib = grib2_ouput(forecast_grid,end_time,neighbor_prob,map_,run_date,date_outpath,
                            "NEP_{0}mm".format(threshold),(start_time+12),(end_time+12),14)
 
     return                                                         
@@ -163,6 +170,9 @@ def output_netcdf_files(forecast_grid,start_time,end_time,out_path,radius,
             Netcdf files of neighborhood probability over specified time period 
     """
     date_outpath = out_path+'{0}/netcdf/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
+    
+    n_lon = forecast_grid.lon[::stride, ::stride]
+    n_lat = forecast_grid.lat[::stride, ::stride]
 
     if not exists(date_outpath):
         os.makedirs(date_outpath)
@@ -171,10 +181,6 @@ def output_netcdf_files(forecast_grid,start_time,end_time,out_path,radius,
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold,
                                                                      stride,start_time,end_time)
         neighbor_prob = neighbor_prob.mean(axis=0)
-
-        n_lon = forecast_grid.lon[::stride, ::stride]
-        n_lat = forecast_grid.lat[::stride, ::stride]
-
         netcdf_file = netcdf_output(forecast_grid, date_outpath, neighbor_prob,
                                     n_lon, n_lat, "NEP_{0}".format(threshold),
                                     (start_time+12), (end_time+12))
@@ -359,18 +365,18 @@ def plot_period_neighborhood_probability(forecast_grid, bmap, radius, smoothing,
         plt.close()
     return
                                      
-def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start,end,stride):
+def grib2_ouput(forecast_grid,time,data,map_,run_date,out_path,plot_mode,start,end,stride):
     """
     Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
 
     Plot_mode should be either Ensemble Maximum or Neighborhood Probability 
     Time_mode should be hourly, total, or incremental. 
     """
+    
     if map_[-3:] == "map":                                  
         proj_dict, grid_dict = read_arps_map_file(map_)
     else:                                               
         proj_dict, grid_dict = read_ncar_map_file(map_)   
-
 
     lscale = 1e6
     grib_id_start = [7, 0, 14, 14, 2]
@@ -394,11 +400,11 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
     time_list = list(run_date.utctimetuple()[0:6])
     grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
     grib_objects.addgrid(gdsinfo, gdtmp1)
-    pdtmp1[8] = start_time+12
+    pdtmp1[8] = time+12
     pdtmp1[-2] = 0
     grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
     grib_objects.end()
-    filename = path + "{0}_Hail_{1}_{2}_{3}_Hours_{4}-{5}.grib2".format(forecast_grid.ensemble_name,
+    filename = out_path + "{0}_Hail_{1}_{2}_{3}_Hours_{4}-{5}.grib2".format(forecast_grid.ensemble_name,
                                                          forecast_grid.ml_model,
                                                          plot_mode,
                                                          forecast_grid.start_date.strftime("%y%m%d"),
@@ -411,7 +417,6 @@ def grib2_ouput(forecast_grid,start_time,data,map_,run_date,path,plot_mode,start
     return
 
 def netcdf_output(forecast_grid, path, data, data_lon, data_lat, output_mode, start, end):
-
     out_filename = path + "{0}_Hail_{1}_{2}_{3}_Hours_{4}-{5}.nc".format(forecast_grid.ensemble_name,
                                                                         forecast_grid.ml_model,
                                                                         output_mode,

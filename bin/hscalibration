@@ -35,8 +35,8 @@ def main():
     args = parser.parse_args()
     required = ["calibration_model_names", "calibration_model_objs", "ensemble_name", 
                 "forecast_model_names","train_data_path", "forecast_data_path", 
-                "target_data_path", "target_data_names", "target_data_minimum_grid_coverage", 
-                "model_path", "run_date_format","size_threshold","forecast_out_path","map_file"] 
+                "target_data_path", "target_data_names", "model_path", 
+                "run_date_format","size_threshold","forecast_out_path","map_file"] 
     config = Config(args.config, required)
     
     stride=1
@@ -58,16 +58,22 @@ def main():
         saving_cali_models(trained_models,config)
     
     if args.fore: 
-        run_date = pd.DatetimeIndex(start=config.start_dates["forecast"],
+        run_datetime = pd.DatetimeIndex(start=config.start_dates["forecast"],
                                  end=config.end_dates["forecast"],
                                  freq='1D')
-        run_date_str = run_date.strftime(config.run_date_format)
+        
+        target_dataset_models = load_cali_models(config)
+        run_date = []
+        for date in run_datetime: 
+            test_data_files = config.forecast_data_path+\
+                    "20{0}/netcdf/".format(date.strftime(config.run_date_format))
+            if os.path.exists(test_data_files): 
+                run_date.append(date)
+        
+        run_date_str = [r.strftime(config.run_date_format) for r in run_date]
         
         print()
         print('Forecast run date(s): {0}'.format(run_date_str))
-        
-        target_dataset_models = load_cali_models(config)
-
         print('Creating calibrated forecasts')  
         print()
         print('Full 24 hour forecast')
@@ -88,7 +94,7 @@ def main():
                     forecast_plotting(target_NMEP[size][cali_model_name],
                                     proj_dict,grid_dict,start_time,
                                     end_time,stride,size,smoothing,
-                                    run_date,config)
+                                    run_date_str,config)
 
                 if args.grib_out:
                     output_grib2(
@@ -101,13 +107,13 @@ def main():
                     output_netcdf(
                             target_NMEP[size][cali_model_name],
                             proj_dict,grid_dict,start_time,end_time,
-                            stride,size,run_date,config.target_data_names,
+                            stride,size,run_date_str,config.target_data_names,
                             smoothing,config)
            
         print()
-        print('Four-hour forecasts') 
+        print('Hourly forecasts') 
 
-        for hour in range(17,22):
+        for hour in range(12,33):
             start_time = hour
             end_time = hour+4
                     
@@ -123,7 +129,7 @@ def main():
                         forecast_plotting(target_NMEP_hour[size][cali_model_name],
                                     proj_dict,grid_dict,start_time,
                                     end_time,stride,size,smoothing,
-                                    run_date,config)
+                                    run_date_str,config)
         
                     if args.grib_out:
                         output_grib2(
@@ -136,7 +142,7 @@ def main():
                         output_netcdf(
                                 target_NMEP_hour[size][cali_model_name],
                                 proj_dict,grid_dict,start_time,end_time,
-                                stride,size,run_date,config.target_data_names,
+                                stride,size,run_date_str,config.target_data_names,
                                 smoothing,config)
         
     return
@@ -168,45 +174,59 @@ def train_calibration(config):
                     "20{3}/netcdf/{0}_Hail_{1}_NEP_{2}_{3}_Hours_{4}-{5}.nc".format(
                         config.ensemble_name, config.forecast_model_names,size,date,
                         config.start_hour,config.end_hour)
-            
             if config.sector:
                 target_data_files = config.target_data_path+'{0}_{1}_{2}_mask.nc'.format(
                             date,size,config.sector)    
             else:
                 target_data_files = config.target_data_path+'{0}_{1}_mask.nc'.format(date,size)
             
-            if os.path.exists(target_data_files):
-                target = Dataset(target_data_files).variables["24_Hour_All_12z_12z"][:] 
-                if np.all(target == 0):
-                    continue
+            if os.path.exists(target_data_files) & os.path.exists(train_data_files):
+                train_files.append(train_data_files)
+                target_files.append(target_data_files)
+        date_indices = [index for index in range(len(train_files))]
+        percent_train_indices = int(len(train_files)*0.70)
 
-                if config.target_data_minimum_grid_coverage:
-                    min_coverage = config.target_data_minimum_grid_coverage
-                    if (np.count_nonzero(target) <= min_coverage[size_index]):
-                        continue
-                
-                if os.path.exists(train_data_files):    
-                    train_files.append(train_data_files)
-                    target_files.append(target_data_files)
-        
-        t_data = [Dataset(x).variables["Data"][:] for x in train_files]        
-        train_data = np.array(t_data).flatten()
-        
+        t_data = [Dataset(x).variables["Data"][:] for x in train_files] 
         tar_data = [Dataset(x).variables["24_Hour_All_12z_12z"][:] for x in target_files]        
-        target_data = np.array(tar_data).flatten()
-
-        print("Training size data: {0}".format(size))
         
         for ind,model_name in enumerate(config.calibration_model_names):
-            target_calib_models[size][model_name] = deepcopy(config.calibration_model_objs[ind])
-            target_calib_models[size][model_name].fit(train_data,target_data)
-    
+            bss = []
+            random_models = []
+            print('{0} {1}mm, Random 10 fold Cross-Validation'.format(model_name,size))  
+            for i in range(0,10):
+                seed = np.random.randint(1,100)
+                np.random.seed(seed)
+                print('Index',i, 'Random Seed', seed)
+                train_indices = np.random.choice(date_indices, percent_train_indices, replace=False)
+                test_indices = [ind for ind in date_indices if ind not in train_indices]
+            
+                train_data = np.array(t_data)[train_indices].ravel()
+                target_train_data = np.array(tar_data)[train_indices].ravel()
+            
+                test_data = np.array(t_data)[test_indices].ravel()
+                target_test_data = np.array(tar_data)[test_indices].ravel()
+            
+                model = deepcopy(config.calibration_model_objs[ind])
+                model.fit(train_data,target_train_data)
+                random_models.append(model)
+            
+                predict = model.transform(test_data)
+                bss.append(brier_skill_score(predict, target_test_data))
+        
+            best_bss = np.argmax(bss)
+            target_calib_models[size][model_name] = np.array(random_models)[best_bss]
+            print('Best Brier Skill Score: {0}'.format(np.array(bss)[best_bss]))
+            print()
+    print()
     pool.close()
     pool.join()
-    
     return target_calib_models
 
-
+def brier_skill_score(pred,obs): 
+    bs_obs = np.mean((obs - np.nanmean(obs)) ** 2.0)
+    bs = np.nanmean((pred - obs) ** 2.0)
+    bss = (1.0-(bs/bs_obs))
+    return bss
 
 def saving_cali_models(target_dataset_model, config):
 
@@ -219,13 +239,12 @@ def saving_cali_models(target_dataset_model, config):
     for size, calibration_model in target_dataset_model.items():
         for model_name, model_objs in calibration_model.items():
             out_cali_filename = config.model_path + \
-                                    '{0}_{1}_{2}mm_calibration.pkl'.format(
-                                    model_name.replace(" ", "-"),
-                                    config.target_data_names,size)
+                            '{0}_{1}_{2}mm_calibration_random_cv.pkl'.format(
+                            model_name.replace(" ", "-"),
+                            config.target_data_names,size)
                     
             print('Writing out: {0}'.format(out_cali_filename)) 
             pickle.dump(model_objs,open(out_cali_filename,'wb'))
-
                     
     return
 
@@ -286,20 +305,13 @@ def create_calibration_forecasts(target_calib_model,
                 
                 if os.path.exists(test_data_files): 
                     test_file.append(test_data_files)
-            
             all_test_files = [Dataset(x).variables["Data"][:] for x in test_file]
             test_data=np.array(all_test_files).flatten()
-            
             for model_name in config.calibration_model_names:
                 data_shape = (len(run_dates),np.shape(all_test_files[0])[0],\
-                            np.shape(all_test_files[0])[1])
-
+                            np.shape(all_test_files[0])[1]) 
                 target_cali_forecast[size][model_name]=\
-                    target_calib_model[size][model_name].transform(test_data)
-               
-                target_cali_forecast[size][model_name]=\
-                    target_cali_forecast[size][model_name].reshape(data_shape)
-
+                    target_calib_model[size][model_name].transform(test_data).reshape(data_shape)
 
     return target_cali_forecast
 
@@ -344,11 +356,11 @@ def forecast_plotting(forecast,proj_dict,grid_dict,
     cmap = matplotlib.colors.ListedColormap(['#DBC6BD','#AD8877','#FCEA8D', 'gold','#F76E67','#F2372E',
                                             '#F984F9','#F740F7','#AE7ADD','#964ADB',
                                             '#99CCFF', '#99CCFF','#3399FF'])                    
-    levels = [0.01,0.05,0.15, 0.225, 0.30, 0.375, 0.45, 0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
+    levels = [0.01, 0.05, 0.15, 0.225, 0.30, 0.375, 0.45, 0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
     
     for d,date in enumerate(run_date):
-        date_outpath = config.forecast_out_path+'{0}/png/'.format(
-                    date.strftime("%Y%m%d"))
+        date_outpath = config.forecast_out_path+'20{0}/png/'.format(
+                    date)
     
         if not os.path.exists(date_outpath):
             os.makedirs(date_outpath)
@@ -362,13 +374,13 @@ def forecast_plotting(forecast,proj_dict,grid_dict,
                 
         plt.contourf(x1,y1,filtered_forecast,cmap=cmap,levels=levels)
         cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
-        cbar.set_ticks([0.01,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
+        cbar.set_ticks([0.01, 0.05, 0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
         cbar.set_ticklabels([1,5,15,30,45,60,80,100])
     
         plt.title("{0} {5} Calibrated >{1}mm NMEP \n Valid {2}, Hours: {3}-{4}UTC".format(
             config.ensemble_name,
             size,
-            date.strftime("%d %b %Y"),
+            date,
             start_hour%24,end_hour%24,
             config.target_data_names.upper()),
             fontweight="bold",
@@ -378,7 +390,7 @@ def forecast_plotting(forecast,proj_dict,grid_dict,
                             config.ensemble_name,
                             config.target_data_names,
                             size,
-                            date.strftime("%y%m%d"),
+                            date,
                             start_hour,end_hour)
     
         plt.savefig(filename,bbox_inches="tight", dpi=300)
@@ -405,8 +417,8 @@ def output_grib2(data,proj_dict,grid_dict,start_hour,end_hour,
         target_dataset(str): Name of the dataset being calibrated towards
     """
     for d,date in enumerate(run_date):
-        date_outpath = config.forecast_out_path+'{0}/grib/'.format(
-                    date.strftime("%Y%m%d"))
+        date_outpath = config.forecast_out_path+'20{0}/grib/'.format(
+                    date.strftime(config.run_date_format))
     
         if not os.path.exists(date_outpath):
             os.makedirs(date_outpath)
@@ -438,14 +450,14 @@ def output_grib2(data,proj_dict,grid_dict,start_hour,end_hour,
         time_list = list(date.utctimetuple()[0:6])
         grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
         grib_objects.addgrid(gdsinfo, gdtmp1)
-        pdtmp1[8] = start_hour
+        pdtmp1[8] = end_hour
         pdtmp1[-2] = 0
         grib_objects.addfield(1, pdtmp1, 0, drtmp1, filtered_forecast)
         grib_objects.end()
         filename = date_outpath + "{0}_hail_{1}_cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.grib2".format(config.ensemble_name,
                                                          target_dataset,
                                                          size,
-                                                         date.strftime("%y%m%d"),
+                                                         date.strftime(config.run_date_format),
                                                          start_hour,end_hour)
         print("Writing to " + filename  )
         
@@ -475,25 +487,21 @@ def output_netcdf(data,proj_dict,grid_dict,start_hour,end_hour,
     """
     
     for d,date in enumerate(run_date):
-        date_outpath = config.forecast_out_path+'{0}/netcdf/'.format(
-                    date.strftime("%Y%m%d"))
-    
+        date_outpath = config.forecast_out_path+'20{0}/netcdf/'.format(
+                    date)
     
         if not os.path.exists(date_outpath):
             os.makedirs(date_outpath)
-    
-        y1 = np.arange(0,np.shape(data[d])[0]*grid_dict['dy'],grid_dict['dy'])
-        x1 = np.arange(0,np.shape(data[d])[1]*grid_dict['dx'],grid_dict['dx'])
-             
-        x1, y1 = np.meshgrid(x1, y1)
-        x1, y1 = x1[::stride,::stride], y1[::stride,::stride]
-
+        
+        map_data = make_proj_grids(proj_dict,grid_dict)
+        lons = map_data["lon"]
+        lats = map_data["lat"]
         filtered_forecast = data[d]
     
         filename = "{0}_hail_{1}_cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.nc".format(config.ensemble_name,
                                                          target_dataset,
                                                          size,
-                                                         date.strftime("%y%m%d"),
+                                                         date,
                                                          start_hour,end_hour)
         out_filename = date_outpath+filename
     
@@ -503,8 +511,8 @@ def output_netcdf(data,proj_dict,grid_dict,start_hour,end_hour,
         out_file.createVariable("Longitude", "f4", ("x", "y"))
         out_file.createVariable("Latitude", "f4",("x", "y"))
         out_file.createVariable("Data", "f4", ("x", "y"))
-        out_file.variables["Longitude"][:,:] = x1
-        out_file.variables["Latitude"][:,:] = y1
+        out_file.variables["Longitude"][:,:] = lons
+        out_file.variables["Latitude"][:,:] = lats
         out_file.variables["Data"][:,:] = filtered_forecast
         out_file.projection = proj_dict["proj"]
         out_file.lon_0 = proj_dict["lon_0"]
@@ -512,7 +520,7 @@ def output_netcdf(data,proj_dict,grid_dict,start_hour,end_hour,
         out_file.lat_1 = proj_dict["lat_1"]
         out_file.lat_2 = proj_dict["lat_2"]
         out_file.close()
-    
+       
         print("Writing to " + out_filename)
 
     return
