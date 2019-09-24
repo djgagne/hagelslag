@@ -1,4 +1,4 @@
-#!/home/tmp/aburke/miniconda3/envs/hail/bin/python
+#!/usr/bin/env python
 import argparse
 from netCDF4 import Dataset
 from hagelslag.util.Config import Config
