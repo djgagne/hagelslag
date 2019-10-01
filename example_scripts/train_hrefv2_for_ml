@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#Pre-process training data
+hsdata ...hagelslag/config/hrefv2_config/data_preprocess_train_hrefv2_2019.config
+
+#Train the ML models
+hsforecast .../config_files/2019_hrefv2_forecast_caps.config -t
+

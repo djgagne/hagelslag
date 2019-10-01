@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-import pygrib
-import numpy as np
-from os.path import exists
-from pandas import DatetimeIndex
 from .Grib_ModelGrid import Grib_ModelGrid
+from datetime import timedelta 
+import numpy as np
 
 class HREFv2ModelGrid(Grib_ModelGrid):
     """
@@ -26,42 +24,45 @@ class HREFv2ModelGrid(Grib_ModelGrid):
         filenames = []
         self.forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
                                         (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
-
+        
+        day_before_date = (run_date-timedelta(days=1)).strftime("%Y%m%d") 
+        member_name = str(self.member.split("_")[0])
+        
         if 'nam' in self.member:
             if '00' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    file = '{1}/{2}/{3}/nam_conusnest_{3}00f0{0:02}.grib2'.format(forecast_hr,
-                                                                                self.path,
-                                                                                self.member,
-                                                                                run_date.strftime("%Y%m%d"))
-                    filenames.append(file)
+                    files = '{0}/nam_conusnest/nam_conusnest.{2}00/nam_conusnest.{2}00f{1:02}'.format(
+                                                                    self.path,
+                                                                    forecast_hr,
+                                                                    run_date.strftime("%Y%m%d"))
+                    
+                    filenames.append(files)
             elif '12' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    file = '{1}/{2}/{3}/nam_conusnest_{3}12f0{0:02}.grib2'.format(forecast_hr,
-                                                                                self.path,
-                                                                                self.member,
-                                                                                run_date.strftime("%Y%m%d"))
-                    filenames.append(file)
+                    files = '{0}/nam_conusnest/nam_conusnest.{2}12/nam_conusnest.{2}12f{1:02}'.format(
+                                                                    self.path,
+                                                                    (forecast_hr+12),
+                                                                    day_before_date)
+                    filenames.append(files)
         else:
-            member_name = str(self.member.split("_")[0])
             if '00' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    file = '{1}/{2}/{3}/hiresw_conus{4}_{3}00f0{0:02}.grib2'.format(forecast_hr,
-                                                                                    self.path,
-                                                                                    self.member,
-                                                                                    run_date.strftime("%Y%m%d"),
-                                                                                    member_name)
-                    filenames.append(file)
+                    files = '{0}/hiresw_conus{1}/hiresw_conus{1}.{2}00/hiresw_conus{1}.{2}00f{3:02}'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+
+                    filenames.append(files)
 
             elif '12' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    file = '{1}/{2}/{3}/hiresw_conus{4}_{3}12f0{0:02}.grib2'.format(forecast_hr,
-                                                                                    self.path,
-                                                                                    self.member,
-                                                                                    run_date.strftime("%Y%m%d"),
-                                                                                    member_name)
-                    filenames.append(file)
-
+                    files = '{0}/hiresw_conus{1}/hiresw_conus{1}.{2}12/hiresw_conus{1}.{2}12f{3:02}'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    day_before_date,
+                                                                    (forecast_hr+12))
+                    
+                    filenames.append(files)
         super(HREFv2ModelGrid, self).__init__(filenames,run_date,start_date,end_date,variable,member)
-        
         return 
