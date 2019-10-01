@@ -15,12 +15,12 @@ hsdata ...hagelslag/config/hrefv2_config/data_preprocess_forecast_auto_day_hrefv
 hsforecast .../hagelslag/config/hrefv2_config/forecasting_auto_day_hrefv2_2019.config -f
 hsforecast ...hagelslag/config/hrefv2_config/forecasting_auto_day_hrefv2_2019.config -g 
 
-#Output netCDF4 or grib2 data using flags. If -h is included, will output hourly data as well. 
+#Output netCDF4 or grib2 data using flags. If -y is included, will output hourly data. 
 hsfileoutput -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --netcdf_out --grib_out
 
 #Plots are not needed for calibration 
 #Output PNG files of neighborhood maximum ensemble probability of hail (NMEP) or ensemble maximum size of hail
 hsplotter -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --nep_out --ens_max_out
 
-#Calibrate daily forecasts
+#Calibrate daily forecasts. If -y is included, will output hourly data. 
 hscalibration .../hagelslag/config/hrefv2_config/calibration_auto_day_hrefv2_2019.config -f -n -g 

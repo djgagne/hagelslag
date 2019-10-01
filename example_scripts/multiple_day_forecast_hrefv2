@@ -7,7 +7,6 @@ hsdata ...hagelslag/config/hrefv2_config/data_preprocess_forecast_multiple_day_h
 hsforecast .../hagelslag/config/hrefv2_config/forecasting_multiple_day_hrefv2_2019.config -f
 hsforecast ...hagelslag/config/hrefv2_config/forecasting_multiple_day_hrefv2_2019.config -g 
 
-
 #Choose same date range as the above forecasting config files
 #Start date is not inclusive
 start1=2019-05-31
@@ -26,12 +25,12 @@ while true; do
     echo $RUNDATE $STARTDATE $ENDDATE $TRANSFERDATE
     echo
    
-    #Output netCDF4 or grib2 data using flags. If -h is included, will output hourly data as well. 
-    hsfileoutput -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --netcdf_out --grib_out
+    #Output netCDF4 or grib2 data using flags. If -y is included, will output hourly data.
+    hsfileoutput -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --netcdf_out --grib_out -y 
 
     #Plots are not needed for calibration 
     #Output PNG files of neighborhood maximum ensemble probability of hail (NMEP) or ensemble maximum size of hail
-    hsplotter -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --nep_out --ens_max_out
+    hsplotter -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --nep_out --ens_max_out -y 
 
     
 #Model output calibrated using existing netCDF4 ML NMEP forecasts,
@@ -45,5 +44,5 @@ python .../hagelslag/hagelslag/util/lsr_calibration_dataset.py -s 2018-05-01 -e 
 #Train on the same date range as the output netCDF4 forecasts above
 hscalibration .../hagelslag/config/hrefv2_config/calibration_multiple_day_hrefv2_2019.config -t
 
-#Forecast for multiple date range
-hscalibration .../hagelslag/config/hrefv2_config/calibration_multiple_day_hrefv2_2019.config -f -n -g 
+#Forecast for multiple date range. If -y is included, will output hourly data.
+hscalibration .../hagelslag/config/hrefv2_config/calibration_multiple_day_hrefv2_2019.config -f -n -g -y 

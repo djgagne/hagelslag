@@ -108,8 +108,8 @@ def main():
                             smoothing,config)
            
         print()
-        print('Hourly forecasts') 
         if args.hourly: 
+            print('Hourly forecasts') 
             for hour in range(12,33):
                 start_time = hour
                 end_time = hour+4
