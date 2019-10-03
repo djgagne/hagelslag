@@ -41,6 +41,7 @@ simultaneously, it should handle any potential conflicts.
 Quick Start 
 ------
 After cloning hagelslag, run the following command within the hagelslag directory::
+    
     python setup.py install
 
 Example bash scripts for running different aspects of hagelslag are included in ``hagelslag/example_scripts``. 
@@ -48,20 +49,40 @@ Any paths that begin with ``...\hagelslag`` should include the directory hagelsl
 
 
 Before training the desired machine learning models, a model mask file and regridded obervational data onto the model 
-domain must be created. The example pre-processing bash script that consists of two python files is::
+domain must be created. The example pre-processing bash script applied to the HREFv2 dataset ::
+    
     hagelslag/example_scripts/preprocess_hrefv2_for_ml
-A map file is needed for both python files, examples are found at ``hagelslag/mapfiles``.
+
+requires a map file for the two included python files, examples are found at ``hagelslag/mapfiles``.
 
 Different directories are needed for the tracking and forecast data. Within a desired directory run::
+    
     mkdir track_data_2019_MAXUVV_patch_nc track_data_2019_MAXUVV_closest_json/ track_data_2019_MAXUVV_patch_nc/
     mkdir track_forecasts_2019_MAXUVV_closest_json/ track_forecasts_2019_MAXUVV_closest_csv/
     mkdir hail_forecasts_grib2_hrefv2_closest_2019/ hail_graphics_hrefv2_MAXUVV_closest_2019 
 
 These directory names are specific to the HREFv2 from 2019, however any name can be used. The only requirement is 
-the directories must be included in the configuration files described below. 
+the directories must be included in the configuration files described below. Configuration files within the bash script do not include specific data paths, and will need to be changed to reflect the created directories above and where the mask file, regridded observational data, and model data are stored.
 
 Next, the machine learning models are trained using the example bash script::
+    
     hagelslag/example_scripts/train_hrefv2_for_ml
-The configuration files within the bash script do not include specific data paths, and will need to be changed to reflect
-the created directories above and where the mask file, regridded observational data, and model data are stored.
+
+The training script uses ``hsdata`` to pre-process the input training data and ``hsforecast`` with a flag ``-t`` to train the models.
+
+For prediction over a multiple day date range, use::
+
+    hagelslag/example_scripts/multiple_day_forecast_hrefv2
+
+The script includes pre-processing forecast data with ``hsdata``, predicting on the data and regridding the predictions using ``hsforecast``` with the flags ``-f`` and ``-g``. After regridding the predictions, ``hsfileoutput`` outputs the predictions as netcdf files or grib2 files. Calibration is automatically assumed with ``hsfileoutput``. To turn off calibration, include the flag ``-l False``. 
+
+If calibration is desired, include the ``hscalibration`` command within the above bash script. Existing forecast probabilitities are needed to train the calibration method, and therefore cannot be trained and tested on the same datasets as the previous machine learning models in ``hsdata`` and ``hsforecast``. 
+
+
+If all of the desired machine learning models are trained, including the calibration model, to automatically processing daily model data for calibrated probability predictions run::
+
+    hagelslag/example_scripts/train_hrefv2_for_ml
+
+Similar to ``/multiple_day_forecast_hrefv2`` the configuration files and ``hsfileoutput`` are evaluated over daily data, given UTC time. 
+
 
