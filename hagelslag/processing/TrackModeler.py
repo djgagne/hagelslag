@@ -446,16 +446,14 @@ class TrackModeler(object):
         return
 
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
-                                         conditional_threshold, data_mode="forecast", location=6, 
-                                         calibrate=False):
+                                        data_mode="forecast", location=6, 
+                                        calibrate=False):
         """
         Make predictions using fitted size distribution models.
         Args:
             model_names: Name of the models for predictions
             input_columns: Data columns used for input into ML models
             metadata_cols: Columns from input data that should be included in the data frame with the predictions.
-            conditional_threshold: Predictions from the classification model. Only predict output columns where
-                                    threshold is greater than 1. 
             data_mode: Set of data used as input for prediction models
             location: Value of fixed location parameter
             calibrate: Whether or not to apply calibration model
@@ -480,15 +478,10 @@ class TrackModeler(object):
                         multi_predictions[:, 1] = self.size_distribution_models[group]["calscale"][model_name].predict(
                             multi_predictions[:, 1:])
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
-                    mn = model_name.replace(" ", "-")
-                    zero_out_inds = np.where(conditional_threshold[mn + "_conditionthresh"][group_idxs] < 0.5)[0]
-                    multi_predictions[zero_out_inds] = 0.0
-                    location_array = np.full((multi_predictions.shape[0]), location)
-                    location_array[zero_out_inds] = 0.0
                     if multi_predictions.shape[1] == 2:
                         multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
                         multi_predictions_temp[:, 0] = multi_predictions[:,0]
-                        multi_predictions_temp[:, 1] = location_array
+                        multi_predictions_temp[:, 1] = location
                         multi_predictions_temp[:, 2] = multi_predictions[:,1]
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
