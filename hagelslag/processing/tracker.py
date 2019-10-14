@@ -22,8 +22,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
         min_area: (default 1) The minimum area of any object in pixels.
         max_area: (default 100) The area threshold in pixels at which the enhanced watershed ends growth. Object area
             may exceed this threshold if the pixels at the last watershed level exceed the object area.
-        max_range: Maximum difference between the maximum and minimum value in an enhanced watershed object before
-            growth is stopped.
+        max_range: Maximum difference in bins for search before growth is stopped.
         increment: Discretization increment for the enhanced watershed
         gaussian_sd: Standard deviation of Gaussian filter applied to data
     Returns:
@@ -34,14 +33,20 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
     else:
         labeler = Hysteresis(min_intensity, max_intensity)
     if len(data.shape) == 2:
-        label_grid = labeler.label(gaussian_filter(data, gaussian_sd))
+        if gaussian_sd > 0:
+            label_grid = labeler.label(gaussian_filter(data, gaussian_sd))
+        else:
+            label_grid = labeler.label(data)
         label_grid[data < min_intensity] = 0
         if min_area > 1:
             label_grid = labeler.size_filter(label_grid, min_area)
     else:
-        label_grid = np.zeros(data.shape, dtype=int)
+        label_grid = np.zeros(data.shape, dtype=np.int32)
         for t in range(data.shape[0]):
-            label_grid[t] = labeler.label(gaussian_filter(data[t], gaussian_sd))
+            if gaussian_sd > 0:
+                label_grid = labeler.label(gaussian_filter(data[t], gaussian_sd))
+            else:
+                label_grid = labeler.label(data[t])
             label_grid[t][data[t] < min_intensity] = 0
             if min_area > 1:
                 label_grid[t] = labeler.size_filter(label_grid[t], min_area)
