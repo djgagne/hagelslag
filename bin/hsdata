@@ -127,6 +127,7 @@ def process_ensemble_member(run_date, member, config):
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
 
+            '''
             if len(mrms_tracks) == 0 and len(model_tracks) > 0:
                 obs_data = make_obs_track_data(model_tracks, member,
                                             run_date, config,
@@ -154,8 +155,8 @@ def process_ensemble_member(run_date, member, config):
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-
-            elif len(mrms_tracks) > 0 and len(model_tracks) > 0:
+            '''
+            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                 if match_steps:
                     track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)
                     track_proc.match_hail_size_step_distributions(model_tracks, mrms_tracks, track_pairings)

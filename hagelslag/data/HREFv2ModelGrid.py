@@ -2,6 +2,7 @@
 from .Grib_ModelGrid import Grib_ModelGrid
 from datetime import timedelta 
 import numpy as np
+import os
 
 class HREFv2ModelGrid(Grib_ModelGrid):
     """
@@ -36,6 +37,12 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     forecast_hr,
                                                                     run_date.strftime("%Y%m%d"))
                     
+                    if not os.path.exists(files):
+                        files = '{0}/nam_00/{2}/nam.t00z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                                                                    self.path,
+                                                                    forecast_hr,
+                                                                    run_date.strftime("%Y%m%d"))
+
                     filenames.append(files)
             elif '12' in self.member:
                 for forecast_hr in self.forecast_hours:
@@ -43,6 +50,12 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     self.path,
                                                                     (forecast_hr+12),
                                                                     day_before_date)
+                    if not os.path.exists(files):
+                        files = '{0}/nam_12/{2}/nam.t12z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                                                                    self.path,
+                                                                    (forecast_hr+12),
+                                                                    day_before_date)
+                    
                     filenames.append(files)
         else:
             if '00' in self.member:
@@ -52,7 +65,14 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     member_name,
                                                                     run_date.strftime("%Y%m%d"),
                                                                     forecast_hr)
-
+                    if not os.path.exists(files):
+                        files = '{0}/{1}_00/{2}/hiresw_conus{1}_{2}00f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                                
+                    
                     filenames.append(files)
 
             elif '12' in self.member:
@@ -62,6 +82,12 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     member_name,
                                                                     day_before_date,
                                                                     (forecast_hr+12))
+                    if not os.path.exists(files):
+                        files = '{0}/{1}_12/{2}/hiresw_conus{1}_{2}12f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
                     
                     filenames.append(files)
         super(HREFv2ModelGrid, self).__init__(filenames,run_date,start_date,end_date,variable,member)
