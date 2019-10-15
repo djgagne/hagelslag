@@ -39,7 +39,7 @@ class Hysteresis(object):
                 if output_grid[label_i[i], label_j[i]] == unset:
                     stack.append((label_i[i], label_j[i]))
             while len(stack) > 0:
-                index = stack.pop()
+                index = stack.pop(-1)
                 output_grid[index] = label_num
                 for i in range(index[0] - 1, index[0] + 2):
                     for j in range(index[1] - 1, index[1] + 2):
