@@ -179,11 +179,17 @@ class EnsembleMemberProduct(object):
         percentiles = np.linspace(0.1, 99.9, 100)
         
         try:
-            filename = self.size_distribution_training_path + '{0}_{1}_Size_Distribution.csv'.format(self.ensemble_name,
-                                                                                                    self.watershed_obj)
+            filename = self.size_distribution_training_path +\
+                        '{0}_{1}_{2}_Size_Distribution.csv'.format(self.ensemble_name,
+                                                                self.watershed_obj,
+                                                                self.member)
+            if not exists(filename):
+                filename = self.size_distribution_training_path +\
+                        '{0}_{1}_Size_Distribution.csv'.format(self.ensemble_name,
+                                                                self.watershed_obj)
 
             train_period_obj_per_vals = pd.read_csv(filename)
-            train_period_obj_per_vals = train_period_obj_per_vals.loc[:,"Values"].values
+            train_period_obj_per_vals = train_period_obj_per_vals.loc[:,"Obj_Values"].values
             per_func = interp1d(train_period_obj_per_vals, percentiles / 100.0, 
                                 bounds_error=False, fill_value=(0.1, 99.9))
         except:

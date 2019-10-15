@@ -1,0 +1,26 @@
+#!/bin/bash
+
+export SYMBOLICDATE=`date -u +%Y-%m-%d -d "today 0"`
+export TRANSFERDATE=`date -u +%Y%m%d -d "today 0"`
+export RUNDATE=`date -u +%Y-%m-%dT%H:%M -d "today 0"`
+export STARTDATE=`date -u +%Y-%m-%dT%H:%M -d "today 0 +12 hours"`
+export ENDDATE=`date -u +%Y-%m-%dT%H:%M -d "today 0 + 36 hours"`
+export MEMBERS="arw_00,arw_12,nssl_00,nssl_12,nmmb_00,nmmb_12,nam_00,nam_12"
+echo $SYMBOLICDATE $RUNDATE $STARTDATE $ENDDATE $TRANSFERDATE
+
+#Pre-process daily forecast data 
+hsdata ...hagelslag/config/hrefv2_config/data_preprocess_forecast_auto_day_hrefv2_2019.config
+
+# Predict using trained ML models on new data
+hsforecast .../hagelslag/config/hrefv2_config/forecasting_auto_day_hrefv2_2019.config -f
+hsforecast ...hagelslag/config/hrefv2_config/forecasting_auto_day_hrefv2_2019.config -g 
+
+#Output netCDF4 or grib2 data using flags. If -y is included, will output hourly data. 
+hsfileoutput -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --netcdf_out --grib_out
+
+#Plots are not needed for calibration 
+#Output PNG files of neighborhood maximum ensemble probability of hail (NMEP) or ensemble maximum size of hail
+hsplotter -r $RUNDATE -s $STARTDATE -e $ENDDATE --ens HREFv2 --map .../hagelslag/mapfiles/hrefv2_2018_map.txt -m Random-Forest -b $MEMBERS -v hail -g 1 -p .../hail_forecasts_grib2_hrefv2_closest_2019/ -o .../hail_graphics_hrefv2_MAXUVV_closest_2019/ --nep_out --ens_max_out
+
+#Calibrate daily forecasts. If -y is included, will output hourly data. 
+hscalibration .../hagelslag/config/hrefv2_config/calibration_auto_day_hrefv2_2019.config -f -n -g 

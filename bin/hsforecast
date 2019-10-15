@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import argparse
+from netCDF4 import Dataset
 from hagelslag.util.Config import Config
 from hagelslag.processing.TrackModeler import TrackModeler
 from multiprocessing import Pool, Manager
 from hagelslag.processing.EnsembleProducts import *
+from hagelslag.util.make_proj_grids import read_ncar_map_file
 from scipy.ndimage import gaussian_filter
 import pandas as pd
 import numpy as np
@@ -32,8 +34,8 @@ def main():
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
     if any([args.train, args.fore]):
-        if not hasattr(config, "sector_train"):
-            config.sector_train = None
+        if not hasattr(config, "sector_center"):
+            config.sector_center= None
         
         track_modeler = TrackModeler(config.ensemble_name,
                                      config.train_data_path,
@@ -41,20 +43,21 @@ def main():
                                      config.member_files,
                                      config.start_dates,
                                      config.end_dates,
-                                     config.sector_train,
+                                     config.sector_center,
                                      config.model_map_file,
                                      config.group_col)
         if args.train:
-
             train_models(track_modeler, config)
-            
+            if not hasattr(config, "sector_map_file"):
+                config.sector_map_file = None
             training_data_percentiles(config.ensemble_members,
                                         config.ensemble_name,
                                         config.watershed_variable,
-                                        config.netcdf_path,
+                                        config.train_data_path,
                                         config.start_dates,
                                         config.end_dates,
-                                        config.size_dis_training_path)
+                                        config.size_dis_training_path,
+                                        config.sector_map_file)
             
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
@@ -81,7 +84,7 @@ def train_models(track_modeler, config):
                                                  config.condition_input_columns,
                                                  config.condition_output_column,
                                                  config.condition_threshold)
-    track_modeler.fit_size_distribution_component_models(config.size_distribution_model_names,
+    track_modeler.fit_size_distribution_models(config.size_distribution_model_names,
                                                config.size_distribution_model_objs,
                                                config.size_distribution_input_columns,
                                                output_columns=config.size_distribution_output_columns)
@@ -111,11 +114,10 @@ def make_forecasts(track_modeler, config):
                                                                     config.metadata_columns)
 
     print("Size Distribution Forecasts")
-    forecasts["dist"] = track_modeler.predict_size_distribution_component_models(config.size_distribution_model_names,
-                                                                                 config.size_distribution_input_columns,
-                                                                                 config.size_distribution_output_columns,
-                                                                                 config.metadata_columns,
-                                                                                 location=config.size_distribution_loc)
+    forecasts["dist"] = track_modeler.predict_size_distribution_models(config.size_distribution_model_names,
+                                                                    config.size_distribution_input_columns,
+                                                                    config.metadata_columns, 
+                                                                    location=config.size_distribution_loc)
     return forecasts
 
 
@@ -229,6 +231,10 @@ def generate_ml_grids(config, mode="forecast"):
                                  freq='1D')
     ml_model_list = config.size_distribution_model_names
     print(ml_model_list)
+    print()
+    print('Size Distribution coming from: {0}'.format(config.size_dis_training_path))
+    print() 
+
     ml_var = "hail"
     for run_date in run_dates:
         start_date = run_date + timedelta(hours=config.start_hour)
@@ -281,18 +287,15 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
                 ep.model_name = model_name
                 ep.load_forecast_csv_data(forecast_csv_path)
                 ep.load_forecast_netcdf_data(netcdf_path)
-                try:
-                    ep.quantile_match()
-                    #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
-                    grib_objects = ep.encode_grib2_data()
-                    if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
-                        try:
-                            os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
-                        except OSError:
-                            pass
-                    ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("%Y%m%d/"))
-                except:
-                    print("No {0} {1} netcdf files found".format(run_date.strftime("%Y%m%d"),member))
+                ep.quantile_match()
+                #ep.load_data(num_samples=num_samples, percentiles=ml_grid_percentiles)
+                grib_objects = ep.encode_grib2_data()
+                if not os.access(grib_path + run_date.strftime("/%Y%m%d/"), os.R_OK):
+                    try:
+                        os.mkdir(grib_path + run_date.strftime("/%Y%m%d/"))
+                    except OSError:
+                        pass
+                ep.write_grib2_files(grib_objects, grib_path + run_date.strftime("%Y%m%d/"))
         else:
             print("No model runs on " + run_date.strftime("%Y%m%d") + " " +  member)
     except Exception as e:
@@ -421,14 +424,14 @@ def ensemble_run_neighborhood_probabilities(ensemble_name, model_name, members, 
     return
 
 
-def training_data_percentiles(members, ensemble_name, watershed_obj, training_data_path, 
-                                start_date, end_date, csv_outpath):
+def training_data_percentiles(member_list, ensemble_name, watershed_obj, training_data_path, 
+                                start_date, end_date, csv_outpath, sector_mapfile=None):
 
     """
     Creates watershed object distribution of sizes for a given set of training netcdf patches
 
     Args:
-            members (list of str): List of ensemble members in netcdf file
+            member_list (list of str): List of ensemble members in netcdf file
             ensemble_name (str): Name of ensemble member in netcdf file
             watershed_obj (str): Watershed object used in config files
             training_data_path (str): Path to netcdf files
@@ -440,37 +443,78 @@ def training_data_percentiles(members, ensemble_name, watershed_obj, training_da
             obj_per_vals (list): Distribution of watershed object values over training data
             
     """
-
-
-    obj_data = dict()
     training_date = pd.DatetimeIndex(start=start_date["train"], end=end_date["train"], freq='1D').strftime("%Y%m%d")
+    percentiles = np.linspace(0.1, 99.9, 100)
 
     print('Creating Distribution of Watershed Object Sizes')
-    for m in members:
+    ensemble_obj_data = []
+
+    if sector_mapfile is not None:
+        proj_dict, grid_dict = read_ncar_map_file(sector_mapfile)    
+    
+    #########################
+    #Individual Member Distribution 
+    #########################
+        
+    for member in member_list:
+        member_obj_data = []
         for date in training_date:
-            #print("Model: {0}, Date: {1}".format(m,date))
-            data_path = training_data_path+'{0}_{1}-0000_{2}_model_patches.nc'.format(ensemble_name,date,m)
+            data_path = training_data_path+'track_step_{0}_{1}_{2}-0000.csv'.format(
+                                ensemble_name,member,date)
             if exists(data_path):
-                dataset  = Dataset(data_path)
-                mask_index  = np.where(dataset.variables["masks"][:]==1)
-                obj_data["{0}_model".format(m)] = dataset.variables["{0}_curr".format(watershed_obj)][:]
-                obj_data["masked_model_{0}_{1}".format(m,date)] = obj_data["{0}_model".format(m)][mask_index]
+                dataset  = pd.read_csv(data_path)
+                if sector_mapfile is None:
+                    matched_data = dataset.loc[:,"Matched"]
+                else:
+                    ne_lat, sw_lat = grid_dict["ne_lat"],grid_dict["sw_lat"]
+                    ne_lon, sw_lon = grid_dict["ne_lon"], grid_dict["sw_lon"]
+                    
+                    lon_obj = dataset.loc[:,'Centroid_Lon']
+                    lat_obj = dataset.loc[:,'Centroid_Lat']
+                    
+                    inds = np.where( (ne_lat>=lat_obj) & (sw_lat<=lat_obj) &
+                            (ne_lon>=lon_obj) & (sw_lon<=lon_obj) )[0]
+                    matched_data = dataset.loc[inds,"Matched"]
 
-    obj_values = np.concatenate([obj_data["masked_model_{0}_{1}".format(mem,t)]\
-                                for mem in members for t in training_date if "masked_model_{0}_{1}".format(mem,t)\
-                                in obj_data.keys()], axis=0)
+                matched_hail_index  = np.where(matched_data == 1)[0]
+                member_obj_data.append(dataset.loc[matched_hail_index,"{0}_max".format(watershed_obj)])
+        
+        if member_obj_data:
+            obj_values = np.concatenate(member_obj_data)
+            print() 
+            print('Number of {0} {1} model objects found: {2}'.format(watershed_obj,member,obj_values.shape[0]))
 
-    print('Number of {0} Objects Found: {1}'.format(watershed_obj,obj_values.shape[0]))
+            obj_percent_val = np.percentile(obj_values, percentiles)
+            dataframe_values = {'Obj_Values':obj_percent_val, 'Percentiles':percentiles}
+            obj_value_percentile = pd.DataFrame(data=dataframe_values)
+                
+            if csv_outpath:
+                csv_path = csv_outpath+'{0}_{1}_{2}_Size_Distribution.csv'.format(ensemble_name,
+                                    watershed_obj,member)
+                obj_value_percentile.to_csv(csv_path, index=False)
 
-    percentiles = np.linspace(0.1, 99.9, 100)
-    obj_percent_val = np.percentile(obj_values, percentiles)
-    dataframe_values = {'Obj_Values':obj_percent_val, 'Percentiles':percentiles}
-    obj_value_percentile = pd.DataFrame(data=dataframe_values)
-    if csv_outpath:
-        csv_path = csv_outpath+'{0}_{1}_Size_Distribution.csv'.format(ensemble_name,watershed_obj)
-        obj_value_percentile.to_csv(csv_path, index=False)
+                print('Output csv: {0}'.format(csv_path))
 
-        print('Output csv: {0}'.format(csv_path))
+            ensemble_obj_data.append(obj_values)
+    
+    #########################
+    #Ensemble Distribution 
+    #########################
+    if ensemble_obj_data:
+        ens_obj_values = [obj for member in ensemble_obj_data for obj in member]
+        print() 
+        print('Number of total ensemble {0} model objects found: {1}'.format(watershed_obj,np.shape(ens_obj_values)[0]))
+
+        ens_obj_percent_val = np.percentile(ens_obj_values, percentiles)
+        dataframe_values = {'Obj_Values':ens_obj_percent_val, 'Percentiles':percentiles}
+        ens_obj_value_percentile = pd.DataFrame(data=dataframe_values)
+        if csv_outpath:
+            csv_path = csv_outpath+'{0}_{1}_Size_Distribution.csv'.format(ensemble_name,
+                                    watershed_obj)
+            ens_obj_value_percentile.to_csv(csv_path, index=False)
+
+            print('Output csv: {0}'.format(csv_path))
+    
     return
 
 
