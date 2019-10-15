@@ -35,8 +35,6 @@ def main():
     config.json = args.json
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
-    if not hasattr(config,"sector_ind_path"):
-        config.sector_ind_path = None
     
     if args.proc > 1:
         pool = Pool(args.proc)
@@ -85,20 +83,7 @@ def process_ensemble_member(run_date, member, config):
             patch_radius = config.patch_radius
         else:
             patch_radius = None
-        '''
-        if hasattr(config, "sector_nc_outpath"):
-            sector_nc_outpath = config.sector_nc_outpath
-        else:
-            sector_nc_outpath = None
-        if hasattr(config, "sector_csv_outpath"):
-            sector_csv_outpath = config.sector_csv_outpath
-        else:
-            sector_csv_outpath = None
-        if hasattr(config,"sector_mapfile"):
-            sector_mapfile = config.sector_mapfile
-        else:
-            sector_mapfile = None
-        '''
+        
         print("Patch Radius", patch_radius)
         track_proc = TrackProcessor(run_date,
                                     start_date,
@@ -113,7 +98,6 @@ def process_ensemble_member(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
                                     match_steps=match_steps,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
@@ -143,6 +127,7 @@ def process_ensemble_member(run_date, member, config):
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
 
+            '''
             if len(mrms_tracks) == 0 and len(model_tracks) > 0:
                 obs_data = make_obs_track_data(model_tracks, member,
                                             run_date, config,
@@ -170,8 +155,8 @@ def process_ensemble_member(run_date, member, config):
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-
-            elif len(mrms_tracks) > 0 and len(model_tracks) > 0:
+            '''
+            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                 if match_steps:
                     track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)
                     track_proc.match_hail_size_step_distributions(model_tracks, mrms_tracks, track_pairings)
@@ -239,15 +224,7 @@ def process_ensemble_member(run_date, member, config):
                         float_format="%0.5f",
                         index=False)
             os.chmod(csv_filename, 0o666)
-        '''
-        if sector_mapfile:
-            sector = SectorProcessor(sector_mapfile,
-                                    config.ensemble_name,member,
-                                    run_date,config.run_date_format)
-            sector.output_sector_netcdf(config.nc_path,sector_nc_outpath,patch_radius,config)
-            for key in ['track_step', 'track_total']:
-                sector.output_sector_csv(config.csv_path,key,sector_csv_outpath)
-        '''
+    
     except Exception as e:
         print(traceback.format_exc())
         raise e
@@ -285,7 +262,6 @@ def process_observed_tracks(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
@@ -353,7 +329,6 @@ def rematch_ensemble_tracks(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,

@@ -30,6 +30,7 @@ class TrackModeler(object):
                  sector,
                  map_file,
                  group_col="Microphysics"):
+        
         self.train_data_path = train_data_path
         self.forecast_data_path = forecast_data_path
         self.ensemble_name = ensemble_name
@@ -49,9 +50,12 @@ class TrackModeler(object):
 
         if self.map_file[-3:] == "map":
             self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
-        else:
-            self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)
-
+        else:                                               
+            self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)   
+        if self.sector:
+            print()
+            print('Weighting function: exp(-0.5*distances)*10.0')
+            print()
         return
 
     def load_data(self, mode="train", format="csv"):
@@ -162,15 +166,15 @@ class TrackModeler(object):
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             if self.sector:
-                lon_obj = self.data["train"]["combo"][:, 'Centroid_Lon']
-                lat_obj = self.data["train"]["combo"][:, 'Centroid_Lat']
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
 
-                left_lon, right_lon = self.grid_dict["sw_lon"], self.grid_dict["ne_lon"]
-                lower_lat, upper_lat = self.grid_dict["sw_lat"], self.grid_dict["ne_lat"]
-
-                weights = np.where((left_lon <= lon_obj) & (right_lon >= lon_obj) & \
-                                   (lower_lat <= lat_obj) & (upper_lat >= lat_obj), 1, 0.3)
-
+                weights = np.exp(-0.5*distances)*10.0
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
@@ -216,20 +220,15 @@ class TrackModeler(object):
                 np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
 
             if self.sector:
-                lon_obj = group_data.loc[:, 'Centroid_Lon']
-                lat_obj = group_data.loc[:, 'Centroid_Lat']
-
-                conus_lat_lon_points = zip(lon_obj.values.ravel(), lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"], self.proj_dict["lat_0"]
-
-                distances = np.array([np.sqrt((x - center_lon) ** 2 + \
-                                              (y - center_lat) ** 2) for (x, y) in conus_lat_lon_points])
-
-                min_dist, max_minus_min = min(distances), max(distances) - min(distances)
-
-                distance_0_1 = [1.0 - ((d - min_dist) / (max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
-
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+            
+                weights = np.exp(-0.5*distances)*10.0
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
             ones = np.count_nonzero(output_data > 0)
             print("Ones: ", ones, "Zeros: ", np.count_nonzero(output_data == 0))
@@ -313,28 +312,20 @@ class TrackModeler(object):
         if output_columns is None:
             output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
-
-        weights = None
+        weights=None
 
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data[group_data[output_columns[-1]] > 0]
             if self.sector:
-                lon_obj = group_data.loc[:, 'Centroid_Lon']
-                lat_obj = group_data.loc[:, 'Centroid_Lat']
-
-                conus_lat_lon_points = zip(lon_obj.values.ravel(), lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"], self.proj_dict["lat_0"]
-
-                distances = np.array([np.sqrt((x - center_lon) ** 2 + \
-                                              (y - center_lat) ** 2) for (x, y) in conus_lat_lon_points])
-
-                min_dist, max_minus_min = min(distances), max(distances) - min(distances)
-
-                distance_0_1 = [1.0 - ((d - min_dist) / (max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
-
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+                weights = np.exp(-0.5*distances)*10.0
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
                 self.size_distribution_models[group]["calshape"] = {}
@@ -349,8 +340,8 @@ class TrackModeler(object):
                 self.size_distribution_models[group]["multi"][model_name] = deepcopy(model_objs[m])
                 try:
                     self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
-                                                                                  (log_labels - log_means) / log_sds,
-                                                                                  sample_weight=weights)
+                                                                   (log_labels - log_means) / log_sds,
+                                                                               sample_weight=weights)
                 except:
                     self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                                   (log_labels - log_means) / log_sds)
@@ -370,6 +361,8 @@ class TrackModeler(object):
                                                                                          1],
                                                                                      sample_weight=weights)
 
+        return
+
     def fit_size_distribution_component_models(self, model_names, model_objs, input_columns, output_columns):
         """
         This calculates 2 principal components for the hail size distribution between the shape and scale parameters.
@@ -386,28 +379,20 @@ class TrackModeler(object):
         """
         groups = np.unique(self.data["train"]["member"][self.group_col])
 
-        weights = None
-
+        weights=None
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data[output_columns[-1]] > 0]
-
             if self.sector:
-                lon_obj = group_data.loc[:, 'Centroid_Lon']
-                lat_obj = group_data.loc[:, 'Centroid_Lat']
-
-                conus_lat_lon_points = zip(lon_obj.values.ravel(), lat_obj.values.ravel())
-                center_lon, center_lat = self.proj_dict["lon_0"], self.proj_dict["lat_0"]
-
-                distances = np.array([np.sqrt((x - center_lon) ** 2 + \
-                                              (y - center_lat) ** 2) for (x, y) in conus_lat_lon_points])
-
-                min_dist, max_minus_min = min(distances), max(distances) - min(distances)
-
-                distance_0_1 = [1.0 - ((d - min_dist) / (max_minus_min)) for d in distances]
-                weights = np.array(distance_0_1)
+                lon_obj = group_data.loc[:,'Centroid_Lon']
+                lat_obj = group_data.loc[:,'Centroid_Lat']
+                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
+                center_lon, center_lat = self.sector[0], self.sector[1]
+                distances = np.array([np.sqrt((x-center_lon)**2+\
+                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
+                weights = np.exp(-0.5*distances)*10.0
 
             self.size_distribution_models[group] = {"lognorm": {}}
             self.size_distribution_models[group]["lognorm"]["pca"] = PCA(n_components=len(output_columns))
@@ -437,7 +422,8 @@ class TrackModeler(object):
         return
 
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
-                                         data_mode="forecast", location=6, calibrate=False):
+                                        data_mode="forecast", location=6, 
+                                        calibrate=False):
         """
         Make predictions using fitted size distribution models. Each ML model predicts the normalized shape
         and scale parameters simultaneously using multitask learning. Only scikit learn models that support
@@ -454,16 +440,17 @@ class TrackModeler(object):
             Predictions in dictionary of data frames grouped by group type
         """
         groups = self.size_distribution_models.keys()
-        predictions = {}
+        predictions = pd.DataFrame(self.data[data_mode]["combo"][metadata_cols])
         for group in groups:
-            group_data = self.data[data_mode]["combo"].loc[self.data[data_mode]["combo"][self.group_col] == group]
-            predictions[group] = group_data[metadata_cols]
-            if group_data.shape[0] > 0:
+            group_idxs = self.data[data_mode]["combo"][self.group_col] == group
+            group_count = np.count_nonzero(group_idxs)
+            if group_count > 0:
+                print(self.size_distribution_models[group])
                 log_mean = self.size_distribution_models[group]["lognorm"]["mean"]
                 log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
                 for m, model_name in enumerate(model_names):
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
-                        group_data[input_columns])
+                        self.data[data_mode]["combo"].loc[group_idxs,input_columns])
                     if calibrate:
                         multi_predictions[:, 0] = self.size_distribution_models[group]["calshape"][model_name].predict(
                             multi_predictions[:, 0:1])
@@ -472,13 +459,12 @@ class TrackModeler(object):
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
                     if multi_predictions.shape[1] == 2:
                         multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
-                        multi_predictions_temp[:, 0] = multi_predictions[:, 0]
+                        multi_predictions_temp[:, 0] = multi_predictions[:,0]
                         multi_predictions_temp[:, 1] = location
-                        multi_predictions_temp[:, 2] = multi_predictions[:, 1]
-                        multi_predictions = multi_predictions_temp
+                        multi_predictions_temp[:, 2] = multi_predictions[:,1]
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
-                        predictions[group][model_name].loc[:, model_name.replace(" ", "-") + "_" + pred_col] = \
-                            multi_predictions[:, p]
+                        predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
+                            multi_predictions_temp[:, p]
         return predictions
 
     def predict_size_distribution_component_models(self, model_names, input_columns, output_columns, metadata_cols,
