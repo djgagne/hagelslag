@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 from hagelslag.util.make_proj_grids import * 
 from hagelslag.util.Config import Config
 from scipy.ndimage import gaussian_filter
@@ -14,7 +15,7 @@ import argparse
 import pickle
 import os
 
-try: 
+try:
     from ncepgrib2 import Grib2Encode, dump
     grib_support = True
 except ImportError("ncepgrib2 not available"):
@@ -22,35 +23,34 @@ except ImportError("ncepgrib2 not available"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", help="Configuration file") 
+    parser.add_argument("config", help="Configuration file")
     parser.add_argument("-t", "--train", action="store_true", help="Train calibration models.")
     parser.add_argument("-f", "--forecast", action="store_true", help="Generate forecasts from calibration models.")
     parser.add_argument("-y", "--hourly", action="store_true", help="If False will not output hourly forecasts.")
     parser.add_argument("-g", "--grib_out", action="store_true", help="Generate grib2 files.")
     parser.add_argument("-n", "--netcdf_out", action="store_true", help="Generate netcdf files.")
     parser.add_argument("-p", "--plot_out", action="store_true", help="Plot calibrated forecasts.")
-    
+
     args = parser.parse_args()
+
     required = ["calibration_model_names", "calibration_model_objs", "ensemble_name", 
                 "forecast_model_names","train_data_path", "forecast_data_path", 
                 "target_data_path", "target_data_names", "model_path", 
                 "run_date_format","size_threshold","forecast_out_path","map_file"] 
     config = Config(args.config, required)
-    
-    stride=1
-    smoothing=14
-    
+
+    stride = 1
+    smoothing = 14
+
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%y%m%d"
-    
     if not hasattr(config, "sector"):
         config.sector = None
-    
-    if config.map_file[-3:] == "map":                                  
+    if config.map_file[-3:] == "map":
         proj_dict, grid_dict = read_arps_map_file(config.map_file)
-    else:                                               
-        proj_dict, grid_dict = read_ncar_map_file(config.map_file)   
-    
+    else:
+        proj_dict, grid_dict = read_ncar_map_file(config.map_file)
+
     if args.train:
         trained_models = train_calibration(config)
         saving_cali_models(trained_models,config)
@@ -69,13 +69,12 @@ def main():
                 run_date.append(date)
         
         run_date_str = [r.strftime(config.run_date_format) for r in run_date]
-        
         print()
         print('Forecast run date(s): {0}'.format(run_date_str))
         print('Creating calibrated forecasts')  
         print()
         print('Full 24 hour forecast')
-        
+
         start_time = config.start_hour
         end_time = config.end_hour  
                 
@@ -115,10 +114,10 @@ def main():
                 end_time = hour+4
                     
                 target_NMEP_hour = create_calibration_forecasts(
-                                                    target_dataset_models,
-                                                    start_time,end_time,
-                                                    run_date_str,
-                                                    config)
+                                                                target_dataset_models,
+                                                                start_time,end_time,
+                                                                run_date_str,
+                                                                config)
                 for size in config.size_threshold:
                     for cali_model_name in config.calibration_model_names:
                         if args.plot_out:    
@@ -228,7 +227,6 @@ def brier_score(pred,obs):
     return bs
 
 def saving_cali_models(target_calib_model, config):
-
     """
     Save calibration machine learning models to pickle files.
     
@@ -236,7 +234,7 @@ def saving_cali_models(target_calib_model, config):
         target_calib_model (dataframe): Pandas dataframe containing information 
             about the different trained calibration models
     """
-    
+
     print('Saving Models')
     for size, calibration_model in target_calib_model.items():
         for model_name, model_objs in calibration_model.items():
@@ -248,16 +246,13 @@ def saving_cali_models(target_calib_model, config):
             pickle.dump(model_objs,open(out_cali_filename,'wb'))
     return
 
-
 def load_cali_models(config):
-    
     """
     Load calibration models from pickle files.
     """
 
     print()
     print("Load models")
-    
     target_calib_model = {}
     
     for size in config.size_threshold:
@@ -276,7 +271,6 @@ def load_cali_models(config):
 
 def create_calibration_forecasts(target_calib_model,start_hour,end_hour,
                                 run_dates,config):
-    
     """
     Generate calibrated Neighborhood Maximum Ensemble Probability (NMEP) predictions. 
         
@@ -323,7 +317,6 @@ def create_calibration_forecasts(target_calib_model,start_hour,end_hour,
 
 def forecast_plotting(forecast,proj_dict,grid_dict,start_hour,
                     end_hour,stride,size,smoothing,run_date,config):
-    
     """
     Plot calibrated predictions. 
     
@@ -341,10 +334,10 @@ def forecast_plotting(forecast,proj_dict,grid_dict,start_hour,
     map_data = make_proj_grids(proj_dict,grid_dict)
     lons = map_data["lon"]
     lats = map_data["lat"]
-    
-    plt.figure(figsize=(9,6))
-    
-    m=Basemap(projection='lcc', 
+
+    plt.figure(figsize=(9, 6))
+
+    m = Basemap(projection='lcc',
                 area_thresh=10000.,
                 resolution="l",
                 lon_0=proj_dict["lon_0"],
@@ -404,8 +397,7 @@ def forecast_plotting(forecast,proj_dict,grid_dict,start_hour,
     return
     
 def output_grib2(forecast,proj_dict,grid_dict,start_hour,end_hour,
-                stride,size,run_date,target_dataset,smoothing,config):    
-    
+                stride,size,run_date,target_dataset,smoothing,config):
     """
     Writes out grib2 files for given probability forecast. 
 
@@ -474,8 +466,7 @@ def output_grib2(forecast,proj_dict,grid_dict,start_hour,end_hour,
 
     
 def output_netcdf(forecast,proj_dict,grid_dict,start_hour,end_hour,
-                stride,size,run_date,target_dataset,smoothing,config):    
-    
+                stride,size,run_date,target_dataset,smoothing,config):
     """
     Writes out netCDF4 files for given probability forecast. 
 
@@ -490,7 +481,6 @@ def output_netcdf(forecast,proj_dict,grid_dict,start_hour,end_hour,
         run_date (dataframe): Valid date for forecast
         target_dataset(str): Name of the dataset being calibrated towards
     """
-    
     for d,date in enumerate(run_date):
         date_outpath = config.forecast_out_path+'20{0}/netcdf/'.format(
                     date)
@@ -528,7 +518,8 @@ def output_netcdf(forecast,proj_dict,grid_dict,start_hour,end_hour,
         out_file.close()
        
         print("Writing to " + filename)
-
     return
+
+
 if __name__ == "__main__":
     main()

@@ -59,13 +59,33 @@ calls the appropriate ModelGrid object, as well as loading data and map projecti
 Object Finding
 --------------
 Storm objects are found with the enhanced watershed method. The enhanced watershed finds local maxima in a given
-2D field and then grows objects from that local maximum until they meet or exceed a specified area or intensity range
-threshold.
+2D field and then grows objects from that local maximum until they meet or exceed a specified area
+threshold. The enhanced watershed is sensitive to a fair number of its tuning parameters, but the
+most important ones are related to how the input data are discretized and the max_size threshold.
+
+If your enhanced watershed results are suboptimal, you should consider the following changes:
+
+* Apply a Gaussian filter to smooth the data. A standard deviation of 1 or 2 works well.
+* Use a larger increment when discretizing your data.
+* Change the max_size parameter. For a 3 km grid, 100 is a good starting point.
+* A small max_size will cause more objects to be found, but they will be small. A larger max_size will result in fewer, larger objects.
+* Setting delta to 0 or 1 can also be helpful.
+
+If none of these tweaks are helping, then you should consider using a simpler object finding scheme, such as
+scipy.ndimage.label or Hysteresis.
+
+Once objects are extracted, they can be stored in STObjects, which are designed to contain scalar
+and field metadata.
 
 Object Tracking
 ---------------
-Storm objects are tracked.
+Storm objects are tracked using ObjectMatcher class. Currently we support a large number of different
+distances that can be used to detect centroid differences and overlap between objects at different times.
+
+If you have created tracks from your initial object time steps, then you can use TrackMatcher to match tracks
+or TrackStepMatcher to match the steps within one track to the steps in another track.
 
 Data Extraction
 ---------------
-
+STObjects can extract patches from a given ModelOutput grid and attach it to each object. This
+procedure enables object-based data analysis.
