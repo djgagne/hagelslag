@@ -1,6 +1,6 @@
 from netCDF4 import Dataset
 import numpy as np
-from pandas import DatetimeIndex
+from pandas import date_range
 from os.path import exists
 
 
@@ -34,7 +34,7 @@ class ModelGrid(object):
         self.start_date = np.datetime64(start_date)
         self.end_date = np.datetime64(end_date)
         self.frequency = frequency
-        self.valid_dates = DatetimeIndex(start=self.start_date,
+        self.valid_dates = date_range(start=self.start_date,
                                          end=self.end_date,
                                          freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
