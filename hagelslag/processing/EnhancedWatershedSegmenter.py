@@ -132,10 +132,7 @@ class EnhancedWatershed(object):
                     else:
                         for m in marked_so_far:
                             marked[m] = self.UNMARKED
-        center_arrays = dict()
-        for p_val, coords in centers.items():
-            center_arrays[p_val] = np.array(coords)
-        return center_arrays
+        return centers
 
     def grow_centers(self, centers, q_data):
         """
@@ -151,7 +148,7 @@ class EnhancedWatershed(object):
         marked = np.ones(q_data.shape, dtype=np.int32) * self.UNMARKED
         deferred_from_last = []
         deferred_to_next = []
-        center_keys = np.array(centers.keys())[::-1]
+        center_keys = np.array(list(centers.keys()))[::-1]
         capture_index = 1
         foothills = []
         for diff in range(0, self.delta + 1):
@@ -160,14 +157,15 @@ class EnhancedWatershed(object):
                 bin_lower = b - diff
                 deferred_from_last[:] = deferred_to_next[:]
                 del deferred_to_next[:]
-                n_centers = centers[b].size
-                tot_centers = n_centers + len(deferred_from_last)
+                new_centers = len(centers[b])
+                old_centers = len(deferred_from_last)
+                tot_centers = new_centers + old_centers
                 for i in range(tot_centers):
                     # done this way to minimize memory overhead of maintaining two lists
-                    if i < n_centers:
-                        center = centers[b][i]
+                    if i < old_centers:
+                        center = deferred_from_last[i]
                     else:
-                        center = deferred_from_last[i - n_centers]
+                        center = centers[b][i - old_centers]
                     if bin_lower < 0:
                         bin_lower = 0
                     if marked[center] == self.UNMARKED:
