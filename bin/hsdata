@@ -13,6 +13,7 @@ import traceback
 from netCDF4 import Dataset, date2num
 from os.path import join, exists
 
+
 def main():
     parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
     parser.add_argument("config", help="Configuration file")
@@ -32,12 +33,12 @@ def main():
                 'csv_path', 'geojson_path', 'train', 'single_step', "unique_matches", "label_type",
                 'closest_matches']
     config = Config(args.config, required_attributes=required)
+    if not hasattr(config, "segmentation_approach"):
+        config.segmentation_approach = "ew"
     config.json = args.json
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
-    if not hasattr(config,"sector_ind_path"):
-        config.sector_ind_path = None
-    
+
     if args.proc > 1:
         pool = Pool(args.proc)
         for run_date in config.dates:
@@ -85,20 +86,7 @@ def process_ensemble_member(run_date, member, config):
             patch_radius = config.patch_radius
         else:
             patch_radius = None
-        '''
-        if hasattr(config, "sector_nc_outpath"):
-            sector_nc_outpath = config.sector_nc_outpath
-        else:
-            sector_nc_outpath = None
-        if hasattr(config, "sector_csv_outpath"):
-            sector_csv_outpath = config.sector_csv_outpath
-        else:
-            sector_csv_outpath = None
-        if hasattr(config,"sector_mapfile"):
-            sector_mapfile = config.sector_mapfile
-        else:
-            sector_mapfile = None
-        '''
+
         print("Patch Radius", patch_radius)
         track_proc = TrackProcessor(run_date,
                                     start_date,
@@ -113,7 +101,7 @@ def process_ensemble_member(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
+                                    segmentation_approach=config.segmentation_approach,
                                     match_steps=match_steps,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
@@ -133,16 +121,17 @@ def process_ensemble_member(run_date, member, config):
                 future_variables = config.future_variables
             else:
                 future_variables = None
-            
+
             track_proc.extract_model_attributes(model_tracks,
-                                            config.storm_variables,
-                                            config.potential_variables,
-                                            config.tendency_variables,
-                                            future_variables=future_variables)
+                                                config.storm_variables,
+                                                config.potential_variables,
+                                                config.tendency_variables,
+                                                future_variables=future_variables)
         if config.train and len(model_tracks) > 0:
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
 
+            '''
             if len(mrms_tracks) == 0 and len(model_tracks) > 0:
                 obs_data = make_obs_track_data(model_tracks, member,
                                             run_date, config,
@@ -170,8 +159,8 @@ def process_ensemble_member(run_date, member, config):
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-
-            elif len(mrms_tracks) > 0 and len(model_tracks) > 0:
+            '''
+            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                 if match_steps:
                     track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)
                     track_proc.match_hail_size_step_distributions(model_tracks, mrms_tracks, track_pairings)
@@ -187,7 +176,7 @@ def process_ensemble_member(run_date, member, config):
                                                                 track_pairings)
                 print("Output data", run_date, member)
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member,
-                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors) 
+                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors)
                 if patch_radius is not None:
                     print("Output netCDF", run_date, member)
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
@@ -212,7 +201,7 @@ def process_ensemble_member(run_date, member, config):
                     os.chmod(csv_filename, 0o666)
             else:
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
-                                                         track_proc.model_grid.proj) 
+                                                         track_proc.model_grid.proj)
                 if patch_radius is not None:
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
@@ -227,27 +216,19 @@ def process_ensemble_member(run_date, member, config):
                 forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
             forecast_data = {}
-        
+
         for table_name, table_data in forecast_data.items():
             csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                            config.ensemble_name,
-                                                            member,
-                                                            run_date.strftime(config.run_date_format))
+                                                                          config.ensemble_name,
+                                                                          member,
+                                                                          run_date.strftime(config.run_date_format))
             print("Output csv file " + csv_filename)
             table_data.to_csv(csv_filename,
-                        na_rep="nan",
-                        float_format="%0.5f",
-                        index=False)
+                              na_rep="nan",
+                              float_format="%0.5f",
+                              index=False)
             os.chmod(csv_filename, 0o666)
-        '''
-        if sector_mapfile:
-            sector = SectorProcessor(sector_mapfile,
-                                    config.ensemble_name,member,
-                                    run_date,config.run_date_format)
-            sector.output_sector_netcdf(config.nc_path,sector_nc_outpath,patch_radius,config)
-            for key in ['track_step', 'track_total']:
-                sector.output_sector_csv(config.csv_path,key,sector_csv_outpath)
-        '''
+
     except Exception as e:
         print(traceback.format_exc())
         raise e
@@ -271,7 +252,7 @@ def process_observed_tracks(run_date, member, config):
             mask_file = config.mask_file
         else:
             mask_file = None
-        
+
         track_proc = TrackProcessor(run_date,
                                     start_date,
                                     end_date,
@@ -285,7 +266,6 @@ def process_observed_tracks(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
@@ -294,8 +274,6 @@ def process_observed_tracks(run_date, member, config):
 
         print("Find obs tracks", run_date, member)
         mrms_tracks = track_proc.find_mrms_tracks()
-        track_pairings = []
-        model_tracks = []
         if len(mrms_tracks) > 0:
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
                                            )
@@ -353,7 +331,6 @@ def rematch_ensemble_tracks(run_date, member, config):
                                     config.track_matcher_params,
                                     config.size_filter,
                                     config.gaussian_window,
-                                    config.sector_ind_path,
                                     mrms_path=config.mrms_path,
                                     mrms_variable=config.mrms_variable,
                                     mrms_watershed_params=config.mrms_watershed_params,
@@ -371,7 +348,7 @@ def rematch_ensemble_tracks(run_date, member, config):
             forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                      config, track_proc.model_grid.proj, mrms_tracks, track_errors)
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                          )
+                                           )
             for table_name, table_data in obs_data.items():
                 table_data.to_csv(config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                  "obs",
@@ -645,7 +622,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             dtype = "f4"
         c_var = out_file.createVariable(center_var, dtype, ("p",), zlib=True, complevel=1)
         c_var.long_name = center_var
-        c_var.units =center_units[c]
+        c_var.units = center_units[c]
     for storm_variable in config.storm_variables:
         s_var = out_file.createVariable(storm_variable + "_curr", "f4", ("p", "row", "col"), complevel=1, zlib=True)
         s_var.long_name = storm_variable
@@ -702,11 +679,10 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
         for label_column in label_columns:
             try:
                 out_file.variables[label_column][:] = np.concatenate([f_track.observations[label_column].values
-                                                                    for f_track in forecast_tracks])
-            except:
+                                                                      for f_track in forecast_tracks])
+            except Exception as e:
                 out_file.variables[label_column][:] = 0
 
-    
     out_file.close()
 
 
@@ -733,11 +709,10 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_type='
         for stat in config.variable_statistics:
             var_stats.append("MESH_" + stat)
 
-
     if hasattr(config, "shape_variables"):
         for var in config.shape_variables:
             var_stats.append(var)
-    
+
     obs_step_track_columns = obs_step_track_columns + var_stats
     obs_data = dict()
     obs_data['track_total'] = pd.DataFrame(columns=obs_total_track_columns)
@@ -768,11 +743,10 @@ def make_obs_track_data(obs_tracks, member, run_date, config, proj, track_type='
             if hasattr(config, "shape_variables"):
                 var_stat_vals.extend(obs_track.calc_shape_step(config.shape_variables, step))
 
-
             record = [step_id, obs_track_id, run_date, step_date, step,
-                          valid_hour_utc, step_duration, centroid_lon, centroid_lat,
-                          centroid_x, centroid_y] + var_stat_vals
-           
+                      valid_hour_utc, step_duration, centroid_lon, centroid_lat,
+                      centroid_x, centroid_y] + var_stat_vals
+
             obs_data['track_step'].loc[track_step_count] = record
             track_step_count += 1
 
@@ -823,6 +797,7 @@ def obs_tracks_to_json(obs_tracks, member, run_date, config, proj):
         obs_track.to_geojson(json_filename, proj, json_metadata)
         os.chmod(json_filename, 0o666)
     return
+
 
 if __name__ == "__main__":
     main()

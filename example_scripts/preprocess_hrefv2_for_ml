@@ -1,0 +1,7 @@
+#!/bin/bash
+
+#Create CONUS Mask File
+python .../hagelslag/hagelslag/util/create_model_grid_us_mask.py -m .../hagelslag/mapfiles/hrefv2_2018_map.txt -s .../hagelslag/mapfiles/states/states.shp -o .../hagelslag/mapfiles/hrefv2_us_mask.nc
+
+#Regrid MESH data onto HREFv2 grid
+python .../hagelslag/hagelslag/util/convert_mrms_grids.py -s 201805010000 -e 201808310000 -p /Path_to_MRMS_MESH_archive -o /Path_to_save_MESH_data -m .../hagelslag/mapfiles/hrefv2_2018_map.txt -v MESH_Max_60min_00.50 -i max -n 10

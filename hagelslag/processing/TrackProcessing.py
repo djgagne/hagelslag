@@ -1,6 +1,8 @@
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
+from hagelslag.processing.Watershed import Watershed
+from hagelslag.processing.Hysteresis import Hysteresis
 from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
 from scipy.ndimage import find_objects, gaussian_filter
@@ -29,15 +31,18 @@ class TrackProcessor(object):
         variable: model variable being used for extraction.
         model_path: path to the ensemble output.
         model_map_file: File containing model map projection information.
-        model_watershed_params: tuple of parameters used for EnhancedWatershed
+        model_watershed_params: tuple of parameters used for segmentation,
         object_matcher_params: tuple of parameters used for ObjectMatcher.
         track_matcher_params: tuple of parameters for TrackMatcher or TrackStepMatcher.
         size_filter: minimum size of model objects
         gaussian_window: number of grid points
+        segmentation_approach: Select the segmentation algorithm. "ew" for enhanced watershed (default), "ws" for
+            regular watershed, and "hyst" for hysteresis.
         match_steps: If True, match individual steps in tracks instead of matching whole tracks
         mrms_path: Path to MRMS netCDF files
         mrms_variable: MRMS variable being used
-        mrms_watershed_params: tuple of parameters for Enhanced Watershed applied to MESH data.
+        mrms_watershed_params: tuple of parameters for segmentation applied to MESH data. If None, then model
+            segmentation parameters are used.
         single_step: Whether model timesteps are in separate files or aggregated into one file.
         mask_file: netCDF filename containing a mask of valid grid points on the model domain.
     """
@@ -55,7 +60,7 @@ class TrackProcessor(object):
                  track_matcher_params,
                  size_filter,
                  gaussian_window,
-                 sector_ind_path,
+                 segmentation_approach="ew",
                  match_steps=True,
                  mrms_path=None,
                  mrms_variable=None,
@@ -66,13 +71,19 @@ class TrackProcessor(object):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
-        self.start_hour = int((self.start_date - self.run_date).total_seconds()) / 3600
-        self.end_hour = int((self.end_date - self.run_date).total_seconds()) / 3600
+        self.start_hour = int((self.start_date - self.run_date).total_seconds()) // 3600
+        self.end_hour = int((self.end_date - self.run_date).total_seconds()) // 3600
         self.hours = np.arange(int(self.start_hour), int(self.end_hour) + 1)
         self.ensemble_name = ensemble_name
         self.ensemble_member = ensemble_member
         self.variable = variable
-        self.model_ew = EnhancedWatershed(*model_watershed_params)
+        self.segmentation_approach = segmentation_approach
+        if self.segmentation_approach == "ws":
+            self.model_ew = Watershed(*model_watershed_params)
+        elif self.segmentation_approach == "hyst":
+            self.model_ew = Hysteresis(*model_watershed_params)
+        else:
+            self.model_ew = EnhancedWatershed(*model_watershed_params)
         self.object_matcher = ObjectMatcher(*object_matcher_params)
         if match_steps:
             self.track_matcher = None
@@ -82,19 +93,25 @@ class TrackProcessor(object):
             self.track_step_matcher = None
         self.size_filter = size_filter
         self.gaussian_window = gaussian_window
-        self.sector_ind_path = sector_ind_path
         self.model_path = model_path
         self.model_map_file = model_map_file
         self.mrms_path = mrms_path
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, self.model_map_file,
-                                      self.sector_ind_path,single_step=self.single_step)
+                                        single_step=self.single_step)
         self.model_grid.load_map_info(self.model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
             self.mrms_grid = MRMSGrid(self.start_date, self.end_date, self.mrms_variable, self.mrms_path)
-            self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
+            if mrms_watershed_params is None:
+                mrms_watershed_params = model_watershed_params
+            if self.segmentation_approach == "ws":
+                self.mrms_ew = Watershed(*mrms_watershed_params)
+            elif self.segmentation_approach == "hyst":
+                self.mrms_ew = Hysteresis(*mrms_watershed_params)
+            else:
+                self.mrms_ew = EnhancedWatershed(*mrms_watershed_params)
         else:
             self.mrms_grid = None
             self.mrms_ew = None
@@ -139,11 +156,16 @@ class TrackProcessor(object):
             model_data[:, :self.patch_radius] = 0
             model_data[:, -self.patch_radius:] = 0
             scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
-            hour_labels = label_storm_objects(scaled_data, "ew",
+            if self.segmentation_approach == "ew":
+                hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
                                               self.model_ew.min_thresh, self.model_ew.max_thresh,
                                               min_area=self.size_filter, max_area=self.model_ew.max_size,
                                               max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
                                               gaussian_sd=self.gaussian_window)
+            else:
+                hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
+                                                  self.model_ew.min_thresh, self.model_ew.max_thresh,
+                                                  min_area=self.size_filter, gaussian_sd=self.gaussian_window)
             model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
@@ -191,10 +213,13 @@ class TrackProcessor(object):
             max_orig = self.model_ew.max_thresh
             data_increment_orig = self.model_ew.data_increment
             # scale to int 0-100.
-            scaled_data = np.array(rescale_data( self.model_grid.data[h], min_orig, max_orig))
-            self.model_ew.min_thresh = 0
-            self.model_ew.data_increment = 1
-            self.model_ew.max_thresh = 100
+            if self.segmentation_approach == "ew":
+                scaled_data = np.array(rescale_data(self.model_grid.data[h], min_orig, max_orig))
+                self.model_ew.min_thresh = 0
+                self.model_ew.data_increment = 1
+                self.model_ew.max_thresh = 100
+            else:
+                scaled_data = self.model_grid.data[h]
             hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
             hour_labels[model_data < self.model_ew.min_thresh] = 0
             hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
@@ -204,7 +229,7 @@ class TrackProcessor(object):
             self.model_ew.data_increment = data_increment_orig
             obj_slices = find_objects(hour_labels)
 
-            num_slices = len(obj_slices)
+            num_slices = len(list(obj_slices))
             model_objects.append([])
             if num_slices > 0:
                 for s, sl in enumerate(obj_slices):
@@ -290,7 +315,7 @@ class TrackProcessor(object):
                                                        self.size_filter)
                 hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
                 obj_slices = find_objects(hour_labels)
-                num_slices = len(obj_slices)
+                num_slices = len(list(obj_slices))
                 obs_objects.append([])
                 if num_slices > 0:
                     for sl in obj_slices:
@@ -379,7 +404,7 @@ class TrackProcessor(object):
                                                  self.run_date, storm_var, self.start_date - timedelta(hours=1),
                                                  self.end_date + timedelta(hours=1),
                                                  self.model_path,self.model_map_file, 
-                                                 self.sector_ind_path,self.single_step)
+                                                 self.single_step)
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
@@ -393,7 +418,7 @@ class TrackProcessor(object):
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
                                                          self.model_path, self.model_map_file, 
-                                                         self.sector_ind_path,self.single_step)
+                                                         self.single_step)
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
@@ -407,7 +432,7 @@ class TrackProcessor(object):
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
                                                          self.model_path, self.model_map_file,
-                                                         self.sector_ind_path,self.single_step)
+                                                         self.single_step)
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[future_var], future=True)
@@ -421,7 +446,7 @@ class TrackProcessor(object):
                                                         self.start_date - timedelta(hours=1),
                                                         self.end_date,
                                                         self.model_path, self.model_map_file, 
-                                                        self.sector_ind_path,self.single_step)
+                                                        self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]
