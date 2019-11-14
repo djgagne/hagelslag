@@ -22,20 +22,20 @@ class EnhancedWatershed(object):
     store the quantization and size parameters. It can be used to watershed multiple grids.
 
     Attributes:
-        min_thresh (int): minimum pixel value for pixel to be part of a region
+        min_intensity (int): minimum pixel value for pixel to be part of a region
         data_increment (int): quantization interval. Use 1 if you don't want to quantize
-        max_thresh (int): values greater than maxThresh are treated as the maximum threshold
+        max_intensity (int): values greater than maxThresh are treated as the maximum threshold
         size_threshold_pixels (int): clusters smaller than this threshold are ignored.
         delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.
     """
 
-    def __init__(self, min_thresh, data_increment, max_thresh, size_threshold_pixels, delta):
-        self.min_thresh = min_thresh
+    def __init__(self, min_intensity, data_increment, max_intensity, size_threshold_pixels, delta):
+        self.min_intensity = min_intensity
         self.data_increment = data_increment
-        self.max_thresh = max_thresh
+        self.max_intensity = max_intensity
         self.max_size = size_threshold_pixels
         self.delta = delta
-        self.max_bin = int((self.max_thresh - self.min_thresh) / self.data_increment)
+        self.max_bin = int((self.max_intensity - self.min_intensity) / self.data_increment)
         self.UNMARKED = -1
         self.GLOBBED = -3
         self.TOOSMALL = -4
@@ -298,7 +298,7 @@ class EnhancedWatershed(object):
         for i in range(self.max_bin + 1):
             pixels[i] = []
 
-        data = (np.array(input_grid, dtype=np.int32) - self.min_thresh) // self.data_increment
+        data = (np.array(input_grid, dtype=np.int32) - self.min_intensity) // self.data_increment
         data[data < 0] = -1
         data[data > self.max_bin] = self.max_bin
         good_points = np.where(data >= 0)
