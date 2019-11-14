@@ -211,24 +211,30 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h]
 
             # remember orig values
-            min_orig = self.model_ew.min_intensity
-            max_orig = self.model_ew.max_intensity
-            data_increment_orig = self.model_ew.data_increment
+
             # scale to int 0-100.
             if self.segmentation_approach == "ew":
+                min_orig = self.model_ew.min_intensity
+                max_orig = self.model_ew.max_intensity
+                data_increment_orig = self.model_ew.data_increment
                 scaled_data = np.array(rescale_data(self.model_grid.data[h], min_orig, max_orig))
                 self.model_ew.min_intensity = 0
                 self.model_ew.data_increment = 1
                 self.model_ew.max_intensity = 100
             else:
+                min_orig = 0
+                max_orig = 1
+                data_increment_orig = 1
                 scaled_data = self.model_grid.data[h]
             hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
             hour_labels[model_data < self.model_ew.min_intensity] = 0
-            hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
+            if self.size_filter > 1:
+                hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
             # Return to orig values
-            self.model_ew.min_intensity = min_orig
-            self.model_ew.max_intensity = max_orig
-            self.model_ew.data_increment = data_increment_orig
+            if self.segmentation_approach == "ew":
+                self.model_ew.min_intensity = min_orig
+                self.model_ew.max_intensity = max_orig
+                self.model_ew.data_increment = data_increment_orig
             obj_slices = find_objects(hour_labels)
 
             num_slices = len(list(obj_slices))
