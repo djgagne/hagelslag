@@ -137,13 +137,17 @@ class TrackProcessor(object):
         if self.model_grid.data is None:
             print("No model output found")
             return tracked_model_objects
-        min_orig = self.model_ew.min_intensity
-        max_orig = self.model_ew.max_intensity
-        data_increment_orig = self.model_ew.data_increment
         if self.segmentation_approach == "ew":
+            min_orig = self.model_ew.min_intensity
+            max_orig = self.model_ew.max_intensity
+            data_increment_orig = self.model_ew.data_increment
             self.model_ew.min_intensity = 0
             self.model_ew.data_increment = 1
             self.model_ew.max_intensity = 100
+        else:
+            min_orig = 0
+            max_orig = 1
+            data_increment_orig = 1
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
@@ -163,6 +167,7 @@ class TrackProcessor(object):
                                                   min_area=self.size_filter, max_area=self.model_ew.max_size,
                                                   max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
                                                   gaussian_sd=self.gaussian_window)
+                del scaled_data
             else:
                 hour_labels = label_storm_objects(model_data, self.segmentation_approach,
                                                   self.model_ew.min_intensity, self.model_ew.max_intensity,
@@ -175,7 +180,7 @@ class TrackProcessor(object):
                 dims = model_obj.timesteps[-1].shape
                 if h > 0:
                     model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
-            del scaled_data
+
             del model_data
             del hour_labels
         tracked_model_objects.extend(track_storms(model_objects, self.hours,
