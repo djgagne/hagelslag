@@ -177,9 +177,11 @@ class TrackProcessor(object):
                                                        dx=self.model_grid.dx,
                                                        patch_radius=self.patch_radius))
             for model_obj in model_objects[-1]:
-                dims = model_obj.timesteps[-1].shape
-                if h > 0:
-                    model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+                slices = list(find_objects(model_obj.masks[-1]))
+                if len(slices) > 0:
+                    dims = (slices[0][0].stop - slices[0][0].start, slices[0][1].stop - slices[0][1].start)
+                    if h > 0:
+                        model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
 
             del model_data
             del hour_labels
