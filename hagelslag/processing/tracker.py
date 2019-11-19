@@ -47,9 +47,9 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
         label_grid = np.zeros(data.shape, dtype=np.int32)
         for t in range(data.shape[0]):
             if gaussian_sd > 0:
-                label_grid = labeler.label(gaussian_filter(data[t], gaussian_sd))
+                label_grid[t] = labeler.label(gaussian_filter(data[t], gaussian_sd))
             else:
-                label_grid = labeler.label(data[t])
+                label_grid[t] = labeler.label(data[t])
             label_grid[t][data[t] < min_intensity] = 0
             if min_area > 1:
                 label_grid[t] = labeler.size_filter(label_grid[t], min_area)
@@ -155,8 +155,8 @@ def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, p
             if len(centers) > 0:
                 for o, center in enumerate(centers):
                     int_center = np.round(center).astype(int)
-                    obj_slice_buff = [slice(int_center[0] - patch_radius, int_center[0] + patch_radius),
-                                      slice(int_center[1] - patch_radius, int_center[1] + patch_radius)]
+                    obj_slice_buff = (slice(int_center[0] - patch_radius, int_center[0] + patch_radius),
+                                      slice(int_center[1] - patch_radius, int_center[1] + patch_radius))
                     storm_objects[-1].append(STObject(data[t][obj_slice_buff],
                                                       np.where(label_grid[t][obj_slice_buff] == o + 1, 1, 0),
                                                       x_grid[obj_slice_buff],
