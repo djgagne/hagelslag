@@ -37,7 +37,7 @@ class MRMSGrid(object):
         self.variable = variable
         self.path = path
         self.freq = freq
-        self.all_dates = pd.DatetimeIndex(start=start_date, end=end_date, freq=freq)
+        self.all_dates = pd.date_range(start=start_date, end=end_date, freq=freq)
         self.data = None
         self.valid_dates = None
 
