@@ -328,7 +328,7 @@ class TrackProcessor(object):
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
                                                                                       self.gaussian_window)),
                                                        self.size_filter)
-                hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
+                hour_labels[mrms_data < self.mrms_ew.min_intensity] = 0
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(list(obj_slices))
                 obs_objects.append([])
@@ -511,7 +511,7 @@ class TrackProcessor(object):
             model_hail_dists = pd.DataFrame(index=model_track.times,
                                             columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
-                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_thresh)]
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_intensity)]
                 min_hail = step_vals.min() - 0.1
                 obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
                                                                                                    floc=min_hail)
@@ -568,7 +568,7 @@ class TrackProcessor(object):
                     for step_pair in step_pairs:
                         obs_step = obs_tracks[step_pair[0]].timesteps[step_pair[1]].ravel()
                         obs_mask = obs_tracks[step_pair[0]].masks[step_pair[1]].ravel()
-                        all_hail_sizes.append(obs_step[(obs_mask == 1) & (obs_step >= self.mrms_ew.min_thresh)])
+                        all_hail_sizes.append(obs_step[(obs_mask == 1) & (obs_step >= self.mrms_ew.min_intensity)])
                     combined_hail_sizes = np.concatenate(all_hail_sizes)
                     min_hail = combined_hail_sizes.min() - 0.1
                     model_track.observations.loc[time, "Max_Hail_Size"] = combined_hail_sizes.max()
