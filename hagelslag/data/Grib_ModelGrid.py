@@ -3,7 +3,8 @@ import pandas as pd
 import pygrib
 import numpy as np
 from os.path import exists
-
+import datetime
+from netCDF4 import Dataset
 
 class Grib_ModelGrid(object):
     """
@@ -93,7 +94,33 @@ class Grib_ModelGrid(object):
                 Id = key
                 u = units[key]
         return Id, u
+    
+    def load_lightning_data(self):
+        """
+            Loads data from netCDF4 file objects.
 
+            Returns:
+                Array of data loaded from files in (time, y, x) dimensions, Units
+        """
+        data = None
+        path = '/ai-hail/aburke/classes/METR5243/lightning_data/'
+        run_date = self.run_date.astype(datetime.datetime)
+        next_day = run_date + datetime.timedelta(days=1)
+        for f,f_hour in enumerate(self.forecast_hours):
+            if f_hour < 24:
+                file_path = path+'{0}/{0}T{1:02}_counts_{2}.nc'.format(run_date.strftime('%Y%m%d'),
+                                f_hour,self.variable)
+            else:
+                file_path = path+'{0}/{0}T{1:02}_counts_{2}.nc'.format(next_day.strftime('%Y%m%d'),
+                                (f_hour-24),self.variable)
+            if not exists(file_path):
+                return None, None
+            data_values = Dataset(file_path).variables['counts'][:]
+            if data is None:
+                data = np.empty((len(self.valid_dates), data_values.shape[0], data_values.shape[1]), dtype=float)
+            data[f]=data_values
+        return data, 'counts'
+    
     def load_data(self):
         """
             Loads data from grib2 file objects or list of grib2 file objects. Handles specific grib2 variable names
@@ -101,6 +128,11 @@ class Grib_ModelGrid(object):
             Returns:
                     Array of data loaded from files in (time, y, x) dimensions, Units
         """
+        
+        if self.variable in ['nldn', 'entln']:
+            data, units = self.load_lightning_data()
+            return data, units
+                
         if not self.file_objects:
             print()
             print("No {0} model runs on {1}".format(self.member,self.run_date))
@@ -108,7 +140,6 @@ class Grib_ModelGrid(object):
             units = None
             return self.data, units
 
-    
         for f, file in enumerate(self.file_objects):
             grib = pygrib.open(file)
             if type(self.variable) is int:

@@ -127,94 +127,94 @@ def process_ensemble_member(run_date, member, config):
                                                 config.potential_variables,
                                                 config.tendency_variables,
                                                 future_variables=future_variables)
-        if config.train and len(model_tracks) > 0:
-            print("Find obs tracks", run_date, member)
-            mrms_tracks = track_proc.find_mrms_tracks()
+            if config.train and len(model_tracks) > 0:
+                print("Find obs tracks", run_date, member)
+                mrms_tracks = track_proc.find_mrms_tracks()
 
-            '''
-            if len(mrms_tracks) == 0 and len(model_tracks) > 0:
-                obs_data = make_obs_track_data(model_tracks, member,
+                '''
+                if len(mrms_tracks) == 0 and len(model_tracks) > 0:
+                    obs_data = make_obs_track_data(model_tracks, member,
                                             run_date, config,
                                             track_proc.model_grid.proj, track_type='model')
 
 
-                for table_name, table_data in obs_data.items():
-                    csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                    for table_name, table_data in obs_data.items():
+                        csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                     "obs",
                                                                                     member,
                                                                                     run_date.strftime(
                                                                                      config.run_date_format))
-                    table_data.to_csv(csv_filename,
+                        table_data.to_csv(csv_filename,
                                         na_rep="nan",
                                         float_format="%0.5f",
                                         index=False)
-                    os.chmod(csv_filename, 0o666)
+                        os.chmod(csv_filename, 0o666)
 
-                    print("Output csv", run_date, member, csv_filename)
+                        print("Output csv", run_date, member, csv_filename)
 
-                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
+                    forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                                        track_proc.model_grid.proj)
 
-                if patch_radius is not None:
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
-                if config.json:
-                    forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-            '''
-            if len(mrms_tracks) > 0 and len(model_tracks) > 0:
-                if match_steps:
-                    track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)
-                    track_proc.match_hail_size_step_distributions(model_tracks, mrms_tracks, track_pairings)
-                    track_errors = None
-                else:
-
-                    track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
+                    if patch_radius is not None:
+                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    if config.json:
+                        forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+                '''
+                if len(mrms_tracks) > 0 and len(model_tracks) > 0:
+                    if match_steps:
+                        track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)
+                        track_proc.match_hail_size_step_distributions(model_tracks, mrms_tracks, track_pairings)
+                        track_errors = None
+                    else:
+                        track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
                                                              unique_matches=config.unique_matches,
                                                              closest_matches=config.closest_matches)
-                    track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
-                    track_errors = track_proc.calc_track_errors(model_tracks,
+                        track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
+                        track_errors = track_proc.calc_track_errors(model_tracks,
                                                                 mrms_tracks,
                                                                 track_pairings)
-                print("Output data", run_date, member)
-                forecast_data = make_forecast_track_data(model_tracks, run_date, member,
+                    print("Output data", run_date, member)
+                    forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                          config, track_proc.model_grid.proj, mrms_tracks, track_errors)
-                if patch_radius is not None:
-                    print("Output netCDF", run_date, member)
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
-                if config.json:
-                    print("Output json", run_date, member)
-                    forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
+                    if patch_radius is not None:
+                        print("Output netCDF", run_date, member)
+                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    if config.json:
+                        print("Output json", run_date, member)
+                        forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
                                             observed_tracks=mrms_tracks,
                                             track_errors=track_errors)
-                obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-                obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-                print("Output csv", run_date, member)
-                for table_name, table_data in obs_data.items():
-                    csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
+                    obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+                    obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+                    print("Output csv", run_date, member)
+                    for table_name, table_data in obs_data.items():
+                        csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                                   "obs",
                                                                                   member,
                                                                                   run_date.strftime(
                                                                                       config.run_date_format))
-                    table_data.to_csv(csv_filename,
+                        table_data.to_csv(csv_filename,
                                       na_rep="nan",
                                       float_format="%0.5f",
                                       index=False)
-                    os.chmod(csv_filename, 0o666)
-            else:
-                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
+                        os.chmod(csv_filename, 0o666)
+                else:
+                    forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                          track_proc.model_grid.proj)
+                    if patch_radius is not None:
+                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    if config.json:
+                        forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+            elif len(model_tracks) > 0:
+                print(run_date, member, "Make Forecast Track Data")
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
                 if patch_radius is not None:
+                    print(run_date, member, "Track Data to netCDF")
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-        elif len(model_tracks) > 0:
-            print(run_date, member, "Make Forecast Track Data")
-            forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-            if patch_radius is not None:
-                print(run_date, member, "Track Data to netCDF")
-                forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
-            if config.json:
-                forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
+            print('No {0} {1} modeled tracks found'.format(run_date,member))
             forecast_data = {}
 
         for table_name, table_data in forecast_data.items():
