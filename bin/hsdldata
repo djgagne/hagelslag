@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+import argparse, pdb
+from multiprocessing import Pool
+from hagelslag.data.ModelOutput import ModelOutput
+from hagelslag.data.MRMSGrid import MRMSGrid
+from hagelslag.util.Config import Config
+from datetime import timedelta
+import pandas as pd
+import numpy as np
+import os
+import xarray as xr
+import traceback
+
+def main():
+    parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
+    parser.add_argument("config", help="Configuration file")
+    parser.add_argument("-p", "--proc", type=int, default=1,help="Number of processors")
+    args = parser.parse_args()
+    required = ['dates', 'start_hour', 'end_hour', 'ensemble_members',
+                'model_path', "ensemble_name",'size_filter', 'gaussian_window',
+                'mrms_path', 'storm_variables', 'potential_variables', 
+                'model_map_file','nc_path', 'patch_radius','train', 'single_step', 
+                "unique_matches", "label_type",'closest_matches']
+    config = Config(args.config, required_attributes=required)
+    config.valid_hours = np.arange(config.start_hour, config.end_hour)
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%Y%m%d-%H%M"
+    if args.proc > 1:
+        pool = Pool(args.proc)
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                pool.apply_async(process_ensemble_member, (run_date, member, config))
+        pool.close()
+        pool.join()
+    else:
+        for run_date in config.dates:
+            for member in config.ensemble_members:
+                process_ensemble_member(run_date, member, config)
+    return
+
+
+def process_ensemble_member(run_date, member, config):
+    """
+    Find forecast and observed tracks for one run of a storm-scale ensemble member.
+
+    Args:
+        run_date: datetime object containing the date of the model run
+        member: name of the ensemble member
+        config: Config object containing model parameters
+    """
+    try:
+        if hasattr(config, "tendency_variables"):
+            forecast_variables.extend(config.tendency_variables)
+        
+        if hasattr(config, "mask_file"):
+            mask_file = config.mask_file
+            mask = xr.open_dataset(mask_file)
+            mask_dims = mask.dims
+            print(mask)
+
+        print("Starting", run_date, member)
+        start_date = run_date + timedelta(hours=config.start_hour)
+        end_date = run_date + timedelta(hours=config.end_hour)
+
+        forecast_variables = config.storm_variables + config.potential_variables
+        #forecast variables is list of strings 
+        variable_patches = {}
+        label_patches = {}
+
+        gridded_MESH = MRMSGrid(config.start_date, config.end_date, config.mrms_variable, config.mrms_path)
+        # gridded MESH size (24 hours, 1059, 1799)  
+        #run a kernel smoother?
+
+        for v,variable in enumerate(forecast_variables):
+            print(variable,start_date,member)
+            gridded_variable = ModelOutput(config.ensemble_name,member,run_date,variable,start_date,end_date,
+                                    config.model_path,config.model_map_file,single_step=config.single_step)
+            gridded_variable.load_data() 
+            if mask_file is not None:
+                gridded_variable = gridded_variable.data * mask['usa_mask']
+            # gridded model size of array (24 hours, 1059, 1799) for each different variable  
+            
+            # The grid obj contains the 24 hour HREFv2 variable data on a 1059 1799 grid shape
+            # hourly_patches_grid = np.zeros((grid_obj.shape[0],config.patch_radius,config.patch_radius))
+            for hour in range(len(gridded_variable)):
+                #try mesh if a pixel greater than, label it 
+                if variable in config.storm_variables:
+                    hourly_model_grid = gridded_variable.data[hour]
+                    ####
+                    # Add storm variable slicing here 
+                    ###
+                    hourly_patches_grid = #slicing function
+                
+                elif variable in config.potential_variables:
+                    if hour > 0: 
+                        hourly_model_grid = gridded_variable.data[hour-1]
+                        ####
+                        # Add env variable patching here 
+                        ###
+                        hourly_patches_grid = #slicing function
+            
+            # model output as (32, 32, 24, # of patches)
+            # MESH outpyut (1,24,# of patches)
+            variable_patches[variable] = hourly_patches_grid
+            label_patches[variable] = 
+            #start with classificaiion problem no severe, severe, sig severe, no hail (0,1,2,3)
+
+            print(model_grid)
+        
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+    return
+
+def slicing_data():
+    
+    return 
+
+
+
+if __name__ == "__main__":
+    main()
