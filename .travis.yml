@@ -2,12 +2,12 @@ language: python
 env:
   - PYTHON_VERSION=2.7 IPYTHON_KERNEL=python2
   - PYTHON_VERSION=3.6 IPYTHON_KERNEL=python3
+  - PYTHON_VERSION=3.7 IPYTHON_KERNEL=python3
+
 before_install:
-  - wget -q https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-  - chmod +x miniconda.sh
-  - ./miniconda.sh -b -p /home/travis/miniconda
+  - wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+  - sh Miniconda3-latest-Linux-x86_64.sh -b -p /home/travis/miniconda
   - export PATH=/home/travis/miniconda/bin:$PATH
-  - conda update --yes --quiet conda
 install:
   - conda create -n testenv --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib
   - source activate testenv
