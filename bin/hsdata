@@ -30,15 +30,16 @@ def main():
                 'mrms_path', 'mrms_watershed_params',
                 'storm_variables', 'potential_variables', "tendency_variables",
                 'variable_statistics', 'model_map_file',
-                'csv_path', 'geojson_path', 'train', 'single_step', "unique_matches", "label_type",
+                'csv_path', 'train', 'single_step', "unique_matches", "label_type",
                 'closest_matches']
     config = Config(args.config, required_attributes=required)
     if not hasattr(config, "segmentation_approach"):
         config.segmentation_approach = "ew"
-    config.json = args.json
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
-
+    if not hasattr(config, "geojson_path"):
+        config.geojson_path = None
+    config.json = args.json
     if args.proc > 1:
         pool = Pool(args.proc)
         for run_date in config.dates:
@@ -185,7 +186,8 @@ def process_ensemble_member(run_date, member, config):
                                             observed_tracks=mrms_tracks,
                                             track_errors=track_errors)
                     obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-                    obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+                    if config.json:
+                        obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                     print("Output csv", run_date, member)
                     for table_name, table_data in obs_data.items():
                         csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
@@ -275,9 +277,9 @@ def process_observed_tracks(run_date, member, config):
         print("Find obs tracks", run_date, member)
         mrms_tracks = track_proc.find_mrms_tracks()
         if len(mrms_tracks) > 0:
-            obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj,
-                                           )
-            obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+            obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
+            if config.json:       
+                obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
             # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
             #    try:
             #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))

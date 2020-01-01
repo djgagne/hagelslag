@@ -134,9 +134,7 @@ class Grib_ModelGrid(object):
             return data, units
                 
         if not self.file_objects:
-            print()
             print("No {0} model runs on {1}".format(self.member,self.run_date))
-            print()
             units = None
             return self.data, units
 
