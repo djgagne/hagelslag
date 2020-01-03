@@ -673,6 +673,26 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             except Exception as e:
                 out_file.variables[label_column][:] = 0
 
+    # Save configuration dictionary as global attributes.
+    for k,v in config.__dict__.items():
+        # Don't save attributes that are already netCDF varaible names
+        if k=="dates": continue
+        if k=="storm_variables": continue
+        if k=="potential_variables": continue
+        if k=="tendency_variables": continue
+        v = str(v)
+        # Don't clobber existing attribute.
+        if hasattr(out_file, k):
+            # If it exists already, add "config_" to beginning and recheck.
+            alt_key = "config_" + k
+            if hasattr(out_file, alt_key):
+                # If alternative key exists too, raise attribute error.
+                raise AttributeError("Can't save "+k+":"+" "+v+" as global attribute. It already exists.")
+            else:
+                setattr(out_file, alt_key, v)
+        else:
+            setattr(out_file, k, v)
+
     out_file.close()
 
 
