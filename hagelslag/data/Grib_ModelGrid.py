@@ -138,41 +138,44 @@ class Grib_ModelGrid(object):
             units = None
             return self.data, units
 
-        for f, file in enumerate(self.file_objects):
-            grib = pygrib.open(file)
+        for f, g_file in enumerate(self.file_objects):
             if type(self.variable) is int:
+                grib = pygrib.open(file)
                 data_values = grib[self.variable].values
                 if grib[self.variable].units == 'unknown':
                     Id = grib[self.variable].parameterNumber
                     units = self.unknown_units[Id] 
                 else:
                     units = grib[self.variable].units
+                grib.close()
             elif type(self.variable) is str:
                 if '_' in self.variable:
                     variable = self.variable.split('_')[0]
                     level = self.variable.split('_')[1]
                     if variable in self.unknown_names.values():
                         Id, units = self.format_grib_name(variable)
-                        try:
-                            data_values = grib.select(parameterNumber=Id, level=int(level))[0].values
-                        except:
-                            data_values = grib.select(parameterNumber=Id,typeOfLevel=level)[0].values
+                        grib = pygrib.index(g_file,'parameterNumber','level' )
+                        data_values = grib.select(parameterNumber=Id, level=int(level))[0].values
+                        grib.close()
                     else:
-                        try:
-                            data_values = grib.select(name=variable, level=int(level))[0].values
-                            units = grib.select(name=variable, level=int(level))[0].units
-                        except:
-                            data_values = grib.select(name=variable,typeOfLevel=level)[0].values
-                            units = grib.select(name=variable, typeOfLevel=level)[0].units
+                        grib = pygrib.index(g_file,'name','level')
+                        data_values = grib.select(name=variable, level=int(level))[0].values
+                        units = grib.select(name=variable, level=int(level))[0].units
+                        grib.close()
                 else:   
                     if self.variable in self.unknown_names.values():
                         Id, units = self.format_grib_name(self.variable)
+                        grib = pygrib.index(g_file,'parameterNumber')
                         data_values = grib.select(parameterNumber=Id)[0].values
-                    elif len(grib.select(name=self.variable)) > 1:
-                        raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(self.variable))
+                        grib.close()
                     else:
-                        data_values = grib.select(name=self.variable)[0].values
-                        units = grib.select(name=self.variable)[0].units
+                        grib = pygrib.index(g_file,'name')
+                        if len(grib.select(name=self.variable)) > 1:
+                            raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(self.variable))
+                        else:
+                            data_values = grib.select(name=self.variable)[0].values
+                            units = grib.select(name=self.variable)[0].units
+                        grib.close()
 
             if self.data is None:
                 self.data = np.empty((len(self.valid_dates), data_values.shape[0], data_values.shape[1]), dtype=float)

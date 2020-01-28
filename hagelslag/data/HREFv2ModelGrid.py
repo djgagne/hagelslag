@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from .Grib_ModelGrid import Grib_ModelGrid
 from datetime import timedelta 
-import glob 
 import numpy as np
 import os
 
@@ -26,39 +25,87 @@ class HREFv2ModelGrid(Grib_ModelGrid):
         filenames = []
         self.forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
                                         (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
+        
         day_before_date = (run_date-timedelta(days=1)).strftime("%Y%m%d") 
         member_name = str(self.member.split("_")[0])
+        
         if 'nam' in self.member:
             if '00' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    files = glob.glob('{0}/{1}/nam_conusnest*00*{2}*'.format(
-                                    self.path,run_date.strftime("%Y%m%d"),forecast_hr))
-                    if not files: 
-                        files = glob.glob('{0}/{1}/nam.t00z*{2}*'.format(
-                                    self.path,run_date.strftime("%Y%m%d"),forecast_hr))
-                    if files:
-                        filenames.append(files[0])
+                    files = '{0}/nam_conusnest/nam_conusnest.{2}00/nam_conusnest.{2}00f{1:02}'.format(
+                                                                    self.path,
+                                                                    forecast_hr,
+                                                                    run_date.strftime("%Y%m%d"))
+                    if not os.path.exists(files):
+                        files = '{0}/{2}/nam_conusnest_{2}00f0{1:02}.grib2'.format(
+                                                                    self.path,
+                                                                    forecast_hr,
+                                                                    run_date.strftime("%Y%m%d"))
+                        if not os.path.exists(files):
+                            files = '{0}/nam_00/{2}/nam.t00z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                                                                    self.path,
+                                                                    forecast_hr,
+                                                                    run_date.strftime("%Y%m%d"))
+                        
+                    filenames.append(files)
             elif '12' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    files = glob.glob('{0}/{1}/nam_conusnest*12*{2}*'.format(
-                                    self.path,day_before_date,(forecast_hr+12)))
-                    if not files: 
-                        files = glob.glob('{0}/{1}/nam.t12z*{2}*'.format(
-                                    self.path,day_before_date,(forecast_hr+12)))
-                    if files:
-                        filenames.append(files[0])
+                    files = '{0}/nam_conusnest/nam_conusnest.{2}12/nam_conusnest.{2}12f{1:02}'.format(
+                                                                    self.path,
+                                                                    (forecast_hr+12),
+                                                                    day_before_date)
+                    if not os.path.exists(files):
+                        files = '{0}/{2}/nam_conusnest_{2}12f0{1:02}.grib2'.format(
+                                                                    self.path,
+                                                                    (forecast_hr+12),
+                                                                    day_before_date)
+                        if not os.path.exists(files):
+                            files = '{0}/nam_12/{2}/nam.t12z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                                                                    self.path,
+                                                                    (forecast_hr+12),
+                                                                    day_before_date)
+                    filenames.append(files)
         else:
             if '00' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    files = glob.glob('{0}/{1}/hiresw_conus{2}*00*{3}*'.format(
-                            self.path,run_date.strftime("%Y%m%d"),member_name,forecast_hr))
-                    if files:
-                        filenames.append(files[0])
+                    files = '{0}/hiresw_conus{1}/hiresw_conus{1}.{2}00/hiresw_conus{1}.{2}00f{3:02}'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                    if not os.path.exists(files):
+                        files = '{0}/{1}_00/{2}/hiresw_conus{1}_{2}00f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                        if not os.path.exists(files):
+                            files = '{0}/{2}/hiresw_conus{1}_{2}00f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                    filenames.append(files)
+
             elif '12' in self.member:
                 for forecast_hr in self.forecast_hours:
-                    files = glob.glob('{0}/{1}/hiresw_conus{2}*12*{3}*'.format(
-                            self.path,day_before_date,member_name,(forecast_hr+12)))
-                    if files:
-                        filenames.append(files[0])
+                    files = '{0}/hiresw_conus{1}/hiresw_conus{1}.{2}12/hiresw_conus{1}.{2}12f{3:02}'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    day_before_date,
+                                                                    (forecast_hr+12))
+                    if not os.path.exists(files):
+                        files = '{0}/{1}_12/{2}/hiresw_conus{1}_{2}12f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                        if not os.path.exists(files):
+                            files = '{0}/{2}/hiresw_conus{1}_{2}12f0{3:02}.grib2'.format(
+                                                                    self.path,
+                                                                    member_name,
+                                                                    run_date.strftime("%Y%m%d"),
+                                                                    forecast_hr)
+                    filenames.append(files)
         super(HREFv2ModelGrid, self).__init__(filenames,run_date,start_date,end_date,variable,member)
         return 
