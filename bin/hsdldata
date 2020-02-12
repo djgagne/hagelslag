@@ -108,6 +108,8 @@ def process_observational_data(run_date, config):
     gridded_obs.load_data()
     if gridded_obs.data is None:
         return
+    
+    gridded_obs.data = gridded_obs.data[1:]
     for hour in range(len(gridded_obs.data)):
         #Slice mrms data 
         hourly_obs_patches = slice_into_patches(gridded_obs.data[hour],
@@ -116,10 +118,10 @@ def process_observational_data(run_date, config):
         obs_patch_labels.append(label_obs_patches(hourly_obs_patches))
     
     obs_filename = '{0}/obs_{1}.h5'.format(config.hf_path,run_date.strftime(config.run_date_format)) 
-    print('\nWriting obs file: {0}\n'.format(obs_filename))
+    print('Writing obs file: {0}'.format(obs_filename))
     #Write file out using Hierarchical Data Format 5 (HDF5) format. 
     with h5py.File(obs_filename, 'w') as ohf:
-        ohf.create_dataset("patch_labels",
+        ohf.create_dataset("labels",
         data=obs_patch_labels,compression="gzip")
     return 
 
@@ -141,8 +143,9 @@ def process_ensemble_member(run_date, member, member_path, config):
         if hasattr(config, "mask_file"):
             mask = Dataset(config.mask_file).variables['usa_mask'][:]
         
-        #Find start and end date given the start and end hours 
-        start_date = run_date + timedelta(hours=config.start_hour)
+        #Find start and end date given the start and end hours. Add one hour to start date
+        # because the model data are valid over the previous hour
+        start_date = run_date + timedelta(hours=config.start_hour+1)
         end_date = run_date + timedelta(hours=config.end_hour)
         
         print("Starting ens processing", member, run_date)
@@ -175,14 +178,21 @@ def process_ensemble_member(run_date, member, member_path, config):
                             gridded_variable = gridded_variable.data[hour-1]
                         hourly_var_patches.append(slice_into_patches(gridded_variable,
                                             config.patch_radius, config.patch_radius))
+            if " " in variable: 
+                variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+            elif "_" in variable: 
+                variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+            else:
+                variable_name = variable
+            
             var_filename = '{0}/{1}_{2}_{3}.h5'.format(member_path,
-                                                variable.replace(" ","_"),
+                                                variable_name,
                                                 member,
                                                 run_date.strftime(config.run_date_format)) 
             print('Writing model file: {0}'.format(var_filename))
             #Write file out using Hierarchical Data Format 5 (HDF5) format. 
             with h5py.File(var_filename, 'w') as vhf:
-                vhf.create_dataset("{0}_patches".format(variable),
+                vhf.create_dataset("patches",
                 data=hourly_var_patches,compression="gzip") 
     except Exception as e:
         print(traceback.format_exc())
