@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+from hagelslag.processing.DLPatchSelector import DLPatchSelector
+from hagelslag.util.Config import Config
+import argparse, pdb
+import pandas as pd
+import numpy as np
+
+def main():
+    """
+    Main function to parse out configuration file (Config), a dictionary 
+    of different model tunnings, for slicing model and observational data. 
+
+    For a given number of parallel processesors, the model and observational 
+    data are sliced each day with the model data separated by ensemble member. 
+    """
+    parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
+    parser.add_argument("config", help="Configuration file")
+    parser.add_argument("-t", "--train", action="store_true", help="Train machine learning models.")
+    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts from machine learning models.")
+    args = parser.parse_args()
+    required = ['start_dates', 'end_dates','start_hour', 'end_hour', 'ensemble_members',
+                'model_path', "ensemble_name", 'mrms_path', 'storm_variables', 
+                'potential_variables', 'model_map_file','hf_path', 
+                'patch_radius','train', 'single_step','num_examples','class_percentages'] 
+    #Add attributes of dict to config
+    config = Config(args.config, required_attributes=required)
+    config.valid_hours = np.arange(config.start_hour, config.end_hour)
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%Y%m%d-%H"
+    config.forecast_variables = config.storm_variables + config.potential_variables
+    if hasattr(config, "tendency_variables"):
+        config.forecast_variables.extend(config.tendency_variables)
+    
+    #Process data for different processor arguments
+    dl_patch = DLPatchSelector(config.model_path,config.hf_path,
+        config.start_dates,config.end_dates,config.num_examples,
+        config.class_percentages,config.patch_radius,
+        config.run_date_format,config.forecast_variables)
+    
+    for member in config.ensemble_members:
+        if args.train:
+            mode = 'train' 
+            model_data, obs_data  = dl_patch.load_data(member,mode)
+            #train_models(config)
+        elif args.fore:
+            mode = 'forecast' 
+            _ = load_data(config,member,mode)
+    return
+
+if __name__ == "__main__":
+    __spec__ = None
+    main()
+
