@@ -108,15 +108,13 @@ def process_observational_data(run_date, config):
     gridded_obs.load_data()
     if gridded_obs.data is None:
         return
-    
-    gridded_obs.data = gridded_obs.data[1:]
-    for hour in range(len(gridded_obs.data)):
+    for hour in range(len(gridded_obs.data[1:])): 
         #Slice mrms data 
         hourly_obs_patches = slice_into_patches(gridded_obs.data[hour],
                                 config.patch_radius, config.patch_radius)
         #Label mrms data
-        obs_patch_labels.append(label_obs_patches(hourly_obs_patches))
-    
+        labels = label_obs_patches(hourly_obs_patches)
+        obs_patch_labels.append(labels)
     obs_filename = '{0}/obs_{1}.h5'.format(config.hf_path,run_date.strftime(config.run_date_format)) 
     print('Writing obs file: {0}'.format(obs_filename))
     #Write file out using Hierarchical Data Format 5 (HDF5) format. 
@@ -145,7 +143,7 @@ def process_ensemble_member(run_date, member, member_path, config):
         
         #Find start and end date given the start and end hours. Add one hour to start date
         # because the model data are valid over the previous hour
-        start_date = run_date + timedelta(hours=config.start_hour+1)
+        start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
         
         print("Starting ens processing", member, run_date)
@@ -155,29 +153,25 @@ def process_ensemble_member(run_date, member, member_path, config):
             gridded_variable = ModelOutput(config.ensemble_name,member,run_date,variable,start_date,end_date,
                                     config.model_path,config.model_map_file,single_step=config.single_step)
             gridded_variable.load_data() 
-            
             if gridded_variable.data is None:
                 break 
             hourly_var_patches = [] 
             #Slice hourly data
             for hour in range(len(gridded_variable.data)):
+                if hour > 0: 
                 #Storm variables are sliced at the current forecast hour
-                if variable in config.storm_variables:
+                    if variable in config.storm_variables:
+                        var_hour = hour
+                    #Potential (environmental) variables are sliced at the previous forecast hour
+                    elif variable in config.potential_variables:
+                        var_hour = hour-1
                     if mask is not None:
-                        gridded_variable = gridded_variable.data[hour] * mask
+                        gridded_variable = gridded_variable.data[var_hour] * mask
                     else:
-                        gridded_variable = gridded_variable.data[hour]
-                    hourly_var_patches.append(slice_into_patches(gridded_variable,
-                                            config.patch_radius, config.patch_radius))
-                #Potential (environmental) variables are sliced at the current forecast hour
-                elif variable in config.potential_variables:
-                    if hour > 0: 
-                        if mask is not None:
-                            gridded_variable = gridded_variable.data[hour-1] * mask
-                        else:
-                            gridded_variable = gridded_variable.data[hour-1]
-                        hourly_var_patches.append(slice_into_patches(gridded_variable,
-                                            config.patch_radius, config.patch_radius))
+                        gridded_variable = gridded_variable.data[var_hour]
+                    patches = slice_into_patches(gridded_variable,
+                                    config.patch_radius, config.patch_radius)
+                    hourly_var_patches.append(patches)
             if " " in variable: 
                 variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
             elif "_" in variable: 

@@ -162,7 +162,7 @@ def train_calibration(config):
         train_files, target_files = [], []
         for date in run_dates: 
             train_data_files = config.train_data_path+ \
-                    "20{3}/netcdf/{0}_Hail_{1}_NMEP_{2}_{3}_Hours_{4}-{5}.nc".format(
+                    "20{3}/netcdf/{0}_Hail_{1}_NMEP_unsmoothed_{2}_{3}_Hours_{4}-{5}.nc".format(
                         config.ensemble_name, config.forecast_model_names,size,date,
                         config.start_hour,config.end_hour)
             if config.sector:
@@ -298,7 +298,7 @@ def create_calibration_forecasts(target_calib_model,start_hour,end_hour,
             target_cali_forecast[size] = {}
             for date in run_dates: 
                 test_data_files = config.forecast_data_path+\
-                    "20{3}/netcdf/{0}_Hail_{1}_NMEP_{2}_{3}_Hours_{4}-{5}.nc".format(
+                    "20{3}/netcdf/{0}_Hail_{1}_NMEP_unsmoothed_{2}_{3}_Hours_{4}-{5}.nc".format(
                     config.ensemble_name,config.forecast_model_names,size,date,
                     start_hour,end_hour)    
                 if os.path.exists(test_data_files): 
