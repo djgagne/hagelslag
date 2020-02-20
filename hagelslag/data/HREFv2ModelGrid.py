@@ -42,7 +42,7 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     forecast_hr,
                                                                     run_date.strftime("%Y%m%d"))
                         if not os.path.exists(files):
-                            files = '{0}/nam_00/{2}/nam.t00z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                            files = '{0}/{2}/nam.t00z.conusnest.camfld{1:02}.tm00.grib2'.format(
                                                                     self.path,
                                                                     forecast_hr,
                                                                     run_date.strftime("%Y%m%d"))
@@ -60,7 +60,7 @@ class HREFv2ModelGrid(Grib_ModelGrid):
                                                                     (forecast_hr+12),
                                                                     day_before_date)
                         if not os.path.exists(files):
-                            files = '{0}/nam_12/{2}/nam.t12z.conusnest.camfld{1:02}.tm00.grib2'.format(
+                            files = '{0}/{2}/nam.t12z.conusnest.camfld{1:02}.tm00.grib2'.format(
                                                                     self.path,
                                                                     (forecast_hr+12),
                                                                     day_before_date)
