@@ -131,9 +131,7 @@ class ModelOutput(object):
                                self.variable,
                                self.start_date,
                                self.end_date,
-                               self.path,
-                               single_step=self.single_step)
-
+                               self.path)
             self.data, self.units = mg.load_data()
         
         elif self.ensemble_name.upper() == "HRRRE":
