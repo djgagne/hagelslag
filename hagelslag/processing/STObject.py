@@ -3,7 +3,6 @@ from skimage.measure import regionprops
 from skimage.segmentation import find_boundaries
 from skimage.morphology import convex_hull_image
 import json
-import os
 
 
 class STObject(object):
@@ -463,8 +462,7 @@ class STObject(object):
         try:
             all_props = [regionprops(m) for m in self.masks]
         except TypeError:
-            print(self.masks)
-            exit()
+            raise TypeError("masks not the right type")
         for stat in stat_names:
             stats[stat] = np.mean([p[0][stat] for p in all_props])
         return stats
