@@ -38,7 +38,7 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
 
     Examples:
 
-        >>> from hagelslag.evaluation import DistributedROC
+        >>> from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
         >>> import numpy as np
         >>> forecasts = np.random.random(1000)
         >>> obs = np.random.random_integers(0, 1, 1000)
@@ -53,7 +53,7 @@ def roc_curve(roc_objs, obj_labels, colors, markers, filename, figsize=(8, 8),
     if bootstrap_sets is not None:
         for b, b_set in enumerate(bootstrap_sets):
             broc_curves = np.dstack([b_roc.roc_curve().values for b_roc in b_set])
-            pod_range = np.percentile(broc_curves[:,0], ci, axis=1)
+            pod_range = np.percentile(broc_curves[:, 0], ci, axis=1)
             pofd_range = np.percentile(broc_curves[:, 1], ci, axis=1)
             pod_poly = np.concatenate((pod_range[1], pod_range[0, ::-1]))
             pofd_poly = np.concatenate((pofd_range[0], pofd_range[1, ::-1]))
@@ -116,7 +116,7 @@ def performance_diagram(roc_objs, obj_labels, colors, markers, filename, figsize
 
     Examples:
 
-        >>> from hagelslag.evaluation import DistributedROC
+        >>> from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
         >>> import numpy as np
         >>> forecasts = np.random.random(1000)
         >>> obs = np.random.random_integers(0, 1, 1000)
@@ -192,7 +192,7 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
     if bootstrap_sets is not None:
         for b, b_set in enumerate(bootstrap_sets):
             brel_curves = np.dstack([b_rel.reliability_curve().values for b_rel in b_set])
-            bin_range = np.percentile(brel_curves[:,0], ci, axis=1)
+            bin_range = np.percentile(brel_curves[:, 0], ci, axis=1)
             rel_range = np.percentile(brel_curves[:, 3], ci, axis=1)
             bin_poly = np.concatenate((bin_range[1], bin_range[0, ::-1]))
             rel_poly = np.concatenate((rel_range[1], rel_range[0, ::-1]))
@@ -202,7 +202,7 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
     for r, rel_obj in enumerate(rel_objs):
         rel_curve = rel_obj.reliability_curve()
         ax.plot(rel_curve["Bin_Start"], rel_curve["Positive_Relative_Freq"], color=colors[r], marker=markers[r],
-                 label=obj_labels[r])
+                label=obj_labels[r])
         inset_hist.semilogy(rel_curve["Bin_Start"], rel_curve["Total_Relative_Freq"], color=colors[r],
                             marker=markers[r])
         inset_hist.set_xlabel("Forecast Probability")
@@ -235,7 +235,7 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
         figsize (tuple): (Width, height) of the figure in inches.
         xlabel (str): X-axis label
         ylabel (str): Y-axis label
-        ticks (array): Tick value labels for the x and y axes.
+        ticks (`numpy.ndarray`): Tick value labels for the x and y axes.
         dpi (int): resolution of the saved figure in dots per inch.
         title (str): Title of figure
         legend_params (dict): Keyword arguments for the plot legend.
@@ -248,7 +248,7 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
     if legend_params is None:
         legend_params = dict(loc=4, fontsize=10, framealpha=1, frameon=True)
     if inset_params is None:
-        inset_params = dict(width="25%", height="25%", loc=2, axes_kwargs=dict(axisbg='white'))
+        inset_params = dict(width="25%", height="25%", loc=2, axes_kwargs=dict(facecolor='white'))
     fig, ax = plt.subplots(figsize=figsize)
     plt.plot(ticks, ticks, "k--")
     inset_hist = inset_axes(ax, **inset_params)
@@ -265,7 +265,7 @@ def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=
         for b, b_set in enumerate(bootstrap_sets):
             brel_curves = np.vstack([b_rel.reliability_curve()["Positive_Relative_Freq"].values for b_rel in b_set])
             rel_range = np.nanpercentile(brel_curves, ci, axis=0)
-            fb = ax.fill_between(b_rel.thresholds[:-1], rel_range[1], rel_range[0], alpha=0.5, color=colors[b])
+            fb = ax.fill_between(b_set[0].thresholds[:-1], rel_range[1], rel_range[0], alpha=0.5, color=colors[b])
             fb.set_zorder(2)
     for r, rel_obj in enumerate(rel_objs):
         rel_curve = rel_obj.reliability_curve()
