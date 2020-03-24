@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-
 from hagelslag.util.make_proj_grids import * 
 from hagelslag.util.Config import Config
 from scipy.ndimage import gaussian_filter
-from mpl_toolkits.basemap import Basemap
+#from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from copy import deepcopy
@@ -12,6 +11,7 @@ import pandas as pd
 import numpy as np
 import matplotlib
 import argparse
+import random
 import pickle
 import os
 
@@ -161,22 +161,25 @@ def train_calibration(config):
         target_calib_models[size] = {}
         train_files, target_files = [], []
         for date in run_dates: 
-            train_data_files = config.train_data_path+ \
-                    "20{3}/netcdf/{0}_Hail_{1}_NMEP_unsmoothed_{2}_{3}_Hours_{4}-{5}.nc".format(
-                        config.ensemble_name, config.forecast_model_names,size,date,
-                        config.start_hour,config.end_hour)
+            train_data_files = glob(config.train_data_path+ \
+                    "20{2}/netcdf/*{0}*unsmoothed_{1}_{2}*{3}-{4}.nc".format(
+                        config.forecast_model_names,size,date,
+                        config.start_hour,config.end_hour))
+            if len(train_data_files) < 1:
+                continue
             if config.sector:
-                target_data_files = config.target_data_path+'{0}_{1}_{2}_{3}_mask.nc'.format(
-                            date,size,config.sector,config.target_data_names)    
+                target_data_files = glob(config.target_data_path+'{0}*{1}*{2}*.nc'.format(
+                            date,size,config.sector))   
             else:
-                target_data_files = config.target_data_path+'{0}_{1}_{2}_mask.nc'.format(
-                            date,size,config.target_data_names)
-            if os.path.exists(target_data_files) & os.path.exists(train_data_files):
-                train_files.append(train_data_files)
-                target_files.append(target_data_files)
+                target_data_files = glob(config.target_data_path+'{0}*{1}*.nc'.format(
+                            date,size))
+            if len(target_data_files) < 1:
+                continue
+            train_files.append(train_data_files[0])
+            target_files.append(target_data_files[0])
+        
         date_indices = [index for index in range(len(train_files))]
         percent_train_indices = int(len(train_files)*0.70)
-
         t_data = [Dataset(x).variables["Data"][:] for x in train_files] 
         tar_data = [Dataset(x).variables["24_Hour_All_12z_12z"][:] for x in target_files]        
         print()
@@ -188,10 +191,10 @@ def train_calibration(config):
             bs = []
             random_models = []
             print('Random Cross-Validation, {0} >{1}mm'.format(model_name,size))  
-            for i in range(0,10):
-                seed = np.random.randint(1,100)
+            random_seed = random.sample(range(1, 100), 10)
+            for s,seed in enumerate(random_seed):
                 np.random.seed(seed)
-                print('Index',i, 'Random Seed', seed)
+                print('Index',s, 'Random Seed', seed)
                 train_indices = np.random.choice(date_indices, percent_train_indices, replace=False)
                 test_indices = [ind for ind in date_indices if ind not in train_indices]
             
@@ -206,6 +209,15 @@ def train_calibration(config):
                 random_models.append(model)
             
                 predict = model.transform(val_data)
+                
+                #plt.figure(figsize=(9, 6))
+                #plt.plot(sorted(val_data),model.transform(sorted(val_data)))
+                #plt.xlabel('data')
+                #plt.ylabel('calibrated')
+                #plt.show()
+                #plt.close()
+
+                print(brier_score(predict, target_val_data))
                 bs.append(brier_score(predict, target_val_data))
         
             best_bs = np.argmin(bs)
@@ -304,7 +316,7 @@ def create_calibration_forecasts(target_calib_model,start_hour,end_hour,
                 if os.path.exists(test_data_files): 
                     test_file.append(test_data_files)
             all_test_files = [Dataset(x).variables["Data"][:] for x in test_file]
-            test_data=np.array(all_test_files).flatten()
+            test_data = np.array(all_test_files).flatten()
             zero_inds = np.where(test_data == 0.0)[0]
             for model_name in config.calibration_model_names:
                 data_shape = (len(run_dates),np.shape(all_test_files[0])[0],\

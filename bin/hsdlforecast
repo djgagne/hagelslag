@@ -30,7 +30,6 @@ def main():
     config.forecast_variables = config.storm_variables + config.potential_variables
     if hasattr(config, "tendency_variables"):
         config.forecast_variables.extend(config.tendency_variables)
-    
     #Process data for different processor arguments
     dl_patch = DLPatchSelector(config.model_path,config.hf_path,
         config.start_dates,config.end_dates,config.num_examples,

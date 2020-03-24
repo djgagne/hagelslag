@@ -296,12 +296,12 @@ class TrackModeler(object):
         groups = np.unique(self.data["train"]["member"][self.group_col])
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            group_data = group_data.dropna(axis='index')
             group_data = group_data[group_data[output_columns[-1]] > 0]
             if self.weighting_function:
                 weights = self.weighting_function(group_data)
             else:
                 weights = None
+            group_data = group_data.dropna(axis='index')
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
                 self.size_distribution_models[group]["calshape"] = {}

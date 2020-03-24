@@ -46,17 +46,17 @@ class DLPatchSelector(object):
             random_date = category_training_patches.loc[:,'Random Date']
             random_hour = category_training_patches.loc[:,'Random Hour']
             random_patch = category_training_patches.loc[:,'Random Patch']
+            data_augment = category_training_patches.loc[:,'Data Augmentation']
             member_obs_label = category_training_patches.loc[:,'Obs Label']
             print('Reading member files:')
-            listtt = []
+            dask_file_open = []
             client = Client(threads_per_worker=4, n_workers=10) 
             for d,date in enumerate(random_date.values):
                 if d%500 == 0:
                     print(d,date)
-                model_files = glob(self.hf_path + '/{0}/*{1}*.h5'.format(member,date))
-                listtt.append(dask.delayed(self.opening_files)(model_files,random_hour[d],random_patch[d]))
-            member_model_data = dask.compute(listtt)[0]
-            print(np.shape(member_model_data))
+                model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
+                dask_file_open.append(dask.delayed(self.opening_files)(model_files,random_hour[d],random_patch[d],data_augment[d]))
+            member_model_data = dask.compute(dask_file_open)[0]
             return member_model_data, member_obs_label
         else:
             string_dates = pd.date_range(start=self.start_dates['forecast'],
@@ -69,17 +69,24 @@ class DLPatchSelector(object):
                 variable_patches = pool.apply_async(opening_files, args=(config,member,date))
                 member_model_data[d] = variable_patches.get()
 
-    def opening_files(self,model_files,hour=None,patch=None):
+    def opening_files(self,model_files,hour=None,patch=None,data_augment=None):
         variable_patches = np.zeros((len(self.forecast_variables),
                                 self.patch_radius,self.patch_radius))
         
         for v,variable_file in enumerate(model_files):
-            with h5py.File(variable_file,'r') as vhf:
-                hf_patch_file = vhf['patches']
-                if hour is not None:
-                    variable_patches[v] = hf_patch_file[hour,patch,:,:]
-                else:
-                    variable_patches[v] = hf_patch_file[()]
+            if variable_file:
+                with h5py.File(variable_file,'r') as vhf:
+                    hf_patch_file = vhf['patches']
+                    if hour is not None:
+                        if data_augment == 0:
+                            variable_patches[v] = hf_patch_file[hour,patch,:,:]
+                        else:
+                            var_size = variable_patches[v].shape
+                            noise = np.random.normal(size=var_size).reshape((var_size))
+                            variable_patches[v] = hf_patch_file[hour,patch,:,:] + noise
+                    else:
+                        variable_patches[v] = hf_patch_file[()]
+            else:continue
         return variable_patches
     
     def selecting_training_examples(self,member,training_filename):
@@ -114,14 +121,18 @@ class DLPatchSelector(object):
         training_example_class_divisions = [] 
         for class_,percentage in self.class_percentages.items():
             number_of_class_examples = int(self.num_examples*percentage)
+            if len(training_example_catetories[class_]) < number_of_class_examples:
+                data_augment = 1
+            else:
+                data_augment = 0
             for example in np.arange(number_of_class_examples):
                 train_examples = training_example_catetories[class_]
                 random_date = np.random.choice(list(train_examples))
                 random_hour = np.random.choice(list(train_examples[random_date]))
                 random_patch = np.random.choice(list(train_examples[random_date][random_hour]))
-                training_example_class_divisions.append([random_date,random_hour,random_patch,class_])
+                training_example_class_divisions.append([random_date,random_hour,random_patch,class_,data_augment])
         pandas_df_examples = pd.DataFrame(training_example_class_divisions,
-            columns=['Random Date','Random Hour', 'Random Patch', 'Obs Label']) 
+            columns=['Random Date','Random Hour', 'Random Patch', 'Obs Label','Data Augmentation']) 
         print(pandas_df_examples)
         print('\nWriting to {0}\n'.format(training_filename))
         pandas_df_examples.to_csv(training_filename)
