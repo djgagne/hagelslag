@@ -38,17 +38,29 @@ def main():
     #Process data for different processor arguments
     
     #Write out sliced ensemble map file
+    if hasattr(config, "mask_file"):
+        zero_mask = Dataset(config.mask_file).variables['usa_mask'][:]
+        config.mask = np.where(zero_mask.flatten()<1,np.nan,1).reshape(zero_mask.shape)
+    else:
+        config.mask=None
+
     lon_lat_file = '{0}/{1}_map_data.h5'.format(config.hf_path,config.ensemble_name)
     if not os.path.exists(lon_lat_file):
         proj_dict, grid_dict = read_ncar_map_file(config.model_map_file)
         mapping_data = make_proj_grids(proj_dict, grid_dict)
-        lon_slices = slice_into_patches(mapping_data['lon'],config.patch_radius,config.patch_radius)
-        lat_slices = slice_into_patches(mapping_data['lat'],config.patch_radius,config.patch_radius)
+        if config.mask is not None:
+            mapping_lat_data = mapping_data['lat']*config.mask
+            mapping_lon_data = mapping_data['lon']*config.mask
+        else:
+            mapping_lat_data = mapping_data['lat']
+            mapping_lon_data = mapping_data['lon']
+        lon_slices = slice_into_patches(mapping_lon_data,config.patch_radius,config.patch_radius)
+        lat_slices = slice_into_patches(mapping_lat_data,config.patch_radius,config.patch_radius)
         lon_lat_data = np.array((lon_slices,lat_slices))
         print('\nWriting map file: {0}\n'.format(lon_lat_file))
         with h5py.File(lon_lat_file, 'w') as mhf:
-            mhf.create_dataset("map_data",data=lon_lat_data,
-            compression="gzip") 
+            mhf.create_dataset("map_data",data=lon_lat_data)
+    
     if args.proc > 1:
         pool = Pool(args.proc)
         for run_date in config.dates:
@@ -85,6 +97,7 @@ def main():
                     #Process member data
                     process_ensemble_member(run_date, member, 
                                 member_path,config)
+    
     return
 
 def process_observational_data(run_date, config):
@@ -110,7 +123,10 @@ def process_observational_data(run_date, config):
         return
     for hour in range(len(gridded_obs.data[1:])): 
         #Slice mrms data 
-        hourly_obs_patches = slice_into_patches(gridded_obs.data[hour],
+        if config.mask is not None: hourly_obs_data = gridded_obs.data[hour]*config.mask
+        else: hourly_obs_data = gridded_obs.data[hour]
+
+        hourly_obs_patches = slice_into_patches(hourly_obs_data,
                                 config.patch_radius, config.patch_radius)
         #Label mrms data
         labels = label_obs_patches(hourly_obs_patches)
@@ -120,7 +136,7 @@ def process_observational_data(run_date, config):
     #Write file out using Hierarchical Data Format 5 (HDF5) format. 
     with h5py.File(obs_filename, 'w') as ohf:
         ohf.create_dataset("labels",
-        data=obs_patch_labels,compression="gzip")
+        data=obs_patch_labels) 
     return 
 
 def process_ensemble_member(run_date, member, member_path, config):
@@ -138,11 +154,6 @@ def process_ensemble_member(run_date, member, member_path, config):
         forecast_variables = config.storm_variables + config.potential_variables
         if hasattr(config, "tendency_variables"):
             forecast_variables.extend(config.tendency_variables)
-        if hasattr(config, "mask_file"):
-            mask = Dataset(config.mask_file).variables['usa_mask'][:]
-        
-        #Find start and end date given the start and end hours. Add one hour to start date
-        # because the model data are valid over the previous hour
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
         
@@ -153,25 +164,20 @@ def process_ensemble_member(run_date, member, member_path, config):
             gridded_variable = ModelOutput(config.ensemble_name,member,run_date,variable,start_date,end_date,
                                     config.model_path,config.model_map_file,single_step=config.single_step)
             gridded_variable.load_data() 
-            if gridded_variable.data is None:
-                break 
+            if gridded_variable.data is None: break 
             hourly_var_patches = [] 
             #Slice hourly data
-            for hour in range(len(gridded_variable.data)):
-                if hour > 0: 
+            for hour in np.arange(1,len(gridded_variable.data)):
                 #Storm variables are sliced at the current forecast hour
-                    if variable in config.storm_variables:
-                        var_hour = hour
-                    #Potential (environmental) variables are sliced at the previous forecast hour
-                    elif variable in config.potential_variables:
-                        var_hour = hour-1
-                    if mask is not None:
-                        gridded_variable = gridded_variable.data[var_hour] * mask
-                    else:
-                        gridded_variable = gridded_variable.data[var_hour]
-                    patches = slice_into_patches(gridded_variable,
-                                    config.patch_radius, config.patch_radius)
-                    hourly_var_patches.append(patches)
+                if variable in config.storm_variables:gridded_variable_data = gridded_variable.data[hour,:,:]
+                #Potential (environmental) variables are sliced at the previous forecast hour
+                elif variable in config.potential_variables:gridded_variable_data = gridded_variable.data[hour-1,:,:]
+                if config.mask is not None: gridded_variable_data = gridded_variable_data * config.mask
+                #Slice data into patches
+                patches = slice_into_patches(gridded_variable_data,
+                            config.patch_radius, config.patch_radius)
+                hourly_var_patches.append(patches)
+            #Shorten variable name
             if " " in variable: 
                 variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
             elif "_" in variable: 
@@ -187,10 +193,12 @@ def process_ensemble_member(run_date, member, member_path, config):
             #Write file out using Hierarchical Data Format 5 (HDF5) format. 
             with h5py.File(var_filename, 'w') as vhf:
                 vhf.create_dataset("patches",
-                data=hourly_var_patches,compression="gzip") 
+                data=np.array(hourly_var_patches))
+        
     except Exception as e:
         print(traceback.format_exc())
         raise e
+    
     return
 
 def slice_into_patches(data2d, patch_ny, patch_nx):
@@ -208,15 +216,26 @@ def slice_into_patches(data2d, patch_ny, patch_nx):
     '''
 
     #Determine the number of patches in each dimension
-    x_patches = data2d.shape[0] // patch_nx
-    y_patches = data2d.shape[1] // patch_ny  #The "//" operator mimics python2 integer division
+    x_patches = int(data2d.shape[0]/patch_nx)
+    y_patches = int(data2d.shape[1]/patch_ny) 
     npatches = y_patches * x_patches #Total number of patches
+    
     #Define array to store sliced data and populate it from data2d
-    sliced_data = np.zeros((npatches, patch_ny, patch_nx))
-    for j in np.arange(0, y_patches, 1):
-      for i in np.arange(0, x_patches, 1):
-        sliced_data[j + i*x_patches, :, :] = data2d[i*patch_nx:(i+1)*patch_nx, j*patch_ny:(j+1)*patch_ny]
-    return sliced_data
+    sliced_data = [] #np.empty((npatches,patch_nx,patch_ny))*np.nan
+
+    for i in np.arange(0,data2d.shape[0],patch_nx): 
+        next_i = i+patch_nx
+        if next_i > data2d.shape[0]:
+            break 
+        for j in  np.arange(0,data2d.shape[1],patch_ny):
+            next_j = j+patch_ny
+            if next_j > data2d.shape[1]:
+                break
+            data = data2d[i:next_i,j:next_j]
+            if any(np.isnan(data.flatten())) == True:
+                continue
+            sliced_data.append(data)
+    return np.array(sliced_data)
 
 
 def label_obs_patches(obs_patches, label_thresholds=[5,25,50]):
