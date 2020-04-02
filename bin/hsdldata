@@ -13,6 +13,7 @@ import traceback
 import h5py
 import os
 
+
 def main():
     """
     Main function to parse out configuration file (Config), a dictionary 
@@ -59,7 +60,8 @@ def main():
         lon_lat_data = np.array((lon_slices,lat_slices))
         print('\nWriting map file: {0}\n'.format(lon_lat_file))
         with h5py.File(lon_lat_file, 'w') as mhf:
-            mhf.create_dataset("map_data",data=lon_lat_data)
+            mhf.create_dataset("map_data",data=lon_lat_data,
+            compression='gzip',compression_opts=6)
     
     if args.proc > 1:
         pool = Pool(args.proc)
@@ -135,8 +137,8 @@ def process_observational_data(run_date, config):
     print('Writing obs file: {0}'.format(obs_filename))
     #Write file out using Hierarchical Data Format 5 (HDF5) format. 
     with h5py.File(obs_filename, 'w') as ohf:
-        ohf.create_dataset("labels",
-        data=obs_patch_labels) 
+        ohf.create_dataset("labels",data=obs_patch_labels,
+        compression='gzip',compression_opts=6)
     return 
 
 def process_ensemble_member(run_date, member, member_path, config):
@@ -193,7 +195,8 @@ def process_ensemble_member(run_date, member, member_path, config):
             #Write file out using Hierarchical Data Format 5 (HDF5) format. 
             with h5py.File(var_filename, 'w') as vhf:
                 vhf.create_dataset("patches",
-                data=np.array(hourly_var_patches))
+                data=np.array(hourly_var_patches),
+                compression='gzip',compression_opts=6)
         
     except Exception as e:
         print(traceback.format_exc())
