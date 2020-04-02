@@ -55,7 +55,7 @@ class DLPatchSelector(object):
                 if d%500 == 0:
                     print(d,date)
                 model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
-                dask_file_open.append(dask.delayed(self.opening_files)(model_files,random_hour[d],random_patch[d],data_augment[d]))
+                dask_file_open.append(dask.delayed(self.opening_files)(model_files,mode,random_hour[d],random_patch[d],data_augment[d]))
             member_model_data = dask.compute(dask_file_open)[0]
             return member_model_data, member_obs_label
         else:
@@ -66,10 +66,13 @@ class DLPatchSelector(object):
                         len(self.forecast_variables),
                         self.patch_radius,self.patch_radius))
             for d,date in enumerate(string_dates):
-                variable_patches = pool.apply_async(opening_files, args=(config,member,date))
+                model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
+                variable_patches = pool.apply_async(opening_files, args=(model_files,mode))
                 member_model_data[d] = variable_patches.get()
 
-    def opening_files(self,model_files,hour=None,patch=None,data_augment=None):
+    def opening_files(self,model_files,mode,hour=None, 
+                    patch=None,data_augment=None):
+        
         variable_patches = np.zeros((len(self.forecast_variables),
                                 self.patch_radius,self.patch_radius))
         
@@ -77,15 +80,15 @@ class DLPatchSelector(object):
             if variable_file:
                 with h5py.File(variable_file,'r') as vhf:
                     hf_patch_file = vhf['patches']
-                    if hour is not None:
+                    if mode == 'train':
                         if data_augment == 0:
                             variable_patches[v] = hf_patch_file[hour,patch,:,:]
                         else:
-                            var_size = variable_patches[v].shape
-                            noise = np.random.normal(size=var_size).reshape((var_size))
-                            variable_patches[v] = hf_patch_file[hour,patch,:,:] + noise
+                            variable_data = hf_patch_file[hour,patch,:,:].flatten()
+                            noise = np.nanvar(variable_data)*np.random.choice(np.arange(-0.5,0.5,0.15))
+                            variable_patches[v] = (variable_data + noise).reshape(variable_patches[v].shape)
                     else:
-                        variable_patches[v] = hf_patch_file[()]
+                        patches = hf_patch_file[()]
             else:continue
         return variable_patches
     

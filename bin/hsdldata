@@ -166,11 +166,11 @@ def process_ensemble_member(run_date, member, member_path, config):
                     elif variable in config.potential_variables:
                         var_hour = hour-1
                     if mask is not None:
-                        gridded_variable = gridded_variable.data[var_hour] * mask
+                        masked_gridded_variable = gridded_variable.data[var_hour] * mask
                     else:
-                        gridded_variable = gridded_variable.data[var_hour]
-                    patches = slice_into_patches(gridded_variable,
-                                    config.patch_radius, config.patch_radius)
+                        masked_gridded_variable = gridded_variable.data[var_hour]
+                    patches = slice_into_patches(masked_gridded_variable,
+                            config.patch_radius, config.patch_radius)
                     hourly_var_patches.append(patches)
             if " " in variable: 
                 variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]

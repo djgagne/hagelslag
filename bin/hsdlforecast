@@ -30,21 +30,36 @@ def main():
     config.forecast_variables = config.storm_variables + config.potential_variables
     if hasattr(config, "tendency_variables"):
         config.forecast_variables.extend(config.tendency_variables)
+    short_variable_names = []
+    for variable in config.forecast_variables:
+        if " " in variable: 
+            variable_name=''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+        elif "_" in variable: 
+            variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+        else:
+            variable_name = variable
+        short_variable_names.append(variable_name)
     #Process data for different processor arguments
     dl_patch = DLPatchSelector(config.model_path,config.hf_path,
         config.start_dates,config.end_dates,config.num_examples,
         config.class_percentages,config.patch_radius,
-        config.run_date_format,config.forecast_variables)
+        config.run_date_format,np.array(short_variable_names)) #config.forecast_variables)
     
+
     for member in config.ensemble_members:
         if args.train:
             mode = 'train' 
             model_data, obs_data  = dl_patch.load_data(member,mode)
-            #train_models(config)
+            train_models(config,member,model_data,obs_data)
         elif args.fore:
             mode = 'forecast' 
             _ = load_data(config,member,mode)
     return
+
+def train_models(config,member,model_data,obs_data):
+    print('\nTraining {0} models'.format(member))
+    print(np.shape(model_data))
+    print(np.shape(obs_data))
 
 if __name__ == "__main__":
     __spec__ = None
