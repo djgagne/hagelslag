@@ -1,9 +1,17 @@
 #!/usr/bin/env python
 from hagelslag.processing.DLPatchSelector import DLPatchSelector
 from hagelslag.util.Config import Config
+from keras.optimizers import SGD, Adam
+from keras.regularizers import l2
+import keras.backend as K
+from keras import layers
+from keras import models
 import argparse, pdb
 import pandas as pd
 import numpy as np
+import h5py
+import os
+np.random.seed(123)  # for reproducibility
 
 def main():
     """
@@ -39,6 +47,7 @@ def main():
         else:
             variable_name = variable
         short_variable_names.append(variable_name)
+    
     #Process data for different processor arguments
     dl_patch = DLPatchSelector(config.model_path,config.hf_path,
         config.start_dates,config.end_dates,config.num_examples,
@@ -56,10 +65,90 @@ def main():
             _ = load_data(config,member,mode)
     return
 
-def train_models(config,member,model_data,obs_data):
+def train_models(config,member,model_data,model_labels):
     print('\nTraining {0} models'.format(member))
-    print(np.shape(model_data))
-    print(np.shape(obs_data))
+    print('Model data shape {0}'.format(np.shape(model_data)))
+    print('Label data shape {0}\n'.format(np.shape(model_labels)))
+
+    scaling_file = config.model_path+'/{0}_{1}_{2}_{3}_training_scaling_values.h5'.format(
+        member,config.start_dates['train'].strftime('%Y%m%d'),
+        config.end_dates['train'].strftime('%Y%m%d'),config.num_examples)
+
+    #Standardizing data
+    if not os.path.exists(scaling_file):
+        scaling_values = pd.DataFrame(np.zeros((len(config.forecast_variables), 2), 
+            dtype=np.float32),index=config.forecast_variables,
+            columns=['mean','std'])
+
+        standard_model_data = np.ones(np.shape(model_data))*np.nan
+        for n in range(len(config.forecast_variables)):
+            scaling_values['mean'][n] = np.nanmean(model_data[:,:,:,n])
+            scaling_values['std'][n] = np.nanstd(model_data[:,:,:,n])
+            standard_model_data[:,:,:,n] = (model_data[:,:,:,n]-scaling_values['mean'][n])/scaling_values['std'][n] 
+        #Output training scaling values
+        output_models(standard_model_data,scaling_file)
+        del model_data,scaling_values
+    else:
+        #Open scaling values file
+        standard_model_data = open_models(scaling_file)
+        del model_data
+
+
+    #Initiliaze Convolutional Neural Net (CNN)
+    model = models.Sequential()
+    l2_a= 0.001
+
+    #First layer, input shape (y,x,# variables) 
+    model.add(layers.Conv2D(32, (3, 3), activation='relu', 
+        padding="same", kernel_regularizer=l2(l2_a),
+        input_shape=(np.shape(standard_model_data[0]))))
+    model.add(layers.Dropout(0.1))
+    model.add(layers.MaxPooling2D((2, 2))) 
+    #Second layer
+    model.add(layers.Conv2D(64, (3, 3), activation='relu',padding="same", kernel_regularizer=l2(l2_a)))
+    model.add(layers.Dropout(0.1))
+    model.add(layers.MaxPooling2D((2, 2)))
+    #Third layer
+    model.add(layers.Conv2D(64, (3, 3), activation='relu',padding="same", kernel_regularizer=l2(l2_a)))
+    model.add(layers.Dropout(0.1))
+    model.add(layers.MaxPooling2D((2, 2)))
+    
+    #Flatten the last convolutional layer into a long feature vector
+    model.add(layers.Flatten())
+    model.add(layers.Dense(64, activation='relu'))
+    model.add(layers.Dense(4, activation='sigmoid'))
+
+    opt = Adam()
+    model.compile(optimizer=opt,loss='categorical_crossentropy',metrics=['acc'])
+    
+    print(np.shape(standard_model_data),np.shape(model_labels))
+    batches = int(config.num_examples/20.0)
+    print(batches)
+    conv_hist = model.fit(standard_model_data, model_labels, epochs=20, batch_size=batches)
+    model.save(
+        config.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(
+        member,
+        config.start_dates['train'].strftime('%Y%m%d'),
+        config.end_dates['train'].strftime('%Y%m%d')))
+    
+    del model_labels
+    
+def output_models(in_data,out_filename):
+    print('\nWriting to {0}\n'.format(out_filename))
+    with h5py.File(out_filename, 'w') as hf:
+        hf.create_dataset("data",data=in_data,
+        compression='gzip',compression_opts=6)
+
+def open_models(out_filename):
+    print('\nOpening {0}\n'.format(out_filename))
+    with h5py.File(out_filename, 'r') as hf:
+        data = hf['data'][()]
+    return data 
+
+def brier_skill_score_keras(obs, preds):
+    bs = K.mean((preds - obs) ** 2)
+    climo = K.mean((obs - K.mean(obs)) ** 2)
+    return 1.0 - (bs/climo)
 
 if __name__ == "__main__":
     __spec__ = None

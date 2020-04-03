@@ -42,12 +42,21 @@ class DLPatchSelector(object):
             if not os.path.exists(training_filename):
                 category_training_patches = self.selecting_training_examples(member,training_filename)
             else:
+                print('\nOpening {0}\n'.format(training_filename))
                 category_training_patches = pd.read_csv(training_filename,index_col=0)
             random_date = category_training_patches.loc[:,'Random Date']
             random_hour = category_training_patches.loc[:,'Random Hour']
             random_patch = category_training_patches.loc[:,'Random Patch']
             data_augment = category_training_patches.loc[:,'Data Augmentation']
-            member_obs_label = category_training_patches.loc[:,'Obs Label']
+            
+            #Creating label data of shape (# examples, #classes)
+            obs_label = category_training_patches.loc[:,'Obs Label']
+            member_obs_label = np.zeros((len(obs_label),len(np.unique(obs_label))))
+            for l, label in enumerate(obs_label):
+                for u,unique in enumerate(np.unique(obs_label)):
+                    if label == unique:
+                        member_obs_label[l,u] = 1.0 
+        
             print('Reading member files:')
             dask_file_open = []
             client = Client(threads_per_worker=4, n_workers=10) 
@@ -55,9 +64,9 @@ class DLPatchSelector(object):
                 if d%500 == 0:
                     print(d,date)
                 model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
-                dask_file_open.append(dask.delayed(self.opening_files)(model_files,mode,random_hour[d],random_patch[d],data_augment[d]))
+                dask_file_open.append(dask.delayed(self.reading_files)(model_files,mode,random_hour[d],random_patch[d],data_augment[d]))
             member_model_data = dask.compute(dask_file_open)[0]
-            return member_model_data, member_obs_label
+            return np.array(member_model_data), np.array(member_obs_label)
         else:
             string_dates = pd.date_range(start=self.start_dates['forecast'],
                     end=self.end_dates['forecast'],
@@ -67,14 +76,15 @@ class DLPatchSelector(object):
                         self.patch_radius,self.patch_radius))
             for d,date in enumerate(string_dates):
                 model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
-                variable_patches = pool.apply_async(opening_files, args=(model_files,mode))
+                variable_patches = pool.apply_async(reading_files, args=(model_files,mode))
                 member_model_data[d] = variable_patches.get()
 
-    def opening_files(self,model_files,mode,hour=None, 
+    def reading_files(self,model_files,mode,hour=None, 
                     patch=None,data_augment=None):
         
-        variable_patches = np.zeros((len(self.forecast_variables),
-                                self.patch_radius,self.patch_radius))
+        variable_patches = np.zeros((
+                                self.patch_radius,self.patch_radius,
+                                len(self.forecast_variables)))
         
         for v,variable_file in enumerate(model_files):
             if variable_file:
@@ -82,11 +92,11 @@ class DLPatchSelector(object):
                     hf_patch_file = vhf['patches']
                     if mode == 'train':
                         if data_augment == 0:
-                            variable_patches[v] = hf_patch_file[hour,patch,:,:]
+                            variable_patches[:,:,v] = hf_patch_file[hour,patch,:,:]
                         else:
                             variable_data = hf_patch_file[hour,patch,:,:].flatten()
                             noise = np.nanvar(variable_data)*np.random.choice(np.arange(-0.5,0.5,0.15))
-                            variable_patches[v] = (variable_data + noise).reshape(variable_patches[v].shape)
+                            variable_patches[:,:,v] = (variable_data + noise).reshape(variable_patches[:,:,v].shape)
                     else:
                         patches = hf_patch_file[()]
             else:continue
