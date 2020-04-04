@@ -1,16 +1,9 @@
 #!/usr/bin/env python
-from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file
-from hagelslag.data.ModelOutput import ModelOutput
-from hagelslag.data.MRMSGrid import MRMSGrid
+from hagelslag.processing.DLProcessing import DLPreprocessing
 from hagelslag.util.Config import Config
 from multiprocessing import Pool
-from datetime import timedelta
-from netCDF4 import Dataset
 import argparse, pdb
-import pandas as pd
 import numpy as np
-import traceback
-import h5py
 import os
 
 
@@ -22,261 +15,49 @@ def main():
     For a given number of parallel processesors, the model and observational 
     data are sliced each day with the model data separated by ensemble member. 
     """
-    parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
+    parser = argparse.ArgumentParser("hsdldata - Hagelslag Deep Learning Data Processor")
     parser.add_argument("config", help="Configuration file")
     parser.add_argument("-p", "--proc", type=int, default=1,help="Number of processors")
     parser.add_argument("-o", "--obs", action="store_true", help="Process observed tracks only")
     args = parser.parse_args()
-    required = ['dates', 'start_hour', 'end_hour', 'ensemble_members',
-                'model_path', "ensemble_name", 'mrms_path', 'storm_variables', 
-                'potential_variables', 'model_map_file','hf_path', 
-                'patch_radius','train', 'single_step'] 
+    required = ['dates','start_hour','end_hour','ensemble_members','model_path', 
+                'ensemble_name','mrms_path','mrms_variable','storm_variables',
+                'potential_variables','model_map_file','hf_path','patch_radius',
+                'train','single_step'] 
     #Add attributes of dict to config
     config = Config(args.config, required_attributes=required)
-    config.valid_hours = np.arange(config.start_hour, config.end_hour)
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
-    #Process data for different processor arguments
-    
-    #Write out sliced ensemble map file
     if hasattr(config, "mask_file"):
         zero_mask = Dataset(config.mask_file).variables['usa_mask'][:]
         config.mask = np.where(zero_mask.flatten()<1,np.nan,1).reshape(zero_mask.shape)
-    else:
-        config.mask=None
-
-    lon_lat_file = '{0}/{1}_map_data.h5'.format(config.hf_path,config.ensemble_name)
-    if not os.path.exists(lon_lat_file):
-        proj_dict, grid_dict = read_ncar_map_file(config.model_map_file)
-        mapping_data = make_proj_grids(proj_dict, grid_dict)
-        if config.mask is not None:
-            mapping_lat_data = mapping_data['lat']*config.mask
-            mapping_lon_data = mapping_data['lon']*config.mask
-        else:
-            mapping_lat_data = mapping_data['lat']
-            mapping_lon_data = mapping_data['lon']
-        lon_slices = slice_into_patches(mapping_lon_data,config.patch_radius,config.patch_radius)
-        lat_slices = slice_into_patches(mapping_lat_data,config.patch_radius,config.patch_radius)
-        lon_lat_data = np.array((lon_slices,lat_slices))
-        print('\nWriting map file: {0}\n'.format(lon_lat_file))
-        with h5py.File(lon_lat_file, 'w') as mhf:
-            mhf.create_dataset("map_data",data=lon_lat_data,
-            compression='gzip',compression_opts=6)
+    else:config.mask=None
     
-    if args.proc > 1:
-        pool = Pool(args.proc)
-        for run_date in config.dates:
-            if args.obs:
-                #Only process obs
-                pool.apply_async(process_observational_data, (run_date, config))
-            else:
-                #Only process observational data if in training mode
-                if config.train is True:
-                    #Process observational data
-                    pool.apply_async(process_observational_data, (run_date, config))
-                for member in config.ensemble_members:
-                    member_path = '{0}/{1}'.format(config.hf_path,member)
-                    if not os.path.exists(member_path):
-                        os.makedirs(member_path)
-                    #Process member data
-                    pool.apply_async(process_ensemble_member, (run_date, member, 
-                                    member_path,config))
+    forecast_variables = config.storm_variables + config.potential_variables
+    if hasattr(config, "tendency_variables"):forecast_variables.extend(config.tendency_variables)
+
+    #Initiate processing class
+    dlprocess = DLPreprocessing(config.ensemble_name,config.model_path,
+        config.hf_path,config.start_dates,config.end_dates,config.patch_radius,
+        config.run_date_format,forecast_variables,config.mask)
+    #Process map data
+    dlprocess.process_map_data(config.model_map_file)
+    #Process obs and ensemble data with parallelization
+    pool = Pool(args.proc)
+    for run_date in config.dates:
+        if args.obs or config.train is True:
+            pool.apply_async(dlprocess.process_observational_data, 
+                (run_date,config.start_hour,config.end_hour,config.mrms_variable,config.mrms_path))
+        if config.train is True: 
+            for member in config.ensemble_members:
+                member_path = '{0}/{1}'.format(config.hf_path,member)
+                if not os.path.exists(member_path):os.makedirs(member_path)
+                pool.apply_async(dlproces.process_ensemble_member, 
+                    (run_date,member,config.member_path,config.model_map_file,
+                    config.start_hour,config.end_hour,config.single_step))
         pool.close()
         pool.join()
-    else:
-        for run_date in config.dates:
-            if args.obs:
-                #Only process obs
-                process_observational_data(run_date, config)
-            else:
-                if config.train is True:
-                    # Only process observational data if in training mode
-                    process_observational_data(run_date, config)
-                for member in config.ensemble_members:
-                    member_path = '{0}/{1}'.format(config.hf_path,member)
-                    if not os.path.exists(member_path):
-                        os.makedirs(member_path)
-                    #Process member data
-                    process_ensemble_member(run_date, member, 
-                                member_path,config)
-    
     return
-
-def process_observational_data(run_date, config):
-    """
-    Process observational data by both slicing the data and labeling
-    MESH values at different thresholds for classification modeling. 
-    
-    The observational data is in the format (# of hours,x,y)
-
-    Args:
-        run_date(datetime): datetime object containing date of mrms data
-        config(obj): Config object containing member parameters
-    """
-    print("Starting obs process", run_date)
-    #Find start and end date given the start and end hours 
-    start_date = run_date + timedelta(hours=config.start_hour)
-    end_date = run_date + timedelta(hours=config.end_hour)
-    obs_patch_labels = []
-    #Create gridded mrms object 
-    gridded_obs = MRMSGrid(start_date, end_date, config.mrms_variable, config.mrms_path)
-    gridded_obs.load_data()
-    if gridded_obs.data is None:
-        return
-    for hour in range(len(gridded_obs.data[1:])): 
-        #Slice mrms data 
-        if config.mask is not None: hourly_obs_data = gridded_obs.data[hour]*config.mask
-        else: hourly_obs_data = gridded_obs.data[hour]
-
-        hourly_obs_patches = slice_into_patches(hourly_obs_data,
-                                config.patch_radius, config.patch_radius)
-        #Label mrms data
-        labels = label_obs_patches(hourly_obs_patches)
-        obs_patch_labels.append(labels)
-    obs_filename = '{0}/obs_{1}.h5'.format(config.hf_path,run_date.strftime(config.run_date_format)) 
-    print('Writing obs file: {0}'.format(obs_filename))
-    #Write file out using Hierarchical Data Format 5 (HDF5) format. 
-    with h5py.File(obs_filename, 'w') as ohf:
-        ohf.create_dataset("labels",data=obs_patch_labels,
-        compression='gzip',compression_opts=6)
-    return 
-
-def process_ensemble_member(run_date, member, member_path, config):
-    """
-    Slice ensemble data in the format (# of hours,x,y)
-    Args:
-        run_date(datetime): datetime object containing date of mrms data
-        member (str): name of the ensemble member
-        member_path(str): path to the member patch files 
-        lon_lat_file (str): path to the member map file
-        config(obj): Config object containing member parameters
-    """
-    try:
-        #Create list of forecast variable strings 
-        forecast_variables = config.storm_variables + config.potential_variables
-        if hasattr(config, "tendency_variables"):
-            forecast_variables.extend(config.tendency_variables)
-        start_date = run_date + timedelta(hours=config.start_hour)
-        end_date = run_date + timedelta(hours=config.end_hour)
-        
-        print("Starting ens processing", member, run_date)
-        #Slice each member variable seperately over each hour
-        for v,variable in enumerate(forecast_variables):
-            #Create gridded variable object 
-            gridded_variable = ModelOutput(config.ensemble_name,member,run_date,variable,start_date,end_date,
-                                    config.model_path,config.model_map_file,single_step=config.single_step)
-            gridded_variable.load_data() 
-            if gridded_variable.data is None: break 
-            hourly_var_patches = [] 
-            #Slice hourly data
-            for hour in np.arange(1,len(gridded_variable.data)):
-                #Storm variables are sliced at the current forecast hour
-                    if variable in config.storm_variables:
-                        var_hour = hour
-                    #Potential (environmental) variables are sliced at the previous forecast hour
-                    elif variable in config.potential_variables:
-                        var_hour = hour-1
-                    if mask is not None:
-                        masked_gridded_variable = gridded_variable.data[var_hour] * mask
-                    else:
-                        masked_gridded_variable = gridded_variable.data[var_hour]
-                    patches = slice_into_patches(masked_gridded_variable,
-                            config.patch_radius, config.patch_radius)
-                    hourly_var_patches.append(patches)
-            #Shorten variable names
-            if " " in variable: 
-                variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
-            elif "_" in variable: 
-                variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
-            else:
-                variable_name = variable
-            var_filename = '{0}/{1}_{2}_{3}.h5'.format(member_path,
-                                                variable_name,
-                                                member,
-                                                run_date.strftime(config.run_date_format)) 
-            print('Writing model file: {0}'.format(var_filename))
-            #Write file out using Hierarchical Data Format 5 (HDF5) format. 
-            with h5py.File(var_filename, 'w') as vhf:
-                vhf.create_dataset("patches",
-                data=np.array(hourly_var_patches),
-                compression='gzip',compression_opts=6)
-        
-    except Exception as e:
-        print(traceback.format_exc())
-        raise e
-    
-    return
-
-def slice_into_patches(data2d, patch_ny, patch_nx):
-    '''
-    A function to slice a 2-dimensional [ny, nx] array into rectangular patches and return 
-    the sliced data in an array of shape [npatches, nx_patch, ny_patch].
-      
-    If the array does not divide evenly into patches, excess points from the northern and 
-    eastern edges of the array will be trimmed away (incomplete patches are not included
-    in the array returned by this function).
-
-    Input variables:   data2d -- the data you want sliced.  Must be a 2D (nx, ny) array
-                       ny_patch -- the number of points in the patch (y-dimension)
-                       nx_patch -- the number of points in the patch (x-dimension)
-    '''
-
-    #Determine the number of patches in each dimension
-    x_patches = int(data2d.shape[0]/patch_nx)
-    y_patches = int(data2d.shape[1]/patch_ny) 
-    npatches = y_patches * x_patches #Total number of patches
-    
-    #Define array to store sliced data and populate it from data2d
-    sliced_data = [] #np.empty((npatches,patch_nx,patch_ny))*np.nan
-
-    for i in np.arange(0,data2d.shape[0],patch_nx): 
-        next_i = i+patch_nx
-        if next_i > data2d.shape[0]:
-            break 
-        for j in  np.arange(0,data2d.shape[1],patch_ny):
-            next_j = j+patch_ny
-            if next_j > data2d.shape[1]:
-                break
-            data = data2d[i:next_i,j:next_j]
-            if any(np.isnan(data.flatten())) == True:
-                continue
-            sliced_data.append(data)
-    return np.array(sliced_data)
-
-
-def label_obs_patches(obs_patches, label_thresholds=[5,25,50]):
-   '''
-   A function to generate labels for MESH patch data.  Labels can be defined by passing in a list of
-   thresholds on which to divide the categories.  If not provided, default label thresholds of 5, 25, 
-   and 50 mm will be used.  The default label thresholds will result in MESH data being labelled as
-   follows:
-               Label       Meaning
-   No Hail:      0           No pixel exceeding MESH = 5.0 mm in patch 
-   Non-severe:   1           5.0 mm < Highest pixel value of MESH in patch < 25.0 mm
-   Severe:       2           25.0 mm < Highest pixel value of MESH in patch < 50.0 mm
-   Sig. Severe:  3           Highest pixel value of MESH > 50.0 mm
-
-   The input data (obs_patches) must be a list of patches of dimensions [npatches, ny_patch, nx_patch]
-   The function returns a list of labels of shape [npatches].
-
-   NOTE:  This function assumes MESH is provided in mm.  If the units of MESH in the input data you
-          are using are not mm, either convert them to mm before using this function, or specify 
-          appropriate label thresholds using the "label_thresholds" input variable.
-   '''
-   obs_labels = []
-   for k in np.arange(0, obs_patches.shape[0], 1):
-      if (np.nanmax(obs_patches[k]) > 50.0):
-         label = 3
-      elif (np.nanmax(obs_patches[k]) > 25.0):
-         label = 2
-      elif (np.nanmax(obs_patches[k]) > 5.0):
-         label = 1
-      else:
-         label = 0
-      obs_labels.append(label)
-
-   return obs_labels
-   
 
 if __name__ == "__main__":
     main()

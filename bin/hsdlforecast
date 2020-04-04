@@ -1,11 +1,6 @@
 #!/usr/bin/env python
-from hagelslag.processing.DLPatchSelector import DLPatchSelector
+from hagelslag.processing.DLModeler import DLModeler
 from hagelslag.util.Config import Config
-from keras.optimizers import SGD, Adam
-from keras.regularizers import l2
-import keras.backend as K
-from keras import layers
-from keras import models
 import argparse, pdb
 import pandas as pd
 import numpy as np
@@ -30,6 +25,7 @@ def main():
                 'model_path', "ensemble_name", 'mrms_path', 'storm_variables', 
                 'potential_variables', 'model_map_file','hf_path', 
                 'patch_radius','train', 'single_step','num_examples','class_percentages'] 
+    
     #Add attributes of dict to config
     config = Config(args.config, required_attributes=required)
     config.valid_hours = np.arange(config.start_hour, config.end_hour)
@@ -49,22 +45,19 @@ def main():
         short_variable_names.append(variable_name)
     
     #Process data for different processor arguments
-    dl_patch = DLPatchSelector(config.model_path,config.hf_path,
+    dlmodel = DLModeler(config.model_path,config.hf_path,
         config.start_dates,config.end_dates,config.num_examples,
         config.class_percentages,config.patch_radius,
         config.run_date_format,np.array(short_variable_names)) #config.forecast_variables)
     
-
     for member in config.ensemble_members:
         if args.train:
-            mode = 'train' 
-            model_data, obs_data  = dl_patch.load_data(member,mode)
-            train_models(config,member,model_data,obs_data)
+            dlmodel.train_models(member)
+            #train_models(config,member,model_data,obs_data)
         elif args.fore:
-            mode = 'forecast' 
-            _ = load_data(config,member,mode)
+            dlmodel.create_forecasts(member,config.model_map_file)
     return
-
+'''
 def train_models(config,member,model_data,model_labels):
     print('\nTraining {0} models'.format(member))
     print('Model data shape {0}'.format(np.shape(model_data)))
@@ -118,7 +111,7 @@ def train_models(config,member,model_data,model_labels):
     model.add(layers.Dense(64, activation='relu'))
     model.add(layers.Dense(4, activation='sigmoid'))
 
-    opt = Adam()
+    opt = adam()
     model.compile(optimizer=opt,loss='categorical_crossentropy',metrics=['acc'])
     
     print(np.shape(standard_model_data),np.shape(model_labels))
@@ -126,30 +119,30 @@ def train_models(config,member,model_data,model_labels):
     print(batches)
     conv_hist = model.fit(standard_model_data, model_labels, epochs=20, batch_size=batches)
     model.save(
-        config.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(
+        config.model_path+'/{0}_{1}_{2}_cnn_model.h5'.format(
         member,
-        config.start_dates['train'].strftime('%Y%m%d'),
-        config.end_dates['train'].strftime('%Y%m%d')))
+        config.start_dates['train'].strftime('%y%m%d'),
+        config.end_dates['train'].strftime('%y%m%d')))
     
     del model_labels
     
 def output_models(in_data,out_filename):
-    print('\nWriting to {0}\n'.format(out_filename))
-    with h5py.File(out_filename, 'w') as hf:
+    print('\nwriting to {0}\n'.format(out_filename))
+    with h5py.file(out_filename, 'w') as hf:
         hf.create_dataset("data",data=in_data,
         compression='gzip',compression_opts=6)
 
 def open_models(out_filename):
-    print('\nOpening {0}\n'.format(out_filename))
-    with h5py.File(out_filename, 'r') as hf:
+    print('\nopening {0}\n'.format(out_filename))
+    with h5py.file(out_filename, 'r') as hf:
         data = hf['data'][()]
     return data 
 
 def brier_skill_score_keras(obs, preds):
-    bs = K.mean((preds - obs) ** 2)
-    climo = K.mean((obs - K.mean(obs)) ** 2)
+    bs = k.mean((preds - obs) ** 2)
+    climo = k.mean((obs - k.mean(obs)) ** 2)
     return 1.0 - (bs/climo)
-
+'''
 if __name__ == "__main__":
     __spec__ = None
     main()
