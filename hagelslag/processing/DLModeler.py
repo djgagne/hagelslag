@@ -67,35 +67,44 @@ class DLModeler(object):
         #open CNN model 
         cnn_model_file = self.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(member,
             self.start_dates['train'].strftime('%Y%m%d'),self.end_dates['train'].strftime('%Y%m%d'))
-        cnn_model = models.load_model(cnn_model_file) #"../models/conv_model.h5", custom_objects={"brier_skill_score_keras":brier_skill_score_keras})
+        cnn_model = models.load_model(cnn_model_file) 
         
+        #"../models/conv_model.h5", custom_objects={"brier_skill_score_keras":brier_skill_score_keras})
         forecast_dates = pd.date_range(start=self.start_dates['forecast'],
             end=self.end_dates['forecast'],freq='1D').strftime(self.run_date_format)
-        
         for date in forecast_dates:
             print('\nPredicting {0} data\n'.format(date))
+            #In the form (#hours, #patches, nx, ny, #variables)
             member_model_data = self.reading_files('forecast',member,[date])
-            #Still in the form (#variables, #hours, #patches, nx, ny)
-            patch_predictions = np.empty( (2,member_model_data.shape[1], member_model_data.shape[2]) )*np.nan
-            var_shape = (member_model_data.shape[2], member_model_data.shape[3],
-                        member_model_data.shape[4],member_model_data.shape[0])
-            for hour in np.arange(member_model_data.shape[1]):
-                forecast_data = member_model_data[:,hour,:,:,:].ravel().reshape(var_shape)
-                standard_forecast_data = self.standardize(member,forecast_data)
-                preds = cnn_model.predict(forecast_data)[:,:]
-                print(preds[:,2])
-                print(preds[:,3])
-                print(np.shape(preds[:,2]))
+            patch_predictions = np.empty( (2,member_model_data.shape[0],member_model_data.shape[1]) ) 
+            for hour in np.arange(member_model_data.shape[0]):
+                standard_forecast_data = self.standardize(member,member_model_data[hour,:,:,:,:])
+                #for patch in np.arange(member_model_data.shape[1]):
+                preds = cnn_model.predict(standard_forecast_data)
                 patch_predictions[0,hour,:] = preds[:,2]
                 patch_predictions[1,hour,:] = preds[:,3]
                 break
+        
+            self.gridded_forecasts(patch_predictions,map_file)
+        
         return
     
     def gridded_forecasts(self,patch_predictions,map_file):
-        return 
+        map_file = h5py.File(map_file, 'r')['map_data']
+        data_shape = (patch_predictions.shape[0],  patch_predictions.shape[1],) +\
+            map_file.shape
+        print(data_shape)
+        gridded_predictions = np.empty( (data_shape) )*np.nan
+        #Need to read in the txt HREFv2 file to put those data on
+        #the correct map
+        
         #use ckd tree to put the forecasts on a map?
         #return one member map forecasts over 24 hours
         #average together to create ensemble forecast
+
+        #for size_pred in np.arange(patch_predictions.shape[0]):
+        #    for hour in np.arange(patch_predictions.shape[1]):
+        return 
 
 
     def training_data_selection(self,member,training_filename):
@@ -153,29 +162,34 @@ class DLModeler(object):
             model_files = [glob(self.hf_path + '/{0}/*{1}*{2}*.h5'.format(member,variable,date))[0] for variable in self.forecast_variables]
             if mode == 'train':
                 if d%500 == 0:print(d,date)
-                patch_data.append(dask.delayed(self.extracting_patch_data)(model_files,hour[d],patch[d],data_augment[d])) 
-            elif mode =='forecast': patch_data.append(self.extracting_patch_data(model_files))
+                patch_data.append(dask.delayed(self.extracting_training_data)(model_files,hour[d],patch[d],data_augment[d])) 
+            elif mode =='forecast': patch_data.append(self.extracting_forecast_data(model_files))
         if mode =='forecast': 
             return np.array(patch_data)[0]
         member_model_data = dask.compute(patch_data)[0]
         return np.array(member_model_data) 
 
-    def extracting_patch_data(self,model_files,hour=None,patch=None,data_augment=None):
-        if data_augment is None:patch_data=[]
-        else:patch_data = np.zeros( (self.patch_radius,self.patch_radius, len(self.forecast_variables)) ) 
+    def extracting_training_data(self,model_files,hour,patch,data_augment):
+        patch_data = np.zeros( (self.patch_radius,self.patch_radius, len(self.forecast_variables)) ) 
         for v,variable_file in enumerate(model_files):
             if len(variable_file) <= 1:continue
             hf = h5py.File(variable_file, 'r')
-            if data_augment is None:patch_data.append(hf['patches'][()])
-            else:
-                if data_augment > 0.5:
-                    variable_data = hf['patches'][hour,patch,:,:].ravel()
-                    noise = np.nanvar(variable_data)*np.random.choice(np.arange(-0.5,0.5,0.15))
-                    patch_data[:,:,v] = (variable_data + noise).reshape((self.patch_radius,self.patch_radius))
-                else: patch_data[:,:,v] = hf['patches'][hour,patch,:,:]
+            if data_augment > 0.5:
+                variable_data = hf['patches'][hour,patch,:,:].ravel()
+                noise = np.nanvar(variable_data)*np.random.choice(np.arange(-0.5,0.5,0.15))
+                patch_data[:,:,v] = (variable_data + noise).reshape((self.patch_radius,self.patch_radius))
+            else: patch_data[:,:,v] = hf['patches'][hour,patch,:,:]
             hf.close()
         return np.array(patch_data)
-
+    
+    def extracting_forecast_data(self,model_files): #,data_augment=None):
+        data_shape = h5py.File(model_files[0], 'r')['patches'].shape+(len(self.forecast_variables),)
+        patch_data = np.empty( data_shape )*np.nan
+        for v,variable_file in enumerate(model_files):
+            if len(variable_file) <= 1:continue
+            with h5py.File(variable_file, 'r') as hf:
+                patch_data[:,:,:,:,v] = hf['patches'][()]
+        return np.array(patch_data)
 
     def standardize(self,member,model_data):
         scaling_file = self.model_path+'/{0}_{1}_{2}_{3}_training_scaling_values.csv'.format(
@@ -185,15 +199,20 @@ class DLModeler(object):
         standard_model_data = np.ones(np.shape(model_data))*np.nan
         if not os.path.exists(scaling_file):
             scaling_values = pd.DataFrame(np.zeros((len(self.forecast_variables), 2), 
-                dtype=np.float32),index=self.forecast_variables,columns=['mean','std'])
+                dtype=np.float32),columns=['mean','std'])
         else:
-            print('\nOpening {0}\n'.format(scaling_file))
+            #print('\nOpening {0}\n'.format(scaling_file))
             scaling_values = pd.read_csv(scaling_file,index_col=0)
+            #print(scaling_values)
+
         #Standardizing data
-        for n in range(len(self.forecast_variables)):
-            scaling_values.loc[n,'mean'] = np.nanmean(model_data[:,:,:,n])
-            scaling_values.loc[n,'std'] = np.nanstd(model_data[:,:,:,n])
-            standard_model_data[:,:,:,n] = (model_data[:,:,:,n]-scaling_values['mean'][n])/scaling_values['std'][n] 
+        for n in np.arange(model_data.shape[-1]):
+            if os.path.exists(scaling_file):
+                standard_model_data[:,:,:,n] = (model_data[:,:,:,n]-scaling_values.loc[n,'mean'])/scaling_values.loc[n,'std']
+                continue
+            scaling_values.loc[n, ["mean", "std"]] = [model_data[:,:,:,n].mean(),model_data[:,:,:,n].std()]
+            standard_model_data[:,:,:,n] = (model_data[:,:,:,n]-scaling_values.loc[n,'mean'])/scaling_values.loc[n,'std']
+        
         #Output training scaling values
         if not os.path.exists(scaling_file):
             print('\nWriting to {0}\n'.format(scaling_file))
@@ -210,32 +229,39 @@ class DLModeler(object):
         #Initiliaze Convolutional Neural Net (CNN)
         model = models.Sequential()
         l2_a= 0.001
-
         #First layer, input shape (y,x,# variables) 
-        model.add(layers.Conv2D(32, (3, 3), activation='relu', 
-            padding="same", kernel_regularizer=l2(l2_a),
-            input_shape=(np.shape(model_data[0]))))
-        #model.add(layers.Dropout(0.1))
-        model.add(layers.MaxPooling2D((2, 2))) 
+        model.add(layers.Conv2D(32, (5, 5), activation='relu', 
+            kernel_regularizer=l2(l2_a),
+            padding='same',input_shape=(np.shape(model_data[0]))))
+        model.add(layers.Conv2D(32, (5,5),
+        kernel_regularizer=l2(l2_a),activation='relu',padding='same'))
+        model.add(layers.Dropout(0.3))
+        model.add(layers.MaxPooling2D())
         #Second layer
-        model.add(layers.Conv2D(64, (3, 3), activation='relu',padding="same", kernel_regularizer=l2(l2_a)))
-        #model.add(layers.Dropout(0.1))
-        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(64, (5, 5), 
+            kernel_regularizer=l2(l2_a),activation='relu',padding='same'))
+        model.add(layers.Conv2D(64, (5,5), 
+            kernel_regularizer=l2(l2_a),activation='relu',padding='same'))
+        model.add(layers.Dropout(0.3))
+        model.add(layers.MaxPooling2D())
         #Third layer
-        model.add(layers.Conv2D(64, (3, 3), activation='relu',padding="same", kernel_regularizer=l2(l2_a)))
-        #model.add(layers.Dropout(0.1))
-        model.add(layers.MaxPooling2D((2, 2)))
+        model.add(layers.Conv2D(128, (5, 5), 
+            kernel_regularizer=l2(l2_a),activation='relu',padding='same'))
+        model.add(layers.Conv2D(128, (5,5), 
+            kernel_regularizer=l2(l2_a),activation='relu',padding='same'))
+        model.add(layers.Dropout(0.3))
+        model.add(layers.MaxPooling2D())
     
         #Flatten the last convolutional layer into a long feature vector
         model.add(layers.Flatten())
-        model.add(layers.Dense(64, activation='relu'))
-        model.add(layers.Dense(4, activation='sigmoid'))
+        model.add(layers.Dense(128, activation='relu'))
+        model.add(layers.Dense(4, activation='softmax'))
 
         opt = Adam()
         model.compile(optimizer=opt,loss='categorical_crossentropy',metrics=['acc'])
-        batches = int(self.num_examples/30.0)
+        batches = int(self.num_examples/20.0)
         print(batches)
-        conv_hist = model.fit(model_data, model_labels, epochs=30, batch_size=batches,validation_split=0.1)
+        conv_hist = model.fit(model_data, model_labels, epochs=20, batch_size=batches,validation_split=0.1)
         model_file = self.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(member,
             self.start_dates['train'].strftime('%Y%m%d'),self.end_dates['train'].strftime('%Y%m%d'))
         model.save(model_file)
