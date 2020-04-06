@@ -42,7 +42,7 @@ if __name__ == "__main__":
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
           scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter", 
                 "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration","bin/hsdldata",
-                "bin/hsdlforecast"],
+                "bin/hsdlforecast","bin/hsdlfileoutput"],
           data_files=[("mapfiles", ["mapfiles/ssef2013.map", 
                                     "mapfiles/ssef2014.map", 
                                     "mapfiles/ssef2015.map", 

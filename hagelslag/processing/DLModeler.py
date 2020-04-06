@@ -86,7 +86,7 @@ class DLModeler(object):
                 patch_predictions[0,hour,:] = preds[:,2]
                 patch_predictions[1,hour,:] = preds[:,3]
             
-            gridded_out_file = forecast_outpath+'{0}_{1}_forecast_grid'.format(member,
+            gridded_out_file = forecast_outpath+'{0}_{1}_forecast_grid.h5'.format(member,
             self.start_dates['forecast'].strftime('%Y%m%d'))
             
             self.gridded_forecasts(patch_predictions,map_file,gridded_out_file)
@@ -130,12 +130,13 @@ class DLModeler(object):
         final_grid_shape = (patch_predictions.shape[0],
             patch_predictions.shape[1],)+mapping_data['lat'].shape
         
-        for s,size_pred in enumerate(['25mm','50mm']):
-            size_pred_gridded_out_file = gridded_out_file+'_'+size_pred+'.h5'
-            print('Writing out {0}'.format(size_pred_gridded_out_file))
-            with h5py.File(size_pred_gridded_out_file, 'w') as hf:
+        #for s,size_pred in enumerate(['25mm','50mm']):
+        #    size_pred_gridded_out_file = gridded_out_file+'_'+size_pred+'.h5'
+        
+        print('Writing out {0}'.format(gridded_out_file))
+        with h5py.File(gridded_out_file, 'w') as hf:
                 hf.create_dataset("data",
-                data=gridded_predictions.reshape(final_grid_shape)[s],
+                data=gridded_predictions.reshape(final_grid_shape),
                 compression='gzip',compression_opts=6)
         
         return 
