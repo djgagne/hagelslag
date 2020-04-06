@@ -1,3 +1,5 @@
+from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file
+from scipy.spatial import cKDTree
 from datetime import timedelta
 from glob import glob
 import pandas as pd
@@ -63,7 +65,7 @@ class DLModeler(object):
         self.train_CNN(member,standard_model_data,member_obs_label)    
         return 
     
-    def create_forecasts(self,member,map_file):
+    def create_forecasts(self,member,map_file,forecast_outpath):
         #open CNN model 
         cnn_model_file = self.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(member,
             self.start_dates['train'].strftime('%Y%m%d'),self.end_dates['train'].strftime('%Y%m%d'))
@@ -76,34 +78,66 @@ class DLModeler(object):
             print('\nPredicting {0} data\n'.format(date))
             #In the form (#hours, #patches, nx, ny, #variables)
             member_model_data = self.reading_files('forecast',member,[date])
-            patch_predictions = np.empty( (2,member_model_data.shape[0],member_model_data.shape[1]) ) 
+            patch_predictions = np.empty( (2,member_model_data.shape[0],
+                member_model_data.shape[1]) )*np.nan
             for hour in np.arange(member_model_data.shape[0]):
                 standard_forecast_data = self.standardize(member,member_model_data[hour,:,:,:,:])
-                #for patch in np.arange(member_model_data.shape[1]):
                 preds = cnn_model.predict(standard_forecast_data)
                 patch_predictions[0,hour,:] = preds[:,2]
                 patch_predictions[1,hour,:] = preds[:,3]
-                break
-        
-            self.gridded_forecasts(patch_predictions,map_file)
+            
+            gridded_out_file = forecast_outpath+'{0}_{1}_forecast_grid'.format(member,
+            self.start_dates['forecast'].strftime('%Y%m%d'))
+            
+            self.gridded_forecasts(patch_predictions,map_file,gridded_out_file)
         
         return
     
-    def gridded_forecasts(self,patch_predictions,map_file):
-        map_file = h5py.File(map_file, 'r')['map_data']
-        data_shape = (patch_predictions.shape[0],  patch_predictions.shape[1],) +\
-            map_file.shape
-        print(data_shape)
-        gridded_predictions = np.empty( (data_shape) )*np.nan
-        #Need to read in the txt HREFv2 file to put those data on
-        #the correct map
+    def gridded_forecasts(self,patch_predictions,map_file,gridded_out_file):
+        #Total mapfile
+        proj_dict, grid_dict = read_ncar_map_file(map_file)
+        mapping_data = make_proj_grids(proj_dict, grid_dict)
+        total_grid = np.zeros_like( mapping_data['lat'].ravel() )
+        #Subset mapfile
+        subset_map_file = glob(self.hf_path+'/*map*.h5')[0] 
+        subset_file_data = h5py.File(subset_map_file, 'r')['map_data']
         
-        #use ckd tree to put the forecasts on a map?
-        #return one member map forecasts over 24 hours
-        #average together to create ensemble forecast
-
-        #for size_pred in np.arange(patch_predictions.shape[0]):
-        #    for hour in np.arange(patch_predictions.shape[1]):
+        #Convert subset grid points to total grid
+        tree = cKDTree(np.c_[mapping_data['lon'].ravel(),  
+                        mapping_data['lat'].ravel()])
+        
+        lon_subset = subset_file_data[0,:,:,:].ravel()
+        lat_subset = subset_file_data[1,:,:,:].ravel()
+        _,inds = tree.query(np.c_[subset_file_data[0,:,:,:].ravel(),
+                subset_file_data[1,:,:,:].ravel()])
+        
+        #Fill in total grid with predicted probabilities
+        gridded_predictions = np.empty( (patch_predictions.shape[0],
+                patch_predictions.shape[1],) + mapping_data['lat'].ravel().shape )*np.nan
+        subset_file_data_shape = np.array(subset_file_data.shape)[-2:]
+        
+        for size_pred in np.arange(patch_predictions.shape[0]):
+            for hour in np.arange(patch_predictions.shape[1]):
+                prob_on_patches = []
+                for patch in np.arange(patch_predictions.shape[2]):
+                    patch_data = patch_predictions[size_pred,hour,patch]
+                    if patch_data < 0.01: patch_data=0.0
+                    prob_on_patches.append(np.full(subset_file_data_shape, patch_data))
+                total_grid[inds] = np.array(prob_on_patches).ravel()
+                gridded_predictions[size_pred,hour,:] = total_grid
+        
+        #Write file out gridded forecasts using Hierarchical Data Format 5 (HDF5) format. 
+        final_grid_shape = (patch_predictions.shape[0],
+            patch_predictions.shape[1],)+mapping_data['lat'].shape
+        
+        for s,size_pred in enumerate(['25mm','50mm']):
+            size_pred_gridded_out_file = gridded_out_file+'_'+size_pred+'.h5'
+            print('Writing out {0}'.format(size_pred_gridded_out_file))
+            with h5py.File(size_pred_gridded_out_file, 'w') as hf:
+                hf.create_dataset("data",
+                data=gridded_predictions.reshape(final_grid_shape)[s],
+                compression='gzip',compression_opts=6)
+        
         return 
 
 
