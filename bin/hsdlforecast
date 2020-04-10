@@ -1,0 +1,133 @@
+#!/home/tmp/aburke/miniconda3/envs/deephail/bin/python
+from hagelslag.processing.DLModeler import DLModeler
+from hagelslag.util.Config import Config
+#from keras import models
+import argparse, pdb
+import pandas as pd
+import numpy as np
+import h5py
+import os
+np.random.seed(123)  # for reproducibility
+
+def main():
+    """
+    Main function to parse out configuration file (Config), a dictionary 
+    of different model tunnings, for slicing model and observational data. 
+
+    For a given number of parallel processesors, the model and observational 
+    data are sliced each day with the model data separated by ensemble member. 
+    """
+    parser = argparse.ArgumentParser("hsdata - Hagelslag Data Processor")
+    parser.add_argument("config", help="Configuration file")
+    parser.add_argument("-t", "--train", action="store_true", help="Train machine learning models.")
+    parser.add_argument("-f", "--fore", action="store_true", help="Generate forecasts from machine learning models.")
+    args = parser.parse_args()
+    required = ['start_dates','end_dates','start_hour','end_hour','ensemble_members',
+                'model_path','ensemble_name','storm_variables','potential_variables', 
+                'model_map_file','hf_path','forecast_grid_path','patch_radius',
+                'num_examples','class_percentages'] 
+    
+    #Add attributes of dict to config
+    config = Config(args.config, required_attributes=required)
+    config.valid_hours = np.arange(config.start_hour, config.end_hour)
+    if not hasattr(config, "run_date_format"):
+        config.run_date_format = "%Y%m%d-%H"
+    config.forecast_variables = config.storm_variables + config.potential_variables
+    if hasattr(config, "tendency_variables"):
+        config.forecast_variables.extend(config.tendency_variables)
+    short_variable_names = []
+    for variable in config.forecast_variables:
+        if " " in variable: 
+            variable_name=''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+        elif "_" in variable: 
+            variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
+        else:
+            variable_name = variable
+        short_variable_names.append(variable_name)
+    
+    #Process data for different processor arguments
+    dlmodel = DLModeler(config.model_path,config.hf_path,
+        config.start_dates,config.end_dates,config.num_examples,
+        config.class_percentages,config.patch_radius,
+        config.run_date_format,np.array(short_variable_names)) #config.forecast_variables)
+    
+    for member in config.ensemble_members:
+        if args.train:
+            train_models(config,dlmodel,member)
+        elif args.fore:
+            predict_models(config,dlmodel,member)
+    return
+
+def train_models(config,dlmodel,member):
+    """
+    Function that reads and extracts pre-processed 2d member data 
+    from an ensemble to train a convolutional neural net (cnn). 
+    The model data is standardized before being input to the cnn, 
+    with the observation data in the shape (# examples, # classes). 
+
+    Args:
+        config (object): configuration object 
+        dlmodel (object): class object for creating/processing data for a cnn
+        member (str): ensemble member data that trains a cnn
+    """
+    train_data, train_label = dlmodel.pre_process_training_data(member)
+    if train_data is not None:
+        #Standardize data
+        standard_train_data = dlmodel.standardize_data(member,train_data) 
+        '''
+        #Train and save models
+        dlmodel.train_CNN(member,standard_train_data,train_label)    
+        '''
+    return 
+
+
+def predict_models(config,dlmodel,member):
+    """
+    Function that opens a pre-trained convolutional neural net (cnn). 
+    and predicts hail probability forecasts for a single ensemble member.
+    
+    Args:
+        config (object): configuration object 
+        dlmodel (object): class object for creating/processing data for a cnn
+        member (str): ensemble member data that trains a cnn
+ 
+    """
+    #Open CNN model 
+    cnn_model_file = config.model_path+'/{0}_{1}_{2}_CNN_model.h5'.format(member,
+        config.start_dates['train'].strftime('%Y%m%d'),config.end_dates['train'].strftime('%Y%m%d'))
+    #Load saved CNN model
+    cnn_model = models.load_model(cnn_model_file) 
+    #Read data on forecast days
+    forecast_dates = pd.date_range(start=config.start_dates['forecast'],
+        end=config.end_dates['forecast'],freq='1D').strftime(self.run_date_format)
+    for date in forecast_dates:
+        print('\nPredicting {0} data\n'.format(date))
+        #Extract forecast data (#hours, #patches, nx, ny, #variables)
+        forecast_data = dlmodel.read_files('forecast',member,[date])
+        if forecast_data is None: 
+            print('No forecast data found')
+            continue
+        patch_predictions = np.empty( (2,forecast_data.shape[0],forecast_data.shape[1]) )*np.nan
+        #Produce hail forecast using standardized forecast data every hour
+        for hour in np.arange(forecast_data.shape[0]):
+            standard_forecast_data = dlmodel.standardize_data(member,forecast_data[hour])
+            cnn_preds = cnn_model.predict(standard_forecast_data)
+            #Predict severe hail > 25 mm
+            patch_predictions[0,hour,:] = cnn_preds[:,2]+cnn_preds[:,3]
+            #Predict sig-severe hail > 50 mm
+            patch_predictions[1,hour,:] = cnn_preds[:,3]
+
+        #Output gridded forecasts
+        gridded_out_file = config.forecast_grid_path+'{0}_{1}_forecast_grid.h5'.format(member,date)
+        gridded_data = dlmodel.gridded_forecasts(patch_predictions,config.map_file)    
+        
+        print('Writing out {0}'.format(gridded_out_file))
+        with h5py.File(gridded_out_file, 'w') as hf:
+            hf.create_dataset("data",data=gridded_data,
+            compression='gzip',compression_opts=6)
+    return
+
+if __name__ == "__main__":
+    __spec__ = None
+    main()
+

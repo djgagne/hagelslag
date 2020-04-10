@@ -1,0 +1,283 @@
+#!/home/tmp/aburke/miniconda3/envs/deephail/bin/python
+from hagelslag.util.make_proj_grids import * 
+from scipy.ndimage import gaussian_filter
+import matplotlib
+import matplotlib.pyplot as plt
+import cartopy.feature as cf 
+import cartopy.crs as ccrs
+import cartopy
+import numpy as np
+import pandas as pd
+import argparse
+import os
+import h5py
+
+try: 
+    from ncepgrib2 import Grib2Encode, dump
+    grib_support = True
+except ImportError("ncepgrib2 not available"):
+    grib_support = False   
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--start", help="Start Date of the model run time steps.")
+    parser.add_argument("-e", "--end", help="End Date of the model run time steps.")
+    parser.add_argument("-n", "--ens", help="Name of the ensemble.")
+    parser.add_argument("-a", "--map_file", help="Map file")      
+    parser.add_argument("-b", "--members", help="Comma-separated list of members.")
+    parser.add_argument("-o", "--out", help="path where figures are saved.")
+    parser.add_argument("-p", "--path", help="path to forecast data")
+    parser.add_argument("-l", "--plot_out", action="store_true", help="Generate png files")
+    parser.add_argument("-i", "--grib_out", action="store_true", help="Generate grib2 files")
+    parser.add_argument("-c", "--netcdf_out", action="store_true", help="Generate netcdf files.")
+    #parser.add_argument("-l", "--calibration", required=False, default=True, help="If True will not smooth output files.")
+    parser.add_argument("-y", "--hourly", action="store_true", help="If False will not output hourly forecasts.")
+    
+    #Parse arguments and define fixed values
+    args = parser.parse_args()
+    smoothing = 14 #number of gridpoints 
+    thresholds = np.array([25, 50])
+    stride = 1
+
+    #Create map grid
+    proj_dict, grid_dict = read_ncar_map_file(args.map_file)
+    mapping_data = make_proj_grids(proj_dict, grid_dict)
+    
+    #Create list of forecast dates 
+    forecast_dates = pd.date_range(args.start,args.end,freq='1D')
+    print("Loading data")
+
+    for date in forecast_dates:
+        outpath=args.out+'{0}/'.format(date.strftime("%Y%m%d"))
+        forecast_grid = load_dl_data(date.strftime('%Y%m%d'),
+            args.members.split(","), args.path)
+        
+        #Output files
+        if len(forecast_grid[0]) < 1:
+            print('No grib hail forecasts found {0}'.format(date.strftime('%Y%m%d')))
+            continue
+        else:
+            for s,size_forecast in enumerate(thresholds):
+                print('\n{0} mm forecasts'.format(size_forecast))
+                if args.grib_out: 
+                    date_outpath = outpath+'grib/'
+                    if not os.path.exists(date_outpath):
+                        os.makedirs(date_outpath)
+                    print("Daily probabilitiy grib files")
+                    write_grib2_file(forecast_grid[s,:,:,:],0,24,args.map_file,date,
+                    date_outpath,"{0}mm".format(size_forecast),args.ens,smoothing) 
+                if args.netcdf_out: 
+                    date_outpath = outpath+'netcdf/'
+                    if not os.path.exists(date_outpath):
+                        os.makedirs(date_outpath)
+                    print("Daily probabilitiy nc files")
+                    write_netcdf_file(forecast_grid[s,:,:,:],0,24,date,mapping_data['lon'],
+                        mapping_data['lat'],date_outpath,"{0}mm".format(size_forecast),
+                        args.ens,smoothing)
+                if args.plot_out: 
+                    date_outpath = outpath+'png/'
+                    if not os.path.exists(date_outpath):
+                        os.makedirs(date_outpath)
+                    print("Daily probabilitiy plots")
+                    plot_period_prob(forecast_grid[s,:,:,:],0,24,date,mapping_data['lon'],
+                        mapping_data['lat'],date_outpath,"{0}mm".format(size_forecast),
+                        args.ens,smoothing)
+                
+                
+                print()
+                if args.hourly: 
+                    for hour in range(4,21):
+                        if args.plot_out:
+                            date_outpath = outpath+'png/'
+                            print("Hourly probability plots")
+                            plot_period_prob(forecast_grid[s,:,:,:],hour,(hour+4),
+                                date,mapping_data['lon'],mapping_data['lat'],date_outpath,
+                                "{0}mm".format(size_forecast),args.ens,smoothing)
+                        print()
+                        if args.grib_out: 
+                            date_outpath = outpath+'grib/'
+                            print("Hourly probabilitiy grib files")
+                            write_grib2_file(forecast_grid[s,:,:,:],hour,(hour+4),args.map_file,date,
+                                date_outpath,"{0}mm".format(size_forecast),args.ens,smoothing)
+                        print()
+                        if args.netcdf_out: 
+                            date_outpath = outpath+'netcdf/'
+                            print("Daily probabilitiy nc files")
+                            write_netcdf_file(forecast_grid[s,:,:,:],hour,(hour+4),date,
+                                mapping_data['lon'],mapping_data['lat'],date_outpath,
+                                "{0}mm".format(size_forecast),args.ens,smoothing)
+                 
+    return
+
+def load_dl_data(forecast_date,members,data_path):
+    member_data = []
+    for m, member in enumerate(members):
+        filename = data_path + "{0}_{1}_forecast_grid.h5".format(member,forecast_date)
+        with h5py.File(filename,'r') as hf:
+            member_data.append(hf['data'][()])
+    average_ens_data = np.nanmean(member_data,axis=0)
+    return np.array(average_ens_data)
+
+def plot_period_prob(forecast_grid,start_time,end_time,date,
+    lon_grid,lat_grid,out_path,plot_mode,ensemble_name,smoothing=0,
+    figsize=(10, 6)):
+    """
+    Plot different periods of hail size probability forecasts
+    
+    Args:
+        forecast_grid (): data from input forecast grib file
+        start_time (str): Beginning hour between 0-24 period for output grib files
+        end_time (str): End hour between 0-24 period for output grib files
+        lon_grid (float): 2D grid of longitude values
+        lat_grid (float): 2D grid of lattitude values
+        out_path (str): Path to where output png files are stored
+    Returns:
+        PNG files of ensemble maximum forecasts over specified time period 
+    """
+    #Create plot projection
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(1,1,1,projection = ccrs.LambertConformal())
+    ax.add_feature(cf.COASTLINE)   
+    ax.add_feature(cf.OCEAN)
+    ax.add_feature(cf.BORDERS,linestyle='-')
+    ax.add_feature(cf.STATES.with_scale('50m'),linestyle='-',edgecolor='black')
+    
+    #Create colormap
+    cmap = matplotlib.colors.ListedColormap(
+            ['#DBC6BD','#AD8877','#FCEA8D', 
+            'gold','#F76E67','#F2372E',
+            '#F984F9','#F740F7','#AE7ADD','#964ADB',
+            '#99CCFF', '#99CCFF','#3399FF'])
+                
+    levels = [0.02,0.05,0.15, 0.225, 0.30, 0.375, 0.45, 
+            0.525, 0.60, 0.70, 0.8, 0.9, 1.0]
+    
+    #Find ensemble probabilities
+    neigh_prob = forecast_grid[start_time:end_time,:,:].max(axis=0)
+    if smoothing > 0: neigh_prob = gaussian_filter(forecast_grid[start_time:end_time,:,:].max(axis=0),
+        smoothing,mode='constant')
+
+    #plot data
+    plt.contourf(lon_grid,lat_grid,neigh_prob,extend="max",cmap=cmap,levels=levels,transform=ccrs.PlateCarree())
+    cbar = plt.colorbar(orientation="horizontal", shrink=0.7, fraction=0.05, pad=0.02)
+    cbar.set_ticks([0.02,0.05,0.15, 0.30, 0.45, 0.60, 0.80, 1.0])
+    cbar.set_ticklabels([2,5,15,30,45,60,80,100])
+    plt.title("{0} Ensemble Probability of Hail $>$ {1}\n Valid {2} {3}-{4} UTC".format(
+            ensemble_name,plot_mode,date.strftime("%d %b %Y"),
+            ((start_time+12)%24),((end_time+12)%24)),
+            fontweight="bold",
+            fontsize=12)
+    filename = out_path + "{0}_Hail_{1}_{2}_Hours_{3}-{4}.png".format(
+                                                        ensemble_name,
+                                                        plot_mode,
+                                                        date.strftime("%y%m%d"),
+                                                        (start_time+12),(end_time+12))
+    
+    print("Writing to " + filename)
+    plt.savefig(filename,bbox_inches="tight", dpi=300)
+    plt.close()
+    
+    return
+
+
+def write_grib2_file(forecast_grid,start_time,end_time,map_file,
+    run_date,out_path,plot_mode,ensemble_name,smoothing=0,stride=1):
+    """
+    Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
+
+    Args:
+        forecast_grid (ndarray): forecasts over given time period
+        start_time (str): Beginning hour between 12-36 period for output grib files
+        end_time (str): End hour between 12-36 period for output grib files
+        out_path (str): Path to where output grib files are stored
+    """
+    data = forecast_grid[start_time:end_time,:,:].max(axis=0)
+    if smoothing > 0: data = gaussian_filter(forecast_grid[start_time:end_time,:,:].max(axis=0),
+        smoothing,mode='constant')
+    if map_file[-3:] == "map":                                  
+        proj_dict, grid_dict = read_arps_map_file(map_file)
+    else:                                               
+        proj_dict, grid_dict = read_ncar_map_file(map_file)   
+    lscale = 1e6
+    grib_id_start = [7, 0, 14, 14, 2]
+    gdsinfo = np.array([0, np.product(data.shape[-2:]), 0, 0, 30], dtype=np.int32)
+    lon_0 = proj_dict["lon_0"]
+    sw_lon = grid_dict["sw_lon"]
+    if lon_0 < 0:
+        lon_0 += 360
+    if sw_lon < 0:
+        sw_lon += 360
+
+    gdtmp1 = [1, 0, proj_dict['a'], 0, float(proj_dict['a']), 0, float(proj_dict['b']),
+            data.shape[-1], data.shape[-2], grid_dict["sw_lat"] * lscale,
+            sw_lon * lscale, 0, proj_dict["lat_0"] * lscale,
+            lon_0 * lscale,
+            grid_dict["dx"] * 1e3 * stride, grid_dict["dy"] * 1e3 * stride, 0b00000000, 0b01000000,
+            proj_dict["lat_1"] * lscale,
+            proj_dict["lat_2"] * lscale, -90 * lscale, 0]
+    pdtmp1 = np.array([1, 31, 4, 0, 31, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1], dtype=np.int32)
+    drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
+    time_list = list(run_date.utctimetuple()[0:6])
+    grib_objects = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+    grib_objects.addgrid(gdsinfo, gdtmp1)
+    pdtmp1[8] = end_time
+    pdtmp1[-2] = 0
+    grib_objects.addfield(1, pdtmp1, 0, drtmp1, data)
+    grib_objects.end()
+    filename = out_path + "{0}_Hail_{1}_{2}_Hours_{3}-{4}.grib2".format(
+                                                        ensemble_name,
+                                                        plot_mode,
+                                                        run_date.strftime("%y%m%d"),
+                                                        (start_time+12),(end_time+12))
+    
+    print("Writing to " + filename)
+    grib_file = open(filename, "wb")
+    grib_file.write(grib_objects.msg)
+    grib_file.close()
+    return 
+
+def write_netcdf_file(forecast_grid,start_time,end_time,date,
+    lon_grid,lat_grid,out_path,plot_mode,ensemble_name,smoothing):
+    """
+    Writes out grib2 files for given Ensemble Maximum and Neighborhood Probability numpy array data. 
+
+    Args:
+        neighbor_prob (ndarray): Neighborhood probabilities over given time period
+        forecast_grid (HailForecastGrid): data from input forecast grib file
+        start_time (str): Beginning hour between 12-36 period for output grib files
+        end_time (str): End hour between 12-36 period for output grib files
+        out_path (str): Path to where output grib files are stored
+        data_lon (ndarray): Array of longitudes for forecast data
+        data_lat (ndarray): Array of latitudes for forecast data
+        plot_mode (str): Type of plot, either ensemble max or probability
+        map_file (str): Map associated with the input/output grib files
+    """
+
+    #Find ensemble probabilities
+    neigh_prob = forecast_grid[start_time:end_time,:,:].max(axis=0)
+    if smoothing > 0: neigh_prob = gaussian_filter(forecast_grid[start_time:end_time,:,:].max(axis=0),
+        smoothing,mode='constant')
+    
+    filename = out_path + "{0}_Hail_{1}_{2}_Hours_{3}-{4}.nc".format(
+                                                        ensemble_name,
+                                                        plot_mode,
+                                                        date.strftime("%y%m%d"),
+                                                        (start_time+12),(end_time+12))
+    
+    out_file = Dataset(filename, "w")
+    out_file.createDimension("x", neigh_prob.shape[0])
+    out_file.createDimension("y", neigh_prob.shape[1])
+    out_file.createVariable("Longitude", "f4", ("x", "y"))
+    out_file.createVariable("Latitude", "f4",("x", "y"))
+    out_file.createVariable("Data", "f4", ("x", "y"))
+    out_file.variables["Longitude"][:,:] = lon_grid
+    out_file.variables["Latitude"][:,:] = lat_grid
+    out_file.variables["Data"][:,:] = neigh_prob 
+    out_file.close()
+    
+    print("Writing to " + filename)
+
+    return
+
+if __name__ == "__main__":
+    main()

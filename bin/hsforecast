@@ -34,30 +34,25 @@ def main():
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
     if any([args.train, args.fore]):
-        if not hasattr(config, "sector_center"):
-            config.sector_center = None
-        if not hasattr(config, "regional_weighting_function"):
-            config.regional_weighting_function = None
+        if not hasattr(config, "weighting_function"):
+            config.weighting_function = None
         track_modeler = TrackModeler(config.ensemble_name,
                                      config.train_data_path,
                                      config.forecast_data_path,
                                      config.member_files,
                                      config.start_dates,
                                      config.end_dates,
-                                     config.sector_center,
-                                     config.regional_weighting_function,
+                                     config.weighting_function,
                                      config.model_map_file,
                                      config.group_col)
         if args.train:
-            #train_models(track_modeler, config)
-            if not hasattr(config, "sector_map_file"):
-                config.sector_map_file = None
+            train_models(track_modeler, config)
             training_data_percentiles(config.ensemble_members,
                                         config.ensemble_name,
                                         config.watershed_variable,
                                         config.train_data_path,
                                         config.size_dis_training_path,
-                                        config.sector_map_file)
+                                        config.weighting_function)
         if args.fore:
             forecasts = make_forecasts(track_modeler, config)
             output_forecasts_csv(forecasts, track_modeler, config)
@@ -242,7 +237,7 @@ def generate_ml_member_grid(ensemble_name, model_names, member, run_date, variab
 
 
 def training_data_percentiles(member_list, ensemble_name, watershed_obj, csv_data_path, 
-                            csv_outpath, sector_map=None,
+                            csv_outpath, weighting_function=None,
                             percentiles=np.linspace(0.1, 99.9, 100)):
     """
     Creates watershed object distribution of sizes for a given set of training netcdf patches
@@ -268,26 +263,22 @@ def training_data_percentiles(member_list, ensemble_name, watershed_obj, csv_dat
         member_obj_data = []
         member_files = sorted(glob(csv_data_path+'*step*{0}*{1}*.csv'.format(ensemble_name,member)))
         dataset = pd.concat(map(pd.read_csv, member_files),ignore_index=True,sort='True')
-        if sector_map is None:
-            #matched_inds = np.where(dataset["Matched"] == 1)[0]
-            sector_objs_stat = dataset.loc[:,"{0}_max".format(watershed_obj,stat)].dropna()
-            member_obj_data.append(sector_objs_stat)
+        match_inds = np.where(dataset["Matched"] == 1)[0]
+        match_dataset = dataset.loc[match_inds,:]
+        if weighting_function is None:
+            objs_stat = match_dataset.loc[:,"{0}_max".format(watershed_obj)].dropna()
+            member_obj_data.append(objs_stat)
         else:
-            proj_dict, grid_dict = read_ncar_map_file(sector_map)    
-            lon_obj = dataset.loc[:,'Centroid_Lon']
-            lat_obj = dataset.loc[:,'Centroid_Lat']
-            #match_obj = dataset.loc[:,'Matched']
-            centroid_inds = np.where( 
-                                    (grid_dict["ne_lat"]>=lat_obj) & (grid_dict["sw_lat"]<=lat_obj) &
-                                    (grid_dict["ne_lon"]>=lon_obj) & (grid_dict["sw_lon"]<=lon_obj))[0]
-            #                        & (match_obj == 1))[0]
-        for stat in ['max']: 
-            sector_objs_stat = dataset.loc[centroid_inds,"{0}_{1}".format(watershed_obj,stat)].dropna()
-            member_obj_data.append(sector_objs_stat)
+            training_weights = weighting_function(match_dataset)
+            #training_percentile = np.percentile(training_weights,95)
+            weight_inds = np.where(training_weights >= 1.0)[0]
+            weights_objs_stat = match_dataset.loc[weight_inds,
+                                "{0}_max".format(watershed_obj)].dropna()
+            member_obj_data.append(weights_objs_stat)
         if member_obj_data:
             obj_values = np.concatenate(member_obj_data)
-            print() 
             print('{0} {1} model objects: {2}'.format(watershed_obj,member,obj_values.shape[0]))
+            print() 
             obj_percent_val = np.percentile(obj_values, percentiles)
             dataframe_values = {'Obj_Values':obj_percent_val, 'Percentiles':percentiles}
             obj_value_percentile = pd.DataFrame(data=dataframe_values)

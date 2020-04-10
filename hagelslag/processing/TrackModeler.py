@@ -27,8 +27,7 @@ class TrackModeler(object):
                  member_files,
                  start_dates,
                  end_dates,
-                 sector,
-                 regional_weighting_function,
+                 weighting_function,
                  map_file,
                  group_col="Microphysics"):
         
@@ -45,8 +44,7 @@ class TrackModeler(object):
         self.track_models = {"translation-x": {},
                              "translation-y": {},
                              "start-time": {}}
-        self.sector = sector
-        self.regional_weighting_function = regional_weighting_function
+        self.weighting_function = weighting_function
         self.map_file = map_file
         self.group_col = group_col
 
@@ -70,7 +68,7 @@ class TrackModeler(object):
             run_dates = pd.date_range(start=self.start_dates[mode],
                                          end=self.end_dates[mode], freq="1D")
             run_date_str = [d.strftime("%Y%m%d-%H%M") for d in run_dates.date]
-            print(run_date_str)
+            print(np.unique(run_dates.strftime('%Y%m')))
             all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") +
                                                 "*total_" + self.ensemble_name + "*." + format))
             all_step_track_files = sorted(glob(getattr(self, mode + "_data_path") +
@@ -161,8 +159,8 @@ class TrackModeler(object):
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            if self.sector:
-                weights = self.regional_weighting(group_data)
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
             else:
                 weights = None
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
@@ -205,8 +203,8 @@ class TrackModeler(object):
             print(group)
             group_data = self.data["train"]["combo"].iloc[
                 np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
-            if self.sector:
-                weights = self.regional_weighting(group_data)
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
             else:
                 weights = None
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
@@ -298,12 +296,12 @@ class TrackModeler(object):
         groups = np.unique(self.data["train"]["member"][self.group_col])
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            group_data = group_data.dropna(axis='index')
             group_data = group_data[group_data[output_columns[-1]] > 0]
-            if self.sector:
-                weights = self.regional_weighting(group_data)
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
             else:
                 weights = None
+            group_data = group_data.dropna(axis='index')
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
                 self.size_distribution_models[group]["calshape"] = {}
@@ -361,8 +359,8 @@ class TrackModeler(object):
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data[output_columns[-1]] > 0]
-            if self.sector:
-                weights = self.regional_weighting(group_data)
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
             else:
                 weights = None
             self.size_distribution_models[group] = {"lognorm": {}}
@@ -392,16 +390,6 @@ class TrackModeler(object):
                                                                      out_pc_labels[:, comp])
         return
     
-    def regional_weighting(self, group_data):
-        lon_obj = group_data.loc[:,'Centroid_Lon']
-        lat_obj = group_data.loc[:,'Centroid_Lat']
-        conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-        center_lon, center_lat = self.sector[0], self.sector[1]
-        distances = np.array([np.sqrt((x-center_lon)**2+\
-                (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-        weights = self.regional_weighting_function(distances)
-        return weights
-
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
                                         data_mode="forecast", location=6, 
                                         calibrate=False):
