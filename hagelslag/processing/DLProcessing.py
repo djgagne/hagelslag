@@ -1,24 +1,27 @@
-#From hsdldata
 from hagelslag.util.make_proj_grids import make_proj_grids, read_ncar_map_file
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.MRMSGrid import MRMSGrid
+from datetime import timedelta
 import pandas as pd
 import numpy as np
 import traceback
+import h5py
+import os
 
 class DLPreprocessing(object):
     def __init__(self,ensemble_name,model_path,
-        hf_path,start_dates,end_dates,patch_radius,
-        run_date_format,forecast_variables,mask=None):
+        hf_path,patch_radius,run_date_format,
+        forecast_variables,storm_variables,
+        potential_variables,mask=None):
         
         self.ensemble_name = ensemble_name
         self.model_path = model_path
         self.hf_path = hf_path
-        self.start_dates = start_dates
-        self.end_dates = end_dates
         self.patch_radius = patch_radius
         self.run_date_format = run_date_format
         self.forecast_variables = forecast_variables
+        self.storm_variables = storm_variables
+        self.potential_variables = potential_variables
         self.mask = mask
         return
 
@@ -27,11 +30,14 @@ class DLPreprocessing(object):
         if not os.path.exists(lon_lat_file):
             proj_dict, grid_dict = read_ncar_map_file(map_file)
             mapping_data = make_proj_grids(proj_dict, grid_dict)
-            mapping_lat_data = mapping_data['lat']
-            mapping_lon_data = mapping_data['lon']
-            if self.mask is not None:mapping_lat_data*self.mask,mapping_lon_data*self.mask
-            lon_slices = slice_into_patches(mapping_lon_data,self.patch_radius,self.patch_radius)
-            lat_slices = slice_into_patches(mapping_lat_data,self.patch_radius,self.patch_radius)
+            if self.mask is not None:
+                mapping_lat_data = mapping_data['lat']*self.mask
+                mapping_lon_data = mapping_data['lon']*self.mask
+            else:
+                mapping_lat_data = mapping_data['lat']
+                mapping_lon_data = mapping_data['lon']
+            lon_slices = self.slice_into_patches(mapping_lon_data,self.patch_radius,self.patch_radius)
+            lat_slices = self.slice_into_patches(mapping_lat_data,self.patch_radius,self.patch_radius)
             lon_lat_data = np.array((lon_slices,lat_slices))
             print('\nWriting map file: {0}\n'.format(lon_lat_file))
             with h5py.File(lon_lat_file, 'w') as hf:
@@ -39,7 +45,7 @@ class DLPreprocessing(object):
                 compression='gzip',compression_opts=6)
         return 
 
-    def process_observational_data(self,run_date, start_hour,end_hour,
+    def process_observational_data(self,run_date,start_hour,end_hour,
         mrms_variable, mrms_path):
         """
         Process observational data by both slicing the data and labeling
@@ -57,16 +63,20 @@ class DLPreprocessing(object):
         end_date = run_date + timedelta(hours=end_hour)
         obs_patch_labels = []
         #Create gridded mrms object 
-        gridded_obs = MRMSGrid(start_date, end_date, mrms_variable, mrms_path)
+        gridded_obs = MRMSGrid(start_date,end_date,mrms_variable,mrms_path)
         gridded_obs.load_data()
-        if gridded_obs.data is None:return
-        for hour in range(len(gridded_obs.data[1:])): 
+        gridded_obs_data = gridded_obs.data
+        if len(gridded_obs_data) < 1: 
+            print('No observations on {0}'.format(start_date))
+            return
+        for hour in range(len(gridded_obs_data[1:])): 
             #Slice mrms data 
-            hourly_obs_data = gridded_obs.data[hour]
-            if self.mask is not None: hourly_obs_data*self.mask
-            hourly_obs_patches = slice_into_patches(hourly_obs_data,self.patch_radius,self.patch_radius)
+            if self.mask is not None: hourly_obs_data = gridded_obs_data[hour]*self.mask
+            else: hourly_obs_data = gridded_obs_data[hour]
+            hourly_obs_patches = self.slice_into_patches(hourly_obs_data,self.patch_radius,self.patch_radius)
+            
             #Label mrms data
-            labels = label_obs_patches(hourly_obs_patches)
+            labels = self.label_obs_patches(hourly_obs_patches)
             obs_patch_labels.append(labels)
         obs_filename = '{0}/obs_{1}.h5'.format(self.hf_path,run_date.strftime(self.run_date_format)) 
         print('Writing obs file: {0}'.format(obs_filename))
@@ -77,7 +87,7 @@ class DLPreprocessing(object):
             compression='gzip',compression_opts=6)
         return 
 
-    def process_ensemble_member(self,run_date, member, member_path, map_file,
+    def process_ensemble_member(self,run_date,member,member_path,map_file,
         start_hour,end_hour,single_step):
         """
         Slice ensemble data in the format (# of hours,x,y)
@@ -97,20 +107,20 @@ class DLPreprocessing(object):
             #Slice each member variable seperately over each hour
             for v,variable in enumerate(self.forecast_variables):
                 #Create gridded variable object 
-                gridded_variable = ModelOutput(self.ensemble_name,member,run_date,variable,start_date,end_date,
-                        self.model_path,map_file,single_step=single_step)
+                gridded_variable = ModelOutput(self.ensemble_name,member,run_date,variable,
+                        start_date,end_date,self.model_path,map_file,single_step=single_step)
                 gridded_variable.load_data() 
                 if gridded_variable.data is None: break 
                 hourly_var_patches = [] 
                 #Slice hourly data
                 for hour in np.arange(1,len(gridded_variable.data)):
                     #Storm variables are sliced at the current forecast hour
-                    if variable in config.storm_variables:var_hour = hour
+                    if variable in self.storm_variables:var_hour = hour
                     #Potential (environmental) variables are sliced at the previous forecast hour
-                    elif variable in config.potential_variables:var_hour = hour-1
-                    masked_gridded_variable = gridded_variable.data[var_hour]
-                    if self.mask is not None:masked_gridded_variable*self.mask
-                    patches = slice_into_patches(masked_gridded_variable,self.patch_radius, self.patch_radius)
+                    elif variable in self.potential_variables:var_hour = hour-1
+                    if self.mask is not None:masked_gridded_variable = gridded_variable.data[var_hour]*self.mask
+                    else:masked_gridded_variable = gridded_variable.data[var_hour]
+                    patches = self.slice_into_patches(masked_gridded_variable,self.patch_radius,self.patch_radius)
                     hourly_var_patches.append(patches)
                 #Shorten variable names
                 if " " in variable: 
@@ -118,7 +128,7 @@ class DLPreprocessing(object):
                 elif "_" in variable: 
                     variable_name= ''.join([v[0].upper() for v in variable.split()]) + variable.split('_')[-1]
                 else:variable_name = variable
-                var_filename = '{0}/{1}_{2}_{3}.h5'.format(member_path,
+                var_filename = '{0}/{2}/{1}_{2}_{3}.h5'.format(member_path,
                                                 variable_name,
                                                 member,
                                                 run_date.strftime(self.run_date_format)) 
@@ -134,7 +144,7 @@ class DLPreprocessing(object):
     
         return
 
-    def slice_into_patches(data2d, patch_ny, patch_nx):
+    def slice_into_patches(self,data2d, patch_ny, patch_nx):
         '''
         A function to slice a 2-dimensional [ny, nx] array into rectangular patches and return 
         the sliced data in an array of shape [npatches, nx_patch, ny_patch].
@@ -143,9 +153,10 @@ class DLPreprocessing(object):
         eastern edges of the array will be trimmed away (incomplete patches are not included
         in the array returned by this function).
 
-        Input variables:   data2d -- the data you want sliced.  Must be a 2D (nx, ny) array
-                       ny_patch -- the number of points in the patch (y-dimension)
-                       nx_patch -- the number of points in the patch (x-dimension)
+        Input variables:   
+                    data2d -- the data you want sliced.  Must be a 2D (nx, ny) array
+                    ny_patch -- the number of points in the patch (y-dimension)
+                    nx_patch -- the number of points in the patch (x-dimension)
         '''
 
         #Determine the number of patches in each dimension
@@ -155,6 +166,7 @@ class DLPreprocessing(object):
     
         #Define array to store sliced data and populate it from data2d
         sliced_data = [] 
+        
         for i in np.arange(0,data2d.shape[0],patch_nx): 
             next_i = i+patch_nx
             if next_i > data2d.shape[0]:
@@ -170,7 +182,7 @@ class DLPreprocessing(object):
         return np.array(sliced_data)
 
 
-    def label_obs_patches(obs_patches, label_thresholds=[5,25,50]):
+    def label_obs_patches(self,obs_patches,label_thresholds=[5,25,50]):
         '''
         A function to generate labels for MESH patch data.  Labels can be defined by passing in a list of
         thresholds on which to divide the categories.  If not provided, default label thresholds of 5, 25, 

@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+#!/home/tmp/aburke/miniconda3/envs/deephail/bin/python
 from hagelslag.processing.DLProcessing import DLPreprocessing
 from hagelslag.util.Config import Config
 from multiprocessing import Pool
 import argparse, pdb
+from netCDF4 import Dataset
 import numpy as np
 import os
 
@@ -32,14 +33,15 @@ def main():
         zero_mask = Dataset(config.mask_file).variables['usa_mask'][:]
         config.mask = np.where(zero_mask.flatten()<1,np.nan,1).reshape(zero_mask.shape)
     else:config.mask=None
-    
+
     forecast_variables = config.storm_variables + config.potential_variables
     if hasattr(config, "tendency_variables"):forecast_variables.extend(config.tendency_variables)
 
     #Initiate processing class
     dlprocess = DLPreprocessing(config.ensemble_name,config.model_path,
-        config.hf_path,config.start_dates,config.end_dates,config.patch_radius,
-        config.run_date_format,forecast_variables,config.mask)
+        config.hf_path,config.patch_radius,config.run_date_format,
+        forecast_variables,config.storm_variables, config.potential_variables,
+        config.mask)
     #Process map data
     dlprocess.process_map_data(config.model_map_file)
     #Process obs and ensemble data with parallelization
@@ -51,12 +53,12 @@ def main():
         if config.train is True: 
             for member in config.ensemble_members:
                 member_path = '{0}/{1}'.format(config.hf_path,member)
-                if not os.path.exists(member_path):os.makedirs(member_path)
-                pool.apply_async(dlproces.process_ensemble_member, 
-                    (run_date,member,config.member_path,config.model_map_file,
+                if not os.path.exists(member_path): os.makedirs(member_path)
+                pool.apply_async(dlprocess.process_ensemble_member, 
+                    (run_date,member,config.hf_path,config.model_map_file,
                     config.start_hour,config.end_hour,config.single_step))
-        pool.close()
-        pool.join()
+    pool.close()
+    pool.join()
     return
 
 if __name__ == "__main__":
