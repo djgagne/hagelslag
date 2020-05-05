@@ -8,13 +8,13 @@ class Hysteresis(object):
     threshold and contain at least one pixel above a high threshold.
 
     Attributes:
-        low_thresh: lower threshold value
-        high_thresh: higher threshold value
+        min_intensity: lower threshold value
+        max_intensity: higher threshold value
     """
 
-    def __init__(self, low_thresh, high_thresh):
-        self.low_thresh = low_thresh
-        self.high_thresh = high_thresh
+    def __init__(self, min_intensity, max_intensity):
+        self.min_intensity = min_intensity
+        self.max_intensity = max_intensity
         return
 
     def label(self, input_grid):
@@ -28,7 +28,7 @@ class Hysteresis(object):
             Labeled output grid.
         """
         unset = 0
-        high_labels, num_labels = label(input_grid > self.high_thresh)
+        high_labels, num_labels = label(input_grid > self.max_intensity)
         region_ranking = np.argsort(maximum(input_grid, high_labels, index=np.arange(1, num_labels + 1)))[::-1]
         output_grid = np.zeros(input_grid.shape, dtype=int)
         stack = []
@@ -44,7 +44,7 @@ class Hysteresis(object):
                 for i in range(index[0] - 1, index[0] + 2):
                     for j in range(index[1] - 1, index[1] + 2):
                         if 0 <= i < output_grid.shape[0] and 0 <= j < output_grid.shape[1]:
-                            if (input_grid[i, j] > self.low_thresh) and (output_grid[i, j] == unset):
+                            if (input_grid[i, j] > self.min_intensity) and (output_grid[i, j] == unset):
                                 stack.append((i, j))
         return output_grid
 

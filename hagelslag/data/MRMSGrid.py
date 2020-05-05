@@ -37,7 +37,7 @@ class MRMSGrid(object):
         self.variable = variable
         self.path = path
         self.freq = freq
-        self.all_dates = pd.DatetimeIndex(start=start_date, end=end_date, freq=freq)
+        self.all_dates = pd.date_range(start=start_date, end=end_date, freq=freq)
         self.data = None
         self.valid_dates = None
 
@@ -76,6 +76,7 @@ class MRMSGrid(object):
                     valid_dates.append(self.all_dates[t])
         if file_obj is not None:
             file_obj.close()
+        
         self.data = np.array(data)
         self.data[self.data < 0] = 0
         self.data[self.data > 150] = 150

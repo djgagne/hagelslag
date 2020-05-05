@@ -137,12 +137,17 @@ class TrackProcessor(object):
         if self.model_grid.data is None:
             print("No model output found")
             return tracked_model_objects
-        min_orig = self.model_ew.min_thresh
-        max_orig = self.model_ew.max_thresh
-        data_increment_orig = self.model_ew.data_increment
-        self.model_ew.min_thresh = 0
-        self.model_ew.data_increment = 1
-        self.model_ew.max_thresh = 100
+        if self.segmentation_approach == "ew":
+            min_orig = self.model_ew.min_intensity
+            max_orig = self.model_ew.max_intensity
+            data_increment_orig = self.model_ew.data_increment
+            self.model_ew.min_intensity = 0
+            self.model_ew.data_increment = 1
+            self.model_ew.max_intensity = 100
+        else:
+            min_orig = 0
+            max_orig = 1
+            data_increment_orig = 1
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
@@ -155,35 +160,39 @@ class TrackProcessor(object):
             model_data[-self.patch_radius:] = 0
             model_data[:, :self.patch_radius] = 0
             model_data[:, -self.patch_radius:] = 0
-            scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
             if self.segmentation_approach == "ew":
+                scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
                 hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
-                                              self.model_ew.min_thresh, self.model_ew.max_thresh,
-                                              min_area=self.size_filter, max_area=self.model_ew.max_size,
-                                              max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
-                                              gaussian_sd=self.gaussian_window)
+                                                  self.model_ew.min_intensity, self.model_ew.max_intensity,
+                                                  min_area=self.size_filter, max_area=self.model_ew.max_size,
+                                                  max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
+                                                  gaussian_sd=self.gaussian_window)
+                del scaled_data
             else:
-                hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
-                                                  self.model_ew.min_thresh, self.model_ew.max_thresh,
+                hour_labels = label_storm_objects(model_data, self.segmentation_approach,
+                                                  self.model_ew.min_intensity, self.model_ew.max_intensity,
                                                   min_area=self.size_filter, gaussian_sd=self.gaussian_window)
             model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
                                                        patch_radius=self.patch_radius))
             for model_obj in model_objects[-1]:
-                dims = model_obj.timesteps[-1].shape
-                if h > 0:
-                    model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
-            del scaled_data
+                slices = list(find_objects(model_obj.masks[-1]))
+                if len(slices) > 0:
+                    dims = (slices[0][0].stop - slices[0][0].start, slices[0][1].stop - slices[0][1].start)
+                    if h > 0:
+                        model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+
             del model_data
             del hour_labels
         tracked_model_objects.extend(track_storms(model_objects, self.hours,
                                                   self.object_matcher.cost_function_components,
                                                   self.object_matcher.max_values,
                                                   self.object_matcher.weights))
-        self.model_ew.min_thresh = min_orig
-        self.model_ew.max_thresh = max_orig
-        self.model_ew.data_increment = data_increment_orig
+        if self.segmentation_approach == "ew":
+            self.model_ew.min_intensity = min_orig
+            self.model_ew.max_intensity = max_orig
+            self.model_ew.data_increment = data_increment_orig
         return tracked_model_objects
 
     def find_model_tracks(self):
@@ -209,24 +218,30 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h]
 
             # remember orig values
-            min_orig = self.model_ew.min_thresh
-            max_orig = self.model_ew.max_thresh
-            data_increment_orig = self.model_ew.data_increment
+
             # scale to int 0-100.
             if self.segmentation_approach == "ew":
+                min_orig = self.model_ew.min_intensity
+                max_orig = self.model_ew.max_intensity
+                data_increment_orig = self.model_ew.data_increment
                 scaled_data = np.array(rescale_data(self.model_grid.data[h], min_orig, max_orig))
-                self.model_ew.min_thresh = 0
+                self.model_ew.min_intensity = 0
                 self.model_ew.data_increment = 1
-                self.model_ew.max_thresh = 100
+                self.model_ew.max_intensity = 100
             else:
+                min_orig = 0
+                max_orig = 1
+                data_increment_orig = 1
                 scaled_data = self.model_grid.data[h]
             hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
-            hour_labels[model_data < self.model_ew.min_thresh] = 0
-            hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
+            hour_labels[model_data < self.model_ew.min_intensity] = 0
+            if self.size_filter > 1:
+                hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
             # Return to orig values
-            self.model_ew.min_thresh = min_orig
-            self.model_ew.max_thresh = max_orig
-            self.model_ew.data_increment = data_increment_orig
+            if self.segmentation_approach == "ew":
+                self.model_ew.min_intensity = min_orig
+                self.model_ew.max_intensity = max_orig
+                self.model_ew.data_increment = data_increment_orig
             obj_slices = find_objects(hour_labels)
 
             num_slices = len(list(obj_slices))
@@ -313,7 +328,7 @@ class TrackProcessor(object):
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
                                                                                       self.gaussian_window)),
                                                        self.size_filter)
-                hour_labels[mrms_data < self.mrms_ew.min_thresh] = 0
+                hour_labels[mrms_data < self.mrms_ew.min_intensity] = 0
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(list(obj_slices))
                 obs_objects.append([])
@@ -496,7 +511,7 @@ class TrackProcessor(object):
             model_hail_dists = pd.DataFrame(index=model_track.times,
                                             columns=label_columns)
             for t, step in enumerate(obs_track.timesteps):
-                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_thresh)]
+                step_vals = step[(obs_track.masks[t] == 1) & (obs_track.timesteps[t] > self.mrms_ew.min_intensity)]
                 min_hail = step_vals.min() - 0.1
                 obs_hail_dists.loc[obs_track.times[t], ["Shape", "Location", "Scale"]] = gamma.fit(step_vals,
                                                                                                    floc=min_hail)
@@ -553,7 +568,7 @@ class TrackProcessor(object):
                     for step_pair in step_pairs:
                         obs_step = obs_tracks[step_pair[0]].timesteps[step_pair[1]].ravel()
                         obs_mask = obs_tracks[step_pair[0]].masks[step_pair[1]].ravel()
-                        all_hail_sizes.append(obs_step[(obs_mask == 1) & (obs_step >= self.mrms_ew.min_thresh)])
+                        all_hail_sizes.append(obs_step[(obs_mask == 1) & (obs_step >= self.mrms_ew.min_intensity)])
                     combined_hail_sizes = np.concatenate(all_hail_sizes)
                     min_hail = combined_hail_sizes.min() - 0.1
                     model_track.observations.loc[time, "Max_Hail_Size"] = combined_hail_sizes.max()

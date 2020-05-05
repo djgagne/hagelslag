@@ -14,12 +14,12 @@ class Watershed(object):
         core_intensity: the intensity used to determine the initial objects.
 
     """
-    def __init__(self, min_intensity, core_intensity):
+    def __init__(self, min_intensity, max_intensity):
         self.min_intensity = min_intensity
-        self.core_intensity = core_intensity
+        self.max_intensity = max_intensity
 
     def label(self, data):
-        core_labels, n_labels = label(data >= self.core_intensity)
+        core_labels, n_labels = label(data <= self.max_intensity)
         ws_labels = watershed(data.max() - data, markers=core_labels, mask=data >= self.min_intensity)
         return ws_labels
 

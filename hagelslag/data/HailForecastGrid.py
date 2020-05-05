@@ -38,7 +38,7 @@ class HailForecastGrid(object):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
-        self.forecast_dates = pd.DatetimeIndex(start=self.start_date, end=self.end_date, freq="1H")
+        self.forecast_dates = pd.date_range(start=self.start_date, end=self.end_date, freq="1H")
         self.ensemble_name = ensemble_name
         self.ml_model = ml_model
         self.members = members

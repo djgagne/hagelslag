@@ -225,7 +225,7 @@ def output_netcdf_files(forecast_grid,start_time,end_time,out_path,radius,
     """
     if calibrate is True:
         smoothing = 0
-    
+
     date_outpath = out_path+'{0}/netcdf/'.format(forecast_grid.start_date.strftime("%Y%m%d"))
     if not os.path.exists(date_outpath):
         os.makedirs(date_outpath)
@@ -236,9 +236,13 @@ def output_netcdf_files(forecast_grid,start_time,end_time,out_path,radius,
     for threshold in thresholds:
         neighbor_prob = forecast_grid.period_neighborhood_probability(radius,smoothing, threshold,
                                                                      stride,start_time,end_time)
+        if calibrate is True:
+            plot_mode =  "NMEP_unsmoothed_{0}".format(threshold)
+        else:
+            plot_mode =  "NMEP_smoothed_{0}".format(threshold)
         neighbor_prob = neighbor_prob.mean(axis=0)
         netcdf_file = write_netcdf_file(neighbor_prob,forecast_grid,(start_time+12),(end_time+12),date_outpath, 
-                                    n_lon, n_lat, "NMEP_{0}".format(threshold),map_file)
+                                    n_lon, n_lat, plot_mode,map_file)
     return
 
 def write_netcdf_file(neighbor_prob,forecast_grid,start_time,end_time,out_path,

@@ -27,7 +27,7 @@ class TrackModeler(object):
                  member_files,
                  start_dates,
                  end_dates,
-                 sector,
+                 weighting_function,
                  map_file,
                  group_col="Microphysics"):
         
@@ -44,7 +44,7 @@ class TrackModeler(object):
         self.track_models = {"translation-x": {},
                              "translation-y": {},
                              "start-time": {}}
-        self.sector = sector
+        self.weighting_function = weighting_function
         self.map_file = map_file
         self.group_col = group_col
 
@@ -52,10 +52,6 @@ class TrackModeler(object):
             self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
         else:                                               
             self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)   
-        if self.sector:
-            print()
-            print('Weighting function: exp(-0.5*distances)*10.0')
-            print()
         return
 
     def load_data(self, mode="train", format="csv"):
@@ -69,10 +65,10 @@ class TrackModeler(object):
             format:  file format being used. Default is "csv"
         """
         if mode in self.data.keys():
-            run_dates = pd.DatetimeIndex(start=self.start_dates[mode],
+            run_dates = pd.date_range(start=self.start_dates[mode],
                                          end=self.end_dates[mode], freq="1D")
             run_date_str = [d.strftime("%Y%m%d-%H%M") for d in run_dates.date]
-            print(run_date_str)
+            print(np.unique(run_dates.strftime('%Y%m')))
             all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") +
                                                 "*total_" + self.ensemble_name + "*." + format))
             all_step_track_files = sorted(glob(getattr(self, mode + "_data_path") +
@@ -89,11 +85,11 @@ class TrackModeler(object):
                     step_track_files.append(step_file)
 
             self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
-                                                 ignore_index=True)
+                                                 ignore_index=True,sort='True')
             self.data[mode]["total"] = self.data[mode]["total"].fillna(value=0)
             self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
-                                                ignore_index=True)
+                                                ignore_index=True,sort='True')
             self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
             if mode == "forecast":
@@ -160,21 +156,13 @@ class TrackModeler(object):
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
 
-        weights = None
-
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            if self.sector:
-                lon_obj = group_data.loc[:,'Centroid_Lon']
-                lat_obj = group_data.loc[:,'Centroid_Lat']
-                
-                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.sector[0], self.sector[1]
-                distances = np.array([np.sqrt((x-center_lon)**2+\
-                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-
-                weights = np.exp(-0.5*distances)*10.0
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
+            else:
+                weights = None
             output_data = np.where(group_data[output_column] > output_threshold, 1, 0)
             print("Ones: ", np.count_nonzero(output_data > 0), "Zeros: ", np.count_nonzero(output_data == 0))
             self.condition_models[group] = {}
@@ -211,24 +199,14 @@ class TrackModeler(object):
         """
         print("Fitting condition models")
         groups = self.data["train"]["member"][self.group_col].unique()
-
-        weights = None
-
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].iloc[
                 np.where(self.data["train"]["combo"][self.group_col] == group)[0]]
-
-            if self.sector:
-                lon_obj = group_data.loc[:,'Centroid_Lon']
-                lat_obj = group_data.loc[:,'Centroid_Lat']
-                
-                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.sector[0], self.sector[1]
-                distances = np.array([np.sqrt((x-center_lon)**2+\
-                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-            
-                weights = np.exp(-0.5*distances)*10.0
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
+            else:
+                weights = None
             output_data = np.where(group_data.loc[:, output_column] > output_threshold, 1, 0)
             ones = np.count_nonzero(output_data > 0)
             print("Ones: ", ones, "Zeros: ", np.count_nonzero(output_data == 0))
@@ -242,12 +220,16 @@ class TrackModeler(object):
                 kf = KFold(n_splits=num_folds)
                 for train_index, test_index in kf.split(group_data[input_columns].values):
                     if np.count_nonzero(output_data[train_index]) > 0:
-                        self.condition_models[group][model_name].fit(
-                            group_data.iloc[train_index][input_columns],
-                            output_data[train_index], sample_weight=weights[train_index])
+                        if weights is not None:
+                            self.condition_models[group][model_name].fit(
+                                group_data.iloc[train_index][input_columns],
+                                output_data[train_index], sample_weight=weights[train_index])
+                        else:
+                            self.condition_models[group][model_name].fit(
+                                group_data.iloc[train_index][input_columns],
+                                output_data[train_index])
                         cv_preds = self.condition_models[group][model_name].predict_proba(
                             group_data.iloc[test_index][input_columns])[:, 1]
-
                         roc.update(cv_preds, output_data[test_index])
                     else:
                         continue
@@ -312,20 +294,14 @@ class TrackModeler(object):
         if output_columns is None:
             output_columns = ["Shape", "Location", "Scale"]
         groups = np.unique(self.data["train"]["member"][self.group_col])
-        weights=None
-
         for group in groups:
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
-            group_data = group_data.dropna()
             group_data = group_data[group_data[output_columns[-1]] > 0]
-            if self.sector:
-                lon_obj = group_data.loc[:,'Centroid_Lon']
-                lat_obj = group_data.loc[:,'Centroid_Lat']
-                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.sector[0], self.sector[1]
-                distances = np.array([np.sqrt((x-center_lon)**2+\
-                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-                weights = np.exp(-0.5*distances)*10.0
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
+            else:
+                weights = None
+            group_data = group_data.dropna(axis='index')
             self.size_distribution_models[group] = {"multi": {}, "lognorm": {}}
             if calibrate:
                 self.size_distribution_models[group]["calshape"] = {}
@@ -378,22 +354,15 @@ class TrackModeler(object):
 
         """
         groups = np.unique(self.data["train"]["member"][self.group_col])
-
-        weights=None
         for group in groups:
             print(group)
             group_data = self.data["train"]["combo"].loc[self.data["train"]["combo"][self.group_col] == group]
             group_data = group_data.dropna()
             group_data = group_data.loc[group_data[output_columns[-1]] > 0]
-            if self.sector:
-                lon_obj = group_data.loc[:,'Centroid_Lon']
-                lat_obj = group_data.loc[:,'Centroid_Lat']
-                conus_lat_lon_points = zip(lon_obj.values.ravel(),lat_obj.values.ravel())
-                center_lon, center_lat = self.sector[0], self.sector[1]
-                distances = np.array([np.sqrt((x-center_lon)**2+\
-                        (y-center_lat)**2) for (x, y) in conus_lat_lon_points])
-                weights = np.exp(-0.5*distances)*10.0
-
+            if self.weighting_function:
+                weights = self.weighting_function(group_data)
+            else:
+                weights = None
             self.size_distribution_models[group] = {"lognorm": {}}
             self.size_distribution_models[group]["lognorm"]["pca"] = PCA(n_components=len(output_columns))
             log_labels = np.log(group_data[output_columns].values)
@@ -420,7 +389,7 @@ class TrackModeler(object):
                             "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
                                                                      out_pc_labels[:, comp])
         return
-
+    
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
                                         data_mode="forecast", location=6, 
                                         calibrate=False):
@@ -956,3 +925,6 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
         print(out_json_filename + " not found")
         return
     return
+    
+
+
