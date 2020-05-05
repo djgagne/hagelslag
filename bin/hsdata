@@ -35,6 +35,7 @@ def main():
     config = Config(args.config, required_attributes=required)
     if not hasattr(config, "segmentation_approach"):
         config.segmentation_approach = "ew"
+    print("Seg approach", config.segmentation_approach)
     config.json = args.json
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
