@@ -54,7 +54,7 @@ class EnsembleMemberProduct(object):
         self.variable = variable
         self.start_date = start_date
         self.end_date = end_date
-        self.times = pd.DatetimeIndex(start=self.start_date, end=self.end_date, freq="1H")
+        self.times = pd.date_range(start=self.start_date, end=self.end_date, freq="1H")
         self.forecast_hours = (self.times - self.run_date).astype('timedelta64[h]').values
         self.path = path
         self.single_step = single_step
@@ -201,11 +201,10 @@ class EnsembleMemberProduct(object):
                                                                       self.run_date.strftime("%Y%m%d-%H%M"),
                                                                       self.member))
         if exists(nc_file):
-            print(nc_file)
             nc_patches = Dataset(nc_file)
             nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
                                              nc_patches.variables["time"].units))
-            time_indices = np.in1d(nc_times, self.times)
+            time_indices = np.isin(nc_times, self.times)
             self.nc_patches = dict()
             self.nc_patches["time"] = nc_times[time_indices]
             self.nc_patches["forecast_hour"] = nc_patches.variables["time"][time_indices]
@@ -214,9 +213,12 @@ class EnsembleMemberProduct(object):
             self.nc_patches["i"] = nc_patches.variables["i"][time_indices]
             self.nc_patches["j"] = nc_patches.variables["j"][time_indices]
             nc_patches.close()
-        
+            print(nc_file)
+        else:
+            print('no {0} {1} netCDF4 file'.format(self.member,self.run_date.strftime("%Y%m%d")))
+            self.nc_patches = None
+            return 
         return
-
     def quantile_match(self):
         """
         For each storm object, get the percentiles of the enhanced watershed variable field relative to the training
@@ -225,6 +227,10 @@ class EnsembleMemberProduct(object):
         threshold, then the storm is written to the data grid.
 
         """
+        if self.nc_patches is None:
+            self.data = None
+            return 
+
         mask_indices = np.where(self.nc_patches["masks"] == 1)
         obj_values = self.nc_patches["obj_values"][mask_indices]
         obj_values = np.array(obj_values)
@@ -356,6 +362,8 @@ class EnsembleMemberProduct(object):
         Returns:
             Series of GRIB2 messages
         """
+        if self.data is None:
+            return None
         lscale = 1e6
         grib_id_start = [7, 0, 14, 14, 2]
         gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
@@ -420,6 +428,8 @@ class EnsembleMemberProduct(object):
         Returns:
             Series of GRIB2 messages
         """
+        if self.data is None:
+            return None 
         lscale = 1e6
         grib_id_start = [7, 0, 14, 14, 2]
         gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)

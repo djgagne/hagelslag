@@ -23,6 +23,7 @@ else:
                 "scikit-learn>=0.16",
                 "scikit-image",
                 "pyproj",
+                "xarray",
                 "pygrib",
                 "arrow>=0.8.0",
                 ]

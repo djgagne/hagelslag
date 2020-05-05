@@ -76,6 +76,7 @@ class MRMSGrid(object):
                     valid_dates.append(self.all_dates[t])
         if file_obj is not None:
             file_obj.close()
+        
         self.data = np.array(data)
         self.data[self.data < 0] = 0
         self.data[self.data > 150] = 150

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
+import pandas as pd
 import pygrib
 import numpy as np
-from pandas import DatetimeIndex
 from os.path import exists
-
+import datetime
+from netCDF4 import Dataset
 
 class Grib_ModelGrid(object):
     """
@@ -34,7 +35,7 @@ class Grib_ModelGrid(object):
         self.start_date = np.datetime64(start_date)
         self.end_date = np.datetime64(end_date)
         self.frequency = frequency
-        self.valid_dates = DatetimeIndex(start=self.start_date,
+        self.valid_dates = pd.date_range(start=self.start_date,
                                          end=self.end_date,
                                          freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
@@ -93,7 +94,33 @@ class Grib_ModelGrid(object):
                 Id = key
                 u = units[key]
         return Id, u
+    
+    def load_lightning_data(self):
+        """
+            Loads data from netCDF4 file objects.
 
+            Returns:
+                Array of data loaded from files in (time, y, x) dimensions, Units
+        """
+        data = None
+        path = '/ai-hail/aburke/classes/METR5243/lightning_data/'
+        run_date = self.run_date.astype(datetime.datetime)
+        next_day = run_date + datetime.timedelta(days=1)
+        for f,f_hour in enumerate(self.forecast_hours):
+            if f_hour < 24:
+                file_path = path+'{0}/{0}T{1:02}_counts_{2}.nc'.format(run_date.strftime('%Y%m%d'),
+                                f_hour,self.variable)
+            else:
+                file_path = path+'{0}/{0}T{1:02}_counts_{2}.nc'.format(next_day.strftime('%Y%m%d'),
+                                (f_hour-24),self.variable)
+            if not exists(file_path):
+                return None, None
+            data_values = Dataset(file_path).variables['counts'][:]
+            if data is None:
+                data = np.empty((len(self.valid_dates), data_values.shape[0], data_values.shape[1]), dtype=float)
+            data[f]=data_values
+        return data, 'counts'
+    
     def load_data(self):
         """
             Loads data from grib2 file objects or list of grib2 file objects. Handles specific grib2 variable names
@@ -101,17 +128,19 @@ class Grib_ModelGrid(object):
             Returns:
                     Array of data loaded from files in (time, y, x) dimensions, Units
         """
+        
+        if self.variable in ['nldn', 'entln']:
+            data, units = self.load_lightning_data()
+            return data, units
+                
         if not self.file_objects:
-            print()
             print("No {0} model runs on {1}".format(self.member,self.run_date))
-            print()
             units = None
             return self.data, units
-
-    
-        for f, file in enumerate(self.file_objects):
-            grib = pygrib.open(file)
+        
+        for f, g_file in enumerate(self.file_objects):
             if type(self.variable) is int:
+                grib = pygrib.open(g_file)
                 data_values = grib[self.variable].values
                 if grib[self.variable].units == 'unknown':
                     Id = grib[self.variable].parameterNumber
@@ -125,31 +154,54 @@ class Grib_ModelGrid(object):
                     if variable in self.unknown_names.values():
                         Id, units = self.format_grib_name(variable)
                         try:
-                            data_values = grib.select(parameterNumber=Id, level=int(level))[0].values
+                            grib = pygrib.index(g_file,'parameterNumber','typeOfLevel')
+                            data_values = grib.select(parameterNumber=Id, 
+                                    typeOfLevel=level)[0].values
                         except:
-                            data_values = grib.select(parameterNumber=Id,typeOfLevel=level)[0].values
+                            grib = pygrib.index(g_file,'parameterNumber','level' )
+                            try:
+                                data_values = grib.select(parameterNumber=Id, 
+                                    level=int(level))[0].values
+                            except:
+                                data_values = grib.select(parameterNumber=Id, 
+                                    level=level)[0].values
                     else:
                         try:
-                            data_values = grib.select(name=variable, level=int(level))[0].values
-                            units = grib.select(name=variable, level=int(level))[0].units
+                            grib = pygrib.index(g_file,'name','typeOfLevel')
+                            data_values = grib.select(name=variable,typeOfLevel=str(level))[0].values
+                            units = grib.select(name=variable,typeOfLevel=str(level))[0].units
                         except:
-                            data_values = grib.select(name=variable,typeOfLevel=level)[0].values
-                            units = grib.select(name=variable, typeOfLevel=level)[0].units
+                            grib = pygrib.index(g_file,'name','level')
+                            try:
+                                data_values = grib.select(name=variable, level=int(level))[0].values
+                                units = grib.select(name=variable, level=int(level))[0].units
+                            except:
+                                data_values = grib.select(name=variable,level=level)[0].values
+                                units = grib.select(name=variable,level=level)[0].units
                 else:   
                     if self.variable in self.unknown_names.values():
                         Id, units = self.format_grib_name(self.variable)
+                        grib = pygrib.index(g_file,'parameterNumber')
                         data_values = grib.select(parameterNumber=Id)[0].values
-                    elif len(grib.select(name=self.variable)) > 1:
-                        raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(self.variable))
                     else:
-                        data_values = grib.select(name=self.variable)[0].values
-                        units = grib.select(name=self.variable)[0].units
-
+                        try:
+                            grib = pygrib.index(g_file,'shortName')
+                            grib_data = grib.select(shortName=self.variable)
+                        except:
+                            grib = pygrib.open(g_file)
+                            grib_data = grib.select(name=self.variable)
+                        if len(grib_data) > 1:
+                           raise NameError("Multiple '{0}' records found. Rename with level:'{0}_level'".format(self.variable))
+                        else:
+                            data_values = grib_data[0].values
+                            units = grib_data[0].units
+            
             if self.data is None:
                 self.data = np.empty((len(self.valid_dates), data_values.shape[0], data_values.shape[1]), dtype=float)
                 self.data[f]=data_values[:]
             else:
                 self.data[f]=data_values[:]
+            grib.close()
         return self.data, units
     
     def __exit__(self):
