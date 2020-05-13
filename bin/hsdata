@@ -33,6 +33,13 @@ def main():
                 'csv_path', 'train', 'single_step', "unique_matches", "label_type",
                 'closest_matches']
     config = Config(args.config, required_attributes=required)
+    if not exists(config.csv_path):
+        os.makedirs(config.csv_path)
+    if not exists(config.nc_path):
+        os.makedirs(config.nc_path)
+    if not exists(config.geojson_path):
+        os.makedirs(config.geojson_path)
+
     if not hasattr(config, "segmentation_approach"):
         config.segmentation_approach = "ew"
     print("Seg approach", config.segmentation_approach)

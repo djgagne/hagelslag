@@ -179,6 +179,7 @@ class ModelOutput(object):
                                       self.end_date,
                                       self.path)
             self.data, self.units = mg.load_data()
+            print("Loaded ", self.member_name, self.run_date, self.variable, self.start_date, self.end_date)
             mg.close()
 
         else:
