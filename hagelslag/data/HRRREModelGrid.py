@@ -2,8 +2,8 @@
 import pygrib
 import numpy as np
 from os.path import exists
-from pandas import DatetimeIndex
 from .Grib_ModelGrid import Grib_ModelGrid
+
 
 class HRRREModelGrid(Grib_ModelGrid):
     """

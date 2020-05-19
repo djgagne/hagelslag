@@ -35,7 +35,7 @@ if __name__ == "__main__":
           version="0.3",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
-          author_email="djgagne@ou.edu",
+          author_email="dgagne@ucar.edu",
           long_description=pkg_description,
           license="MIT",
           url="https://github.com/djgagne/hagelslag",

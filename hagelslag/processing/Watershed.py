@@ -19,7 +19,7 @@ class Watershed(object):
         self.max_intensity = max_intensity
 
     def label(self, data):
-        core_labels, n_labels = label(data <= self.max_intensity)
+        core_labels, n_labels = label(data >= self.max_intensity)
         ws_labels = watershed(data.max() - data, markers=core_labels, mask=data >= self.min_intensity)
         return ws_labels
 

@@ -317,16 +317,15 @@ class Munkres:
         self.marked = None
         self.path = None
 
+    @staticmethod
     def make_cost_matrix(profit_matrix, inversion_function):
         """
         **DEPRECATED**
 
         Please use the module function ``make_cost_matrix()``.
         """
-        import munkres
-        return munkres.make_cost_matrix(profit_matrix, inversion_function)
+        return make_cost_matrix(profit_matrix, inversion_function)
 
-    make_cost_matrix = staticmethod(make_cost_matrix)
 
     def pad_matrix(self, matrix, pad_value=0):
         """
