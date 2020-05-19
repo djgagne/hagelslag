@@ -485,7 +485,7 @@ class STObject(object):
         ti = np.where(self.times == time)[0][0]
         shape_stats = []
         try:
-            props = regionprops(self.masks[ti], self.timesteps[ti],coordinates='rc')[0]           
+            props = regionprops(self.masks[ti], self.timesteps[ti])[0]           
         except:
             for stat_name in stat_names:
                 shape_stats.append(np.nan)
