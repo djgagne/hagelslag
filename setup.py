@@ -41,8 +41,7 @@ if __name__ == "__main__":
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
           scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter", 
-                "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration","bin/hsdldata",
-                "bin/hsdlforecast","bin/hsdlfileoutput"],
+                "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"]
           data_files=[("mapfiles", ["mapfiles/ssef2013.map", 
                                     "mapfiles/ssef2014.map", 
                                     "mapfiles/ssef2015.map", 
