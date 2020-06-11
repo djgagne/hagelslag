@@ -110,11 +110,15 @@ def process_ensemble_member(run_date, member, config):
                                     single_step=config.single_step,
                                     mask_file=mask_file,
                                     patch_radius=patch_radius)
+        print("Find obs tracks", run_date, member)
+        mrms_tracks = track_proc.find_mrms_tracks()
+        
         print("Find model tracks", run_date, member)
         if patch_radius is None:
             model_tracks = track_proc.find_model_tracks()
         else:
             model_tracks = track_proc.find_model_patch_tracks()
+        
         if model_tracks:
             print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
             print("Extract model attributes", run_date, member)
@@ -129,38 +133,6 @@ def process_ensemble_member(run_date, member, config):
                                                 config.tendency_variables,
                                                 future_variables=future_variables)
             if config.train and len(model_tracks) > 0:
-                print("Find obs tracks", run_date, member)
-                mrms_tracks = track_proc.find_mrms_tracks()
-
-                '''
-                if len(mrms_tracks) == 0 and len(model_tracks) > 0:
-                    obs_data = make_obs_track_data(model_tracks, member,
-                                            run_date, config,
-                                            track_proc.model_grid.proj, track_type='model')
-
-
-                    for table_name, table_data in obs_data.items():
-                        csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                                    "obs",
-                                                                                    member,
-                                                                                    run_date.strftime(
-                                                                                     config.run_date_format))
-                        table_data.to_csv(csv_filename,
-                                        na_rep="nan",
-                                        float_format="%0.5f",
-                                        index=False)
-                        os.chmod(csv_filename, 0o666)
-
-                        print("Output csv", run_date, member, csv_filename)
-
-                    forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
-                                                                       track_proc.model_grid.proj)
-
-                    if patch_radius is not None:
-                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
-                    if config.json:
-                        forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
-                '''
                 if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                     if match_steps:
                         track_pairings = track_proc.match_track_steps(model_tracks, mrms_tracks)

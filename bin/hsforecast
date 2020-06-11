@@ -270,7 +270,6 @@ def training_data_percentiles(member_list, ensemble_name, watershed_obj, csv_dat
             member_obj_data.append(objs_stat)
         else:
             training_weights = weighting_function(match_dataset)
-            #training_percentile = np.percentile(training_weights,95)
             weight_inds = np.where(training_weights >= 1.0)[0]
             weights_objs_stat = match_dataset.reindex(index=weight_inds,columns=["{0}_max".format(watershed_obj)]).dropna()
             member_obj_data.append(weights_objs_stat)
