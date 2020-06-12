@@ -110,8 +110,9 @@ def process_ensemble_member(run_date, member, config):
                                     single_step=config.single_step,
                                     mask_file=mask_file,
                                     patch_radius=patch_radius)
-        print("Find obs tracks", run_date, member)
-        mrms_tracks = track_proc.find_mrms_tracks()
+        if config.train:
+            print("Find obs tracks", run_date, member)
+            mrms_tracks = track_proc.find_mrms_tracks()
         
         print("Find model tracks", run_date, member)
         if patch_radius is None:
