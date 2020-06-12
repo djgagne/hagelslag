@@ -33,8 +33,16 @@ def main():
                 'csv_path', 'train', 'single_step', "unique_matches", "label_type",
                 'closest_matches']
     config = Config(args.config, required_attributes=required)
+    if not exists(config.csv_path):
+        os.makedirs(config.csv_path)
+    if not exists(config.nc_path):
+        os.makedirs(config.nc_path)
+    if not exists(config.geojson_path):
+        os.makedirs(config.geojson_path)
+
     if not hasattr(config, "segmentation_approach"):
         config.segmentation_approach = "ew"
+    print("Seg approach", config.segmentation_approach)
     if not hasattr(config, "run_date_format"):
         config.run_date_format = "%Y%m%d-%H%M"
     if not hasattr(config, "geojson_path"):
@@ -383,6 +391,8 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
     forecast_variables = config.storm_variables + [v + "-potential" for v in config.potential_variables]
     if hasattr(config, "tendency_variables"):
         forecast_variables.extend([v + "-tendency" for v in config.tendency_variables])
+    if hasattr(config, "future_variables"):
+        forecast_variables.extend([v + "-future" for v in config.future_variables])
     var_stats = []
     for var in forecast_variables:
         for stat in config.variable_statistics:
@@ -605,6 +615,12 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
                                         complevel=1, zlib=True)
         p_var.long_name = potential_variable
         p_var.units = ""
+    if hasattr(config, "future_variables"):
+        for future_variable in config.future_variables:
+            f_var = out_file.createVariable(future_variable + "_future", "f4", ("p", "row", "col"),
+                                            complevel=1, zlib=True)
+            f_var.long_name = future_variable
+            f_var.units = ""
     if config.train:
         for label_column in label_columns:
             if label_column in ["Matched", "Num_Matches"]:
@@ -637,6 +653,10 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
                                                                      for f_track in forecast_tracks])
     for p_variable in config.potential_variables:
         out_file.variables[p_variable + "_prev"][:] = np.vstack([f_track.attributes[p_variable + "-potential"]
+                                                                 for f_track in forecast_tracks])
+    if hasattr(config, "future_variables"):
+        for f_variable in config.future_variables:
+            out_file.variables[f_variable + "_future"][:] = np.vstack([f_track.attributes[f_variable + "-future"]
                                                                  for f_track in forecast_tracks])
     if config.train:
         for label_column in label_columns:

@@ -12,9 +12,9 @@ class HRRRModelGrid(ModelGrid):
         self.end_date = pd.Timestamp(end_date)
         self.frequency = frequency
         self.path = path
-        self.valid_dates = pd.DatetimeIndex(start=self.start_date,
-                                            end=self.end_date,
-                                            freq=self.frequency)
+        self.valid_dates = pd.date_range(start=self.start_date,
+                                         end=self.end_date,
+                                         freq=self.frequency)
         self.forecast_hours = np.array((self.valid_dates - self.run_date).total_seconds() / 3600, dtype=int)
         filenames = []
         for forecast_hour in self.forecast_hours:
