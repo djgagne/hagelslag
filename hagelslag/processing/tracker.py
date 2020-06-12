@@ -53,6 +53,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
             label_grid[t][data[t] < min_intensity] = 0
             if min_area > 1:
                 label_grid[t] = labeler.size_filter(label_grid[t], min_area)
+    print("Found {0:02d}".format(int(label_grid.max())) + " storm objects.")
     return label_grid
 
 
