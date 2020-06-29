@@ -1,8 +1,8 @@
-#!/home/tmp/aburke/miniconda3/envs/deephail/bin/python
+#!/usr/bin/env python
 from hagelslag.util.make_proj_grids import * 
 from hagelslag.util.Config import Config
 from scipy.ndimage import gaussian_filter
-#from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 from copy import deepcopy
@@ -109,7 +109,7 @@ def main():
         print()
         if args.hourly: 
             print('Hourly forecasts') 
-            for hour in range(16,33):
+            for hour in range(12,34):
                 start_time = hour
                 end_time = hour+4
                     
@@ -395,13 +395,13 @@ def forecast_plotting(forecast,proj_dict,grid_dict,start_hour,
             config.target_data_names.upper()),
             fontweight="bold",
             fontsize=14)
+        filename = date_outpath + "{0}_{6}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.png".format(
+                                                        config.ensemble_name,
+                                                        target_dataset,
+                                                        size,
+                                                        date.strftime(config.run_date_format),
+                                                        start_hour,end_hour,config.forecast_model_names)
     
-        filename = date_outpath + "{0}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.png".format(
-                            config.ensemble_name,
-                            config.target_data_names,
-                            size,
-                            date,
-                            start_hour,end_hour)
         plt.savefig(filename,bbox_inches="tight", dpi=300)
         print("Writing to " + filename)
         plt.close()
@@ -462,12 +462,12 @@ def output_grib2(forecast,proj_dict,grid_dict,start_hour,end_hour,
         pdtmp1[-2] = 0
         grib_objects.addfield(1, pdtmp1, 0, drtmp1, filtered_forecast)
         grib_objects.end()
-        filename = date_outpath + "{0}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.grib2".format(
+        filename = date_outpath + "{0}_{6}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.grib2".format(
                                                         config.ensemble_name,
                                                         target_dataset,
                                                         size,
                                                         date.strftime(config.run_date_format),
-                                                        start_hour,end_hour)
+                                                        start_hour,end_hour,config.forecast_model_names)
         print("Writing to " + filename  )
         
         grib_file = open(filename, "wb")
@@ -506,12 +506,13 @@ def output_netcdf(forecast,proj_dict,grid_dict,start_hour,end_hour,
         
         filtered_forecast =  gaussian_filter(forecast[d],smoothing,mode='constant')
     
-        filename = date_outpath + "{0}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.nc".format(
+        filename = date_outpath + "{0}_{6}_Hail_{1}_Cali_NMEP_{2}mm_{3}_Hours_{4}-{5}.nc".format(
                                                         config.ensemble_name,
                                                         target_dataset,
                                                         size,
                                                         date,
-                                                        start_hour,end_hour)
+                                                        start_hour,end_hour,config.forecast_model_names)
+
     
         out_file = Dataset(filename, "w")
         out_file.createDimension("x", filtered_forecast.shape[0])
