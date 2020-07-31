@@ -2,11 +2,11 @@ from __future__ import division
 from .SSEFModelGrid import SSEFModelGrid
 from .VSEModelGrid import VSEModelGrid
 from .NCARModelGrid import NCARModelGrid
+from .FV3ModelGrid import FV3ModelGrid
 from .HRRRModelGrid import HRRRModelGrid
 from .HRRREModelGrid import HRRREModelGrid
 from .HREFv2ModelGrid import HREFv2ModelGrid
 from .NCARStormEventModelGrid import NCARStormEventModelGrid
-from .NCARWRF2020ModelGrid import NCARWRF2020ModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
 import numpy as np
@@ -144,6 +144,16 @@ class ModelOutput(object):
                                self.path,
                                single_step=self.single_step)
             self.data, self.units = mg.load_data()
+        
+        elif self.ensemble_name.upper() == "SAR-FV3":
+            mg = FV3ModelGrid(self.member_name,
+                               self.run_date,
+                               self.variable,
+                               self.start_date,
+                               self.end_date,
+                               self.path,
+                               single_step=self.single_step)
+            self.data, self.units = mg.load_data()
 
         elif self.ensemble_name.upper() == "VSE":
             mg = VSEModelGrid(self.member_name,
@@ -171,17 +181,6 @@ class ModelOutput(object):
                                          self.path)
             self.data, self.units = mg.load_data()
             mg.close()
-        elif self.ensemble_name.upper() == "NCARWRF2020":
-            mg = NCARWRF2020ModelGrid(self.member_name,
-                                      self.run_date,
-                                      self.variable,
-                                      self.start_date,
-                                      self.end_date,
-                                      self.path)
-            self.data, self.units = mg.load_data()
-            print("Loaded ", self.member_name, self.run_date, self.variable, self.start_date, self.end_date)
-            mg.close()
-
         else:
             print(self.ensemble_name + " not supported.")
 
@@ -200,7 +199,7 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
-        elif self.ensemble_name.upper() in ["NCAR", "NCARSTORM", "NCARWRF2020", "HRRR", "VSE", "HREFV2","HRRRE"]:
+        elif self.ensemble_name.upper() in ["NCAR", "NCARSTORM", "HRRR", "VSE", "HREFV2","HRRRE"]:
             proj_dict, grid_dict = read_ncar_map_file(map_file)
             if self.member_name[0:7] == "1km_pbl": # Don't just look at the first 3 characters. You have to differentiate '1km_pbl1' and '1km_on_3km_pbl1'
                 grid_dict["dx"] = 1000
@@ -210,14 +209,6 @@ class ModelOutput(object):
                 grid_dict["ne_lon"] = 282.868269206236
                 grid_dict["ne_lat"] = 36.4822338520542 
 
-            self.dx = int(grid_dict["dx"])
-            mapping_data = make_proj_grids(proj_dict, grid_dict)
-            for m, v in mapping_data.items():
-                setattr(self, m, v)
-            self.i, self.j = np.indices(self.lon.shape)
-            self.proj = get_proj_obj(proj_dict)
-        else:
-            proj_dict, grid_dict = read_ncar_map_file(map_file)
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
             for m, v in mapping_data.items():
