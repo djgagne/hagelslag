@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import pygrib
 import numpy as np
 from os.path import exists
-from pandas import DatetimeIndex
-from .Grib_ModelGrid import Grib_ModelGrid
+from .GribModelGrid import GribModelGrid
 
-class HRRREModelGrid(Grib_ModelGrid):
+
+class HRRREModelGrid(GribModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the HREFv2  ensemble.
     Args:

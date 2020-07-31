@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-import pygrib
 import numpy as np
-from os.path import exists
-from pandas import DatetimeIndex
-from .Grib_ModelGrid import Grib_ModelGrid
+from .GribModelGrid import GribModelGrid
+from .ModelGrid import ModelGrid
 
-class FV3ModelGrid(Grib_ModelGrid):
+
+class FV3ModelGrid(ModelGrid, GribModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the HREFv2  ensemble.
     Args:
@@ -20,7 +19,7 @@ class FV3ModelGrid(Grib_ModelGrid):
     """
 
     def __init__(self, member, run_date, variable, start_date, 
-                end_date, path,single_step=True):
+                end_date, path, single_step=True):
         self.path = path
         self.member = member
         filenames = []
@@ -33,7 +32,14 @@ class FV3ModelGrid(Grib_ModelGrid):
                                                         self.member,
                                                         forecast_hr)
             filenames.append(file_name)
+        self.netcdf_variables = ["hske_1000", "hske_3000", "hmf_1000", "hmf_3000", "ihm_1000", "ihm_3000"]
+        super(FV3ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable, member)
         
-        super(FV3ModelGrid, self).__init__(filenames,run_date,start_date,end_date,variable,member)
-        
-        return 
+        return
+
+    def load_data(self):
+        if self.variable in self.netcdf_variables:
+            super(self).load_data()
+        else:
+            super(self).load_grib_data()
+

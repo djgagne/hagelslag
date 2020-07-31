@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-from .Grib_ModelGrid import Grib_ModelGrid
+from .GribModelGrid import GribModelGrid
 from datetime import timedelta 
 import numpy as np
 from glob import glob
-import os
 
-class HREFv2ModelGrid(Grib_ModelGrid):
+
+class HREFv2ModelGrid(GribModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the HREFv2  ensemble.
     Args:
