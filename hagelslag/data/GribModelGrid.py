@@ -40,6 +40,8 @@ class GribModelGrid(object):
         self.valid_dates = pd.date_range(start=self.start_date,
                                          end=self.end_date,
                                          freq=self.frequency)
+        print(self.valid_dates)
+        print(self.filenames)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
         self.member = member
@@ -129,8 +131,9 @@ class GribModelGrid(object):
             print("No {0} model runs on {1}".format(self.member, self.run_date))
             units = None
             return self.data, units
-
+        print(len(self.file_objects), len(self.valid_dates))
         for f, g_file in enumerate(self.file_objects):
+            print(f, self.filenames[f])
             grib = pygrib.open(g_file)
             data_values = None
             if type(self.variable) is int:
