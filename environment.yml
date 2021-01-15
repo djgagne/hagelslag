@@ -1,0 +1,26 @@
+name: hagelslag
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - numpy
+  - scipy
+  - matplotlib
+  - xarray
+  - netcdf4
+  - pandas
+  - scikit-learn
+  - pytest
+  - h5py
+  - pip
+  - pyproj
+  - pygrib
+  - scikit-image
+  - jupyter
+  - jupyterlab
+  - arrow
+  - cython
+  - sphinx
+  - mock
+  - pip:
+      - git+https://github.com/jswhit/ncepgrib2.git

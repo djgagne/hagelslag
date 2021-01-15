@@ -17,7 +17,7 @@ from datetime import timedelta
 
 
 try:
-    from ncepgrib2 import Grib2Encode, dump
+    from ncepgrib2 import Grib2Encode
     grib_support = True
 except ImportError("ncepgrib2 not available"):
     grib_support = False

@@ -9,4 +9,5 @@ pyproj
 scikit-image
 pygrib
 arrow>=0.8
-
+cython
+ncepgrib2
