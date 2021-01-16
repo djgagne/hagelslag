@@ -14,18 +14,16 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, PathPatch
 from matplotlib.collections import PatchCollection
 from datetime import datetime, timedelta
-from mpl_toolkits.basemap import Basemap
 from scipy.ndimage import gaussian_filter, find_objects
 from copy import deepcopy
-from mysavfig import mysavfig
 import pdb, sys, argparse, os
 
 
 # In[2]:
 
-from hagelslag.processing import EnhancedWatershed
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
 from hagelslag.data import ModelOutput
-from hagelslag.processing import ObjectMatcher, shifted_centroid_distance, centroid_distance, closest_distance
+from hagelslag.processing.ObjectMatcher import ObjectMatcher, closest_distance
 from hagelslag.processing import STObject
 
 parser = argparse.ArgumentParser(description='object tracker')
@@ -36,7 +34,8 @@ parser.add_argument('-t','--timethresh', type=int, default=3, help='time thresho
 parser.add_argument('-v','--verbose', action="store_true", help='print more output. useful for debugging')
 args = parser.parse_args()
 
-if args.verbose: print args
+if args.verbose: 
+    print(args)
 
 odir = '/glade/p/work/ahijevyc/hagelslag/out/'
 model_path = "/glade/scratch/ahijevyc/VSE/"
@@ -105,24 +104,19 @@ while d <= end_date:
                 # If it does, see if 'field' is a variable.
                 ncf = Dataset(dfile)
                 if field in ncf.variables:
-                        print dfile
+                        print(dfile)
                         model_grid.data.append(ncf.variables[field][0,:,:])
                         ncf.close()
                         break
                 ncf.close()
         d += deltat
 
-print model_grid.lon.shape, np.maximum.reduce(model_grid.data).shape # max across time dimension 
-print model_grid.data[0].max(), model_grid.data[-1].max(), np.maximum.reduce(model_grid.data).max()
+print(model_grid.lon.shape, np.maximum.reduce(model_grid.data).shape) # max across time dimension 
+print(model_grid.data[0].max(), model_grid.data[-1].max(), np.maximum.reduce(model_grid.data).max())
 
-basemap = Basemap(resolution="l",
-                llcrnrlon=model_grid.lon.min()+5., urcrnrlon=model_grid.lon.max()-.1,
-                llcrnrlat=model_grid.lat.min()+1.5, urcrnrlat=model_grid.lat.max()-.5,
-                projection='lcc',lat_1=np.mean(model_grid.lat),
-                lat_0=np.mean(model_grid.lat),lon_0=np.mean(model_grid.lon))
 plt.figure(figsize=(10,8))
-add_grid(basemap)
-basemap.contourf(model_grid.lon, model_grid.lat,
+
+plt.contourf(model_grid.lon, model_grid.lat,
                 np.maximum.reduce(model_grid.data), # max across time dimension 
                 levels,
                 extend="max",
@@ -133,24 +127,23 @@ title_info = plt.title(field + "\n"+member+" {0}-{1}".format(start_date.strftime
                         end_date.strftime("%d %b %Y %H:%M")),
                         fontweight="bold", fontsize=14)
 dtstr = "_"+member+run_date.strftime("_%Y%m%d%H")
-ret = mysavfig(odir+"uh_swaths/"+field+"_swaths"+dtstr+".png")
+ret = plt.savefig(odir+"uh_swaths/"+field+"_swaths"+dtstr+".png")
 
 
 def get_forecast_objects(model_grid, ew_params, min_size, gaussian_window):
         ew = EnhancedWatershed(*ew_params)
         model_objects = []
-        print "Find model objects Hour:",
+        print("Find model objects Hour:")
         for h in range(int((model_grid.end_date - model_grid.start_date).total_seconds()/deltat.total_seconds())+1):
-                print h,
+                print(h)
                 hour_labels = ew.size_filter(ew.label(gaussian_filter(model_grid.data[h], gaussian_window)), min_size)
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(obj_slices)
                 model_objects.append([])
                 if num_slices > 0:
                         fig, ax = plt.subplots()
-                        add_grid(basemap)
-                        t = basemap.contourf(model_grid.lon,model_grid.lat,hour_labels,np.arange(0,num_slices+1)+0.5,extend="max",cmap="Set1",latlon=True,title=str(run_date)+" "+field+" "+str(h))
-                        ret = mysavfig(odir+"enh_watershed_ex/ew{0:02d}.png".format(h))
+                        t = plt.contourf(model_grid.lon,model_grid.lat,hour_labels,np.arange(0,num_slices+1)+0.5,extend="max",cmap="Set1",latlon=True,title=str(run_date)+" "+field+" "+str(h))
+                        ret = plt.savefig(odir+"enh_watershed_ex/ew{0:02d}.png".format(h))
                         for s, sl in enumerate(obj_slices): 
                                 model_objects[-1].append(STObject(model_grid.data[h][sl],
                                                 #np.where(hour_labels[sl] > 0, 1, 0),
@@ -178,7 +171,7 @@ model_objects = get_forecast_objects(model_grid, model_watershed_params, params[
 def track_forecast_objects(input_model_objects, model_grid, object_matcher):
         model_objects = deepcopy(input_model_objects)
         hours = np.arange(int((model_grid.end_date-model_grid.start_date).total_seconds()/deltat.total_seconds()) + 1)
-        print "hours = ",hours
+        print("hours = ",hours)
         tracked_model_objects = []
         for h in hours:
                 past_time_objs = []
@@ -189,12 +182,12 @@ def track_forecast_objects(input_model_objects, model_grid, object_matcher):
                                 past_time_objs.append(obj)
                 # If no objects existed in the last time step, then consider objects in current time step all new
                 if len(past_time_objs) == 0:
-                        print "time",h, " no objects existed in the last time step. consider objects in current time step all new"
+                        print("time",h, " no objects existed in the last time step. consider objects in current time step all new")
                         tracked_model_objects.extend(deepcopy(model_objects[h]))
                 # Match from previous time step with current time step
                 elif len(past_time_objs) > 0 and len(model_objects[h]) > 0:
                         assignments = object_matcher.match_objects(past_time_objs, model_objects[h], h - 1, h)
-                        print "assignments:", assignments
+                        print("assignments:", assignments)
                         unpaired = range(len(model_objects[h]))
                         for pair in assignments:
                                 past_time_objs[pair[0]].extend(model_objects[h][pair[1]])
@@ -209,42 +202,4 @@ def track_forecast_objects(input_model_objects, model_grid, object_matcher):
 #                             np.array([dist_weight, 1-dist_weight]), np.array([max_distance] * 2))
 object_matcher = ObjectMatcher([closest_distance],np.array([1]),np.array([4*model_grid.dx]))
 
-tracked_model_objects = track_forecast_objects(model_objects, model_grid, object_matcher)
-color_list = ["violet", "cyan", "blue", "green", "purple", "darkgreen", "teal", "royalblue"]
-color_arr = np.tile(color_list, len(tracked_model_objects) / len(color_list) + 1)
-fig, ax = plt.subplots(figsize=(11, 8.5))
-add_grid(basemap)
-basemap.contourf(model_grid.lon, 
-                 model_grid.lat, 
-                 np.maximum.reduce(model_grid.data),
-                 levels,
-                 extend="max",
-                 cmap="YlOrRd", latlon=True)
-plt.colorbar(shrink=0.8,fraction=0.05)
-c = 0
-for t,tracked_model_object in enumerate(tracked_model_objects):
-        duration = tracked_model_object.end_time - tracked_model_object.start_time + 1
-        if duration < args.timethresh: continue
-        # Draw polygon boundaries
-        patches = []
-        for time in tracked_model_object.times:
-                lon = tracked_model_object.boundary_polygon(time)[0]
-                lat = tracked_model_object.boundary_polygon(time)[1]
-                #basemap.plot(lon, lat, color=color_arr[c], latlon=True, lw=0.5)
-                x, y = basemap(lon,lat)
-                if len(x) > 2: # if there are only 6 pixels, boundary_polygon may be zero-length. Make sure it has at least 3 points.
-                        patches.append(Polygon(np.transpose([x,y]), closed=True, fill=True))
-        ax.add_collection(PatchCollection(patches, color=color_arr[c], alpha=0.4))
-        # Label objects
-        traj = tracked_model_object.trajectory()
-        xs, ys = basemap(*traj)
-        #plt.plot(xs,ys, marker='o', markersize=4, color=color_arr[t], lw=2)
-        for lon, lat, x, y, time, u, v in zip(traj[0], traj[1], xs,ys,tracked_model_object.times,tracked_model_object.u,tracked_model_object.v):
-                print "#",t," lon,lat=",lon,lat,"time=",time,"u,v=",u,v
-                if args.verbose: plt.text(x,y,str(time)+":"+str(t), fontsize=7)
-                plt.text(x,y,str(time), fontsize=7)
-                #plt.barbs(x,y,u/model_grid.dx, v/model_grid.dx, length=6, barbcolor=color_arr[t])
-        c = c+1
-plt.title(title_info.get_text(), fontweight="bold", fontsize=14)
-ret = mysavfig(odir+"storm_tracks/storm_tracks"+dtstr+"_"+str(params["delta"])+".png")
 

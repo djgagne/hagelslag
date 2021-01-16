@@ -4,7 +4,7 @@ from .GribModelGrid import GribModelGrid
 from .ModelGrid import ModelGrid
 
 
-class FV3ModelGrid(ModelGrid, GribModelGrid):
+class FV3ModelGrid(GribModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the HREFv2  ensemble.
     Args:
@@ -27,9 +27,10 @@ class FV3ModelGrid(ModelGrid, GribModelGrid):
                                         (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
         
         for forecast_hr in self.forecast_hours:
-            file_name=self.path+'{0}/{1}*{0}*f{2:02}.grib2'.format(
+            file_name=self.path+'{0}/{1}_{2}f{3:03d}.grib2'.format(
                                                         run_date.strftime("%Y%m%d"),
                                                         self.member,
+                                                        run_date.strftime("%Y%m%d%H"),
                                                         forecast_hr)
             filenames.append(file_name)
         self.netcdf_variables = ["hske_1000", "hske_3000", "hmf_1000", "hmf_3000", "ihm_1000", "ihm_3000"]
@@ -39,7 +40,7 @@ class FV3ModelGrid(ModelGrid, GribModelGrid):
 
     def load_data(self):
         if self.variable in self.netcdf_variables:
-            super(self).load_data()
+            return ModelGrid.load_data(self)
         else:
-            super(self).load_grib_data()
+            return GribModelGrid.load_data(self)
 

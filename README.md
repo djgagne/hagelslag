@@ -10,7 +10,11 @@ The package contains modules for storm identification and tracking, spatio-tempo
 machine learning model training to predict hazard intensity as well as space and time translations.
 
 ### Citation
-If you employ hagelslag in your research, please acknowledge its use with the following citation:
+If you employ hagelslag in your research, please acknowledge its use with the following citations:
+
+    Gagne, D. J., A. McGovern, S. E. Haupt, R. A. Sobash, J. K. Williams, M. Xue, 2017: Storm-Based Probabilistic Hail
+    Forecasting with Machine Learning Applied to Convection-Allowing Ensembles, Wea. Forecasting, 32, 1819-1840. 
+    https://doi.org/10.1175/WAF-D-17-0010.1. 
     
     Gagne II, D. J., A. McGovern, N. Snook, R. Sobash, J. Labriola, J. K. Williams, S. E. Haupt, and M. Xue, 2016: 
     Hagelslag: Scalable object-based severe weather analysis and forecasting. Proceedings of the Sixth Symposium on 
@@ -21,7 +25,8 @@ djgagne at ou dot edu.
 
 ### Requirements
 
-Hagelslag is compatible with Python 2.7 and 3.5. Hagelslag is easiest to install with the help of the Anaconda Python Distribution, but it should work with other
+Hagelslag is compatible with Python 3.6 or newer. Hagelslag is easiest to install with the help of the [Miniconda 
+Python Distribution](https://docs.conda.io/en/latest/miniconda.html), but it should work with other
 Python setups as well. Hagelslag requires the following packages and recommends the following versions:
 
 * numpy >= 1.10
@@ -30,14 +35,30 @@ Python setups as well. Hagelslag requires the following packages and recommends 
 * scikit-learn >= 0.16
 * pandas >= 0.15
 * arrow >= 0.8.0
-* basemap
+* pyproj
 * netCDF4-python
+* xarray
+* jupyter
+* ncepgrib2
+* pygrib
+* cython
+* pip
+* sphinx
+* mock
+
+Install dependencies with the following commands:
+```
+git clone https://github.com/djgagne/hagelslag.git
+cd ~/hagelslag
+conda env create -f environment.yml
+conda activate hagelslag
+```
 
 ### Installation
+Install the latest version of hagelslag with the following command from the top-level hagelslag directory (where setup.py
+is):
+`pip install .`
 
-To install hagelslag, enter the top-level directory of the package and run the standard python setup command: 
-
-    python setup.py install
 
 Hagelslag will install the libraries in site-packages and will also install 3 applications into the `bin` directory
 of your Python installation.

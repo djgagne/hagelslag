@@ -15,24 +15,14 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if on_rtd:
     requires = []
 else:
-    requires = ["numpy>=1.10",
-                "pandas>=0.15",
-                "scipy",
-                "matplotlib>=1.5",
-                "netCDF4",
-                "scikit-learn>=0.16",
-                "scikit-image",
-                "pyproj",
-                "xarray",
-                "pygrib",
-                "arrow>=0.8.0",
-                ]
+    with open("requirements.txt") as require_file:
+        requires = [r.strip() for r in require_file.readlines()]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
 
     setup(name="hagelslag",
-          version="0.3",
+          version="0.4.0b1",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
           author_email="dgagne@ucar.edu",

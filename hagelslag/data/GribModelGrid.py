@@ -129,7 +129,6 @@ class GribModelGrid(object):
             print("No {0} model runs on {1}".format(self.member, self.run_date))
             units = None
             return self.data, units
-
         for f, g_file in enumerate(self.file_objects):
             grib = pygrib.open(g_file)
             data_values = None

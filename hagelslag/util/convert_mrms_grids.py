@@ -1,4 +1,3 @@
-import Nio
 import pandas as pd
 import os
 import subprocess
@@ -13,7 +12,7 @@ from multiprocessing import Pool
 import warnings
 import traceback
 import argparse
-
+import xarray as xr
 
 def main():
     warnings.simplefilter("ignore")
@@ -125,7 +124,7 @@ class MRMSGrid(object):
         self.path_start = path_start
         self.freq = freq
         self.data = None
-        self.all_dates = pd.DatetimeIndex(start=self.start_date, end=self.end_date, freq=self.freq)
+        self.all_dates = pd.date_range(start=self.start_date, end=self.end_date, freq=self.freq)
         self.loaded_dates = None
         self.lon = None
         self.lat = None
@@ -150,9 +149,9 @@ class MRMSGrid(object):
                     print(full_path + data_file)
                     if data_file[-2:] == "gz":
                         subprocess.call(["gunzip", full_path + data_file])
-                        file_obj = Nio.open_file(full_path + data_file[:-3])
+                        file_obj = xr.open_dataset(full_path + data_file[:-3])
                     else:
-                        file_obj = Nio.open_file(full_path + data_file)
+                        file_obj = xr.open_dataset(full_path + data_file)
                     var_name = sorted(file_obj.variables.keys())[0]
                     data.append(file_obj.variables[var_name][:])
                     if self.lon is None:
