@@ -6,7 +6,7 @@ before_install:
   - sh Miniconda3-latest-Linux-x86_64.sh -b -p /home/travis/miniconda
   - export PATH=/home/travis/miniconda/bin:$PATH
 install:
-  - conda env create --yes -f environment.yml
+  - conda env create -f environment.yml
   - source activate hagelslag
 script:
   - pytest
