@@ -8,6 +8,7 @@ before_install:
 install:
   - conda env create -f environment.yml
   - source activate hagelslag
+  - echo `which python`
 script:
   - pytest
 notifications:
