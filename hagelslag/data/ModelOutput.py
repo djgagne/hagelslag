@@ -173,6 +173,7 @@ class ModelOutput(object):
                                self.path)
             self.data, self.units = mg.load_data()
             mg.close()
+            
         elif self.ensemble_name.upper() == "NCARSTORM":
             mg = NCARStormEventModelGrid(self.run_date,
                                          self.variable,
@@ -181,6 +182,14 @@ class ModelOutput(object):
                                          self.path)
             self.data, self.units = mg.load_data()
             mg.close()
+            
+       elif self.ensemble_name.upper() == "HRRR-ZARR":
+            mg = HRRRZarrModelGrid(self.run_date,
+                               self.variable,
+                               self.start_date,
+                               self.end_date,
+                               self.path)
+            self.data, self.units = mg.load_data()
         else:
             print(self.ensemble_name + " not supported.")
 
