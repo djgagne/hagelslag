@@ -183,7 +183,7 @@ class ModelOutput(object):
             self.data, self.units = mg.load_data()
             mg.close()
             
-       elif self.ensemble_name.upper() == "HRRR-ZARR":
+        elif self.ensemble_name.upper() == "HRRR-ZARR":
             mg = HRRRZarrModelGrid(self.run_date,
                                self.variable,
                                self.start_date,
