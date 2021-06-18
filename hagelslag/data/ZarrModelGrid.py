@@ -47,9 +47,6 @@ class ZarrModelGrid(object):
 
     def load_data(self):
 
-        if self.run_date.hour not in [0, 6, 12, 18]:
-            self.end_date = self.run_date + timedelta(hours=17)
-
         units = ""
         level = self.variable.split('-')[1]
         self.variable = self.variable.split('-')[0]
