@@ -6,6 +6,7 @@ from .FV3ModelGrid import FV3ModelGrid
 from .HRRRModelGrid import HRRRModelGrid
 from .HRRREModelGrid import HRRREModelGrid
 from .HREFv2ModelGrid import HREFv2ModelGrid
+from .HRRRZarrModelGrid import HRRRZarrModelGrid
 from .NCARStormEventModelGrid import NCARStormEventModelGrid
 from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
 from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
