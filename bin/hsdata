@@ -83,6 +83,11 @@ def process_ensemble_member(run_date, member, config):
         print("Starting", run_date, member)
         start_date = run_date + timedelta(hours=config.start_hour)
         end_date = run_date + timedelta(hours=config.end_hour)
+
+        if config.ensemble_name == "HRRR-ZARR":
+            if hasattr(config, "HRRR_alt_end_hour") and run_date.hour in config.HRRR_alt_run_hours:
+                end_date = run_date + timedelta(hours=config.HRRR_alt_end_hour)
+
         if hasattr(config, "mask_file"):
             mask_file = config.mask_file
         else:
