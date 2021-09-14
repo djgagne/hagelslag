@@ -41,9 +41,7 @@ class ZarrModelGrid(object):
                                          end=self.end_date,
                                          freq=self.frequency)
         print(self.run_date)
-        print(type(self.run_date))
         self.forecast_hours = (self.valid_dates - self.run_date).astype("timedelta64[h]").astype(int)
-
 
     def load_data(self):
 
@@ -57,11 +55,15 @@ class ZarrModelGrid(object):
         path = join(self.path, run_date_str, f'{run_date_str}_{forecast_hour}z_fcst.zarr', level, self.variable, level)
         f = s3fs.S3Map(root=path, s3=fs, check=False)
         files.append(f)
-
         ds = xr.open_mfdataset(files, engine='zarr', parallel=True).load()
-        arr = ds[self.variable].values.astype('float32')
-        dummy_forecast_hour_00 = np.zeros((1, arr.shape[1], arr.shape[2]))
-        array = np.concatenate([dummy_forecast_hour_00, arr])[self.forecast_hours[0]:self.forecast_hours[-1] + 1, :, :]
+
+
+        if self.run_date not in self.valid_dates:
+            array = ds[self.variable].values[self.forecast_hours[0] - 1:self.forecast_hours[-1]].astype('float32')
+        elif self.run_date in self.valid_dates:
+            arr = ds[self.variable].values[self.forecast_hours[0]:self.forecast_hours[-1] + 1].astype('float32')
+            dummy_forecast_hour_00 = np.zeros((1, arr.shape[1], arr.shape[2]))
+            array = np.concatenate([dummy_forecast_hour_00, arr])[self.forecast_hours[0]:self.forecast_hours[-1] + 1, :, :]
 
         if hasattr(ds[self.variable], 'units'):
             units = ds[self.variable].attrs['units']
