@@ -22,7 +22,6 @@ class ZarrModelGrid(object):
         freqency (str): spacing between model time steps.
         valid_dates: DatetimeIndex of all model timesteps
         forecast_hours: array of all hours in the forecast
-        file_objects (list): List of the file objects for each model time step
     """
     def __init__(self,
                  path,
@@ -37,10 +36,7 @@ class ZarrModelGrid(object):
         self.start_date = pd.to_datetime(start_date)
         self.end_date = pd.to_datetime(end_date)
         self.frequency = frequency
-        self.valid_dates = date_range(start=self.start_date,
-                                         end=self.end_date,
-                                         freq=self.frequency)
-        print(self.run_date)
+        self.valid_dates = date_range(start=self.start_date, end=self.end_date, freq=self.frequency)
         self.forecast_hours = (self.valid_dates - self.run_date).astype("timedelta64[h]").astype(int)
 
     def load_data(self):
@@ -49,21 +45,22 @@ class ZarrModelGrid(object):
         level = self.variable.split('-')[1]
         self.variable = self.variable.split('-')[0]
         fs = s3fs.S3FileSystem(anon=True)
-        files = []
         run_date_str = self.run_date.strftime("%Y%m%d")
-        forecast_hour = self.run_date.strftime("%H")
-        path = join(self.path, run_date_str, f'{run_date_str}_{forecast_hour}z_fcst.zarr', level, self.variable, level)
+        run_hour = self.run_date.strftime("%H")
+        path = join(self.path, run_date_str, f'{run_date_str}_{run_hour}z_fcst.zarr', level, self.variable, level)
         f = s3fs.S3Map(root=path, s3=fs, check=False)
-        files.append(f)
-        ds = xr.open_mfdataset(files, engine='zarr', parallel=True).load()
+        ds = xr.open_mfdataset([f], engine='zarr', parallel=True).load()
 
-
-        if self.run_date not in self.valid_dates:
-            array = ds[self.variable].values[self.forecast_hours[0] - 1:self.forecast_hours[-1]].astype('float32')
-        elif self.run_date in self.valid_dates:
+        if self.run_date in self.valid_dates:
             arr = ds[self.variable].values[self.forecast_hours[0]:self.forecast_hours[-1] + 1].astype('float32')
-            dummy_forecast_hour_00 = np.zeros((1, arr.shape[1], arr.shape[2]))
-            array = np.concatenate([dummy_forecast_hour_00, arr])[self.forecast_hours[0]:self.forecast_hours[-1] + 1, :, :]
+            forecast_hour_00_path = join(self.path, run_date_str, f'{run_date_str}_{run_hour}z_anl.zarr', level,
+                                         self.variable.replace('1hr_', ''), level)
+            fh_0_file = s3fs.S3Map(root=forecast_hour_00_path, s3=fs, check=False)
+            fh_0_ds = xr.open_mfdataset([fh_0_file], engine='zarr', parallel=True).expand_dims('time')
+            fh_0_arr = fh_0_ds[self.variable.replace('1hr_', '')].values
+            array = np.concatenate([fh_0_arr, arr])[self.forecast_hours[0]:self.forecast_hours[-1] + 1, :, :]
+        else:
+            array = ds[self.variable].values[self.forecast_hours[0] - 1:self.forecast_hours[-1]].astype('float32')
 
         if hasattr(ds[self.variable], 'units'):
             units = ds[self.variable].attrs['units']
