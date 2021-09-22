@@ -4,23 +4,16 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
-from scipy.stats import gamma, bernoulli
+from scipy.stats import gamma
 from scipy.interpolate import interp1d
 from scipy.spatial import cKDTree
 from skimage.morphology import disk
-from netCDF4 import Dataset, date2num, num2date
-import os
+from netCDF4 import Dataset, num2date
 from glob import glob
 from os.path import join, exists
 import json
 from datetime import timedelta
-
-
-try:
-    from ncepgrib2 import Grib2Encode
-    grib_support = True
-except ImportError("ncepgrib2 not available"):
-    grib_support = False
+from grib2io import Grib2Message
 
 
 class EnsembleMemberProduct(object):
@@ -219,6 +212,7 @@ class EnsembleMemberProduct(object):
             self.nc_patches = None
             return 
         return
+
     def quantile_match(self):
         """
         For each storm object, get the percentiles of the enhanced watershed variable field relative to the training
@@ -403,7 +397,9 @@ class EnsembleMemberProduct(object):
         for t, time in enumerate(self.times):
             time_list = list(self.run_date.utctimetuple()[0:6])
             if grib_objects[time] is None:
-                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                #grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time] = Grib2Message(discipline=0,
+                                                  idsect=np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
             data = self.percentile_data[:, t] / 1000.0
@@ -469,7 +465,9 @@ class EnsembleMemberProduct(object):
         for t, time in enumerate(self.times):
             time_list = list(self.run_date.utctimetuple()[0:6])
             if grib_objects[time] is None:
-                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                #grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time] = Grib2Message(discipline=0,
+                                                  idsect=np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
             data = self.data[t] / 1000.0
@@ -490,13 +488,12 @@ class EnsembleMemberProduct(object):
         """
         for t, time in enumerate(self.times.to_pydatetime()):
             grib_objects[time].end()
-            filename = path + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
+            filename = join(path, "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
                                                                  self.member,
                                                                  self.model_name.replace(" ", "-"),
                                                                  self.variable,
                                                                  self.run_date.strftime("%Y%m%d%H") +
                                                                  "f{0:02d}".format(self.forecast_hours[t])
-                                                                 )
-            fo = open(filename, "wb")
-            fo.write(grib_objects[time].msg)
-            fo.close()
+                                                                 ))
+            with open(filename, "wb") as fo:
+                fo.write(grib_objects[time]._msg)

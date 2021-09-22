@@ -1,4 +1,4 @@
-from skimage.morphology import watershed
+from skimage.segmentation import watershed
 from scipy.ndimage import label, find_objects
 import numpy as np
 

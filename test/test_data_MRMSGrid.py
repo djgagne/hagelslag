@@ -11,7 +11,7 @@ class TestMRMSGrid(unittest.TestCase):
         self.mrms = MRMSGrid(self.start_date, self.end_date, self.variable, self.path)
  
     def test_constructor(self):
-        self.assertEquals(self.mrms.all_dates.size, 22, "Number of dates is wrong")
+        self.assertEqual(self.mrms.all_dates.size, 22, "Number of dates is wrong")
         self.assertIsNone(self.mrms.data, "Data already loaded")         
         self.assertIsNone(self.mrms.valid_dates, "Valid dates already loaded")
 

@@ -12,7 +12,6 @@ from hagelslag.util.derived_vars import relative_humidity_pressure_level, meltin
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
-from pyproj import Proj
 
 class ModelOutput(object):
     """
