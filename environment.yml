@@ -23,7 +23,6 @@ dependencies:
   - cython
   - sphinx
   - mock
-  - jasper
   - pip:
       - grib2io
       - .
