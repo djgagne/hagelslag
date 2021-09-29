@@ -25,3 +25,4 @@ dependencies:
   - mock
   - pip:
       - grib2io
+      - .
