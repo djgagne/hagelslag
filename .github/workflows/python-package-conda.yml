@@ -20,7 +20,6 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install grib dependencies
       run: | 
-        sudo apt-get install -y libjasper-dev
         sudo apt-get install -y libpng-dev
         sudo apt-get install -y zlib1g-dev
     - name: Install dependencies
