@@ -547,12 +547,13 @@ class TrackProcessor(object):
 
     def match_hail_size_step_distributions(self, model_tracks, obs_tracks, track_pairings):
         """
-        Given a matching set of observed tracks for each model track, 
+        Given a matching set of observed tracks for each model track, combine the hail size values and create
+        an observed hail size distribution.
         
         Args:
-            model_tracks: 
-            obs_tracks: 
-            track_pairings: 
+            model_tracks: List of STObjects
+            obs_tracks: List of STObjects
+            track_pairings:
 
         Returns:
 

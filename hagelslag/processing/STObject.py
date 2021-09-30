@@ -154,7 +154,7 @@ class STObject(object):
 
     def get_corner(self, time):
         """
-        Gets the corner array indices of the STObject at a given time that corresponds 
+        Gets the corner array indices of the STObject at a given time that corresponds
         to the upper left corner of the bounding box for the STObject.
 
         Args:

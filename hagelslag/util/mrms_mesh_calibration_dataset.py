@@ -19,9 +19,9 @@ def main():
     parser.add_argument("-a", "--mask_file", required=True, help="Path to the ensemble mask file")
     args = parser.parse_args()
     if args.end_date:
-        run_dates = pd.DatetimeIndex(start=args.start_date, end=args.end_date, freq='1D').strftime("%y%m%d")
+        run_dates = pd.date_range(start=args.start_date, end=args.end_date, freq='1D').strftime("%y%m%d")
     else:
-        run_dates = pd.DatetimeIndex(start=args.start_date, end=args.start_date, freq='1D').strftime("%y%m%d")
+        run_dates = pd.date_range(start=args.start_date, end=args.start_date, freq='1D').strftime("%y%m%d")
     data_path = args.data_path
     out_path = args.out_path
     mapfile = args.map_file
@@ -31,7 +31,7 @@ def main():
     return
 
 
-def MESH_verification_data(data_path, maskfile, mapfile, run_dates, out_path, hours=[17, 19, 21]):
+def MESH_verification_data(data_path, maskfile, mapfile, run_dates, out_path, hours=(17, 19, 21)):
     """
     Calculate 40 km halos around MESH values greater than a threshold value
     """

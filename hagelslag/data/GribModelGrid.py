@@ -59,7 +59,7 @@ class GribModelGrid(object):
     def format_grib_name(self, selected_variable):
         """
         Assigns name to grib2 message number with name 'unknown'. Names based on NOAA grib2 abbreviations.
-        
+
         Names:
             197: RETOP: Echo Top
             198: MAXREF: Hourly Maximum of Simulated Reflectivity at 1 km AGL
@@ -71,7 +71,7 @@ class GribModelGrid(object):
             221: MAXDVV: Hourly Maximum of Downward Vertical Velocity in the lowest 400hPa
             222: MAXUW: U Component of Hourly Maximum 10m Wind Speed
             223: MAXVW: V Component of Hourly Maximum 10m Wind Speed
-        
+
         Args:
             selected_variable(str): Name of selected variable for loading
         Returns:

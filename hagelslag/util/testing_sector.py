@@ -3,7 +3,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from create_sector_grid_data import *
+from create_sector_grid_data import SectorProcessor
 from hagelslag.processing.ObjectMatcher import centroid_distance, time_distance
 from hagelslag.processing.ObjectMatcher import shifted_centroid_distance
 

@@ -18,10 +18,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter, find_objects
 
-from hagelslag.data import ModelOutput
-from hagelslag.processing import STObject
+from hagelslag.data.ModelOutput import ModelOutput
+from hagelslag.processing.STObject import STObject
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed
 from hagelslag.processing.ObjectMatcher import ObjectMatcher, closest_distance
+from netCDF4 import Dataset
+
 
 # In[2]:
 
@@ -49,7 +51,8 @@ start_date = run_date + timedelta(hours=10)  # remember first time is usually al
 #        data_increment (int): quantization interval. Use 1 if you don't want to quantize
 #        max_thresh (int): values greater than maxThresh are treated as the maximum threshold
 #        size_threshold_pixels (int): clusters smaller than this threshold are ignored.
-#        delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.
+#        delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in
+#        clusters over larger scales.
 
 # From ahij's config file.
 if field == "MAX_UPDRAFT_HELICITY" or field == "UP_HELI_MAX03":
@@ -61,11 +64,10 @@ if field == "HAIL2D":
 levels = params['min_thresh'] * np.arange(1, 8)
 levels = np.append(levels, params['min_thresh'] * 15)
 model_watershed_params = (
-params['min_thresh'], params['step'], params['max_thresh'], params["max_size"], params["delta"])
+    params['min_thresh'], params['step'], params['max_thresh'], params["max_size"], params["delta"])
 
 end_date = start_date + timedelta(hours=0)
 
-from netCDF4 import Dataset
 
 model_grid = ModelOutput(ensemble_name,
                          member,
@@ -149,15 +151,16 @@ def get_forecast_objects(model_grid, ew_params, min_size, gaussian_window):
         num_slices = len(obj_slices)
         model_objects.append([])
         if num_slices > 0:
-            fig, ax = plt.subplots()
-            t = plt.contourf(model_grid.lon, model_grid.lat, hour_labels, np.arange(0, num_slices + 1) + 0.5,
+            plt.subplots()
+            plt.contourf(model_grid.lon, model_grid.lat, hour_labels, np.arange(0, num_slices + 1) + 0.5,
                              extend="max", cmap="Set1", latlon=True, title=str(run_date) + " " + field + " " + str(h))
-            ret = plt.savefig(odir + "enh_watershed_ex/ew{0:02d}.png".format(h))
+            plt.savefig(odir + "enh_watershed_ex/ew{0:02d}.png".format(h))
             for s, sl in enumerate(obj_slices):
                 model_objects[-1].append(STObject(model_grid.data[h][sl],
                                                   # np.where(hour_labels[sl] > 0, 1, 0),
                                                   # For some objects (especially long, diagonal ones), the rectangular
-                                                  # slice encompasses part of other objects (i.e. non-zero elements of slice).
+                                                  # slice encompasses part of other objects
+                                                  # (i.e. non-zero elements of slice).
                                                   # We don't want them in our mask.
                                                   np.where(hour_labels[sl] == s + 1, 1, 0),
                                                   model_grid.x[sl],
@@ -198,7 +201,7 @@ def track_forecast_objects(input_model_objects, model_grid, object_matcher):
         elif len(past_time_objs) > 0 and len(model_objects[h]) > 0:
             assignments = object_matcher.match_objects(past_time_objs, model_objects[h], h - 1, h)
             print("assignments:", assignments)
-            unpaired = range(len(model_objects[h]))
+            unpaired = list(range(len(model_objects[h])))
             for pair in assignments:
                 past_time_objs[pair[0]].extend(model_objects[h][pair[1]])
                 unpaired.remove(pair[1])
