@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from .ContingencyTable import ContingencyTable
 
 __author__ = "David John Gagne <djgagne@ou.edu>"
@@ -56,6 +57,7 @@ class DistributedROC(object):
         >>> roc.update(forecasts, obs)
         >>> print(roc.auc())
     """
+
     def __init__(self, thresholds=np.arange(0, 1.1, 0.1), obs_threshold=1.0, input_str=None):
         """
         Initializes the DistributedROC object. If input_str is not None, then the DistributedROC object is
@@ -90,7 +92,7 @@ class DistributedROC(object):
             tn = np.count_nonzero((forecasts < threshold) &
                                   (observations < self.obs_threshold))
             self.contingency_tables.iloc[t] += [tp, fp, fn, tn]
-    
+
     def clear(self):
         self.contingency_tables.loc[:, :] = 0
 
@@ -207,7 +209,7 @@ class DistributedROC(object):
                 self.thresholds = np.array(value.split(), dtype=float)
                 self.contingency_tables = pd.DataFrame(columns=self.contingency_tables.columns,
                                                        data=np.zeros((self.thresholds.size,
-                                                                     self.contingency_tables.columns.size)))
+                                                                      self.contingency_tables.columns.size)))
             elif var_name in self.contingency_tables.columns:
                 self.contingency_tables[var_name] = np.array(value.split(), dtype=int)
 
@@ -227,10 +229,10 @@ class Reliability(object):
         total_frequency = np.zeros(self.thresholds.shape)
         for t, threshold in enumerate(self.thresholds[:-1]):
             pos_frequency[t] = np.count_nonzero((threshold <= self.forecasts) &
-                                                (self.forecasts < self.thresholds[t+1]) &
+                                                (self.forecasts < self.thresholds[t + 1]) &
                                                 (self.observations > self.obs_threshold))
             total_frequency[t] = np.count_nonzero((threshold <= self.forecasts) &
-                                                  (self.forecasts < self.thresholds[t+1]))
+                                                  (self.forecasts < self.thresholds[t + 1]))
             if total_frequency[t] > 0:
                 self.pos_relative_frequency[t] = pos_frequency[t] / float(total_frequency[t])
                 self.total_relative_frequency[t] = total_frequency / self.forecasts.size
@@ -315,11 +317,11 @@ class DistributedReliability(object):
         """
         for t, threshold in enumerate(self.thresholds[:-1]):
             self.frequencies.loc[t, "Positive_Freq"] += np.count_nonzero((threshold <= forecasts) &
-                                                                         (forecasts < self.thresholds[t+1]) &
+                                                                         (forecasts < self.thresholds[t + 1]) &
                                                                          (observations >= self.obs_threshold))
             self.frequencies.loc[t, "Total_Freq"] += np.count_nonzero((threshold <= forecasts) &
-                                                                      (forecasts < self.thresholds[t+1]))
-    
+                                                                      (forecasts < self.thresholds[t + 1]))
+
     def clear(self):
         self.frequencies.loc[:, :] = 0
 
@@ -429,7 +431,7 @@ class DistributedReliability(object):
                 self.thresholds = np.array(value.split(), dtype=float)
                 self.frequencies = pd.DataFrame(columns=self.frequencies.columns,
                                                 data=np.zeros((self.thresholds.size,
-                                                              self.frequencies.columns.size)))
+                                                               self.frequencies.columns.size)))
             elif var_name in ["Positive_Freq", "Total_Freq"]:
                 self.frequencies[var_name] = np.array(value.split(), dtype=int)
 
@@ -490,7 +492,7 @@ class DistributedCRPS(object):
         Calculates the continuous ranked probability score.
         """
         return np.sum(self.errors["F_2"].values - self.errors["F_O"].values * 2.0 + self.errors["O_2"].values) / \
-            (self.thresholds.size * self.num_forecasts)
+               (self.thresholds.size * self.num_forecasts)
 
     def crps_climo(self):
         """

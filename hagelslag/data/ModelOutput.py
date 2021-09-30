@@ -1,18 +1,21 @@
 from __future__ import division
+
+import numpy as np
+from scipy.ndimage import gaussian_filter
+from scipy.spatial import cKDTree
+
+from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
+from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
+from .FV3ModelGrid import FV3ModelGrid
+from .HREFv2ModelGrid import HREFv2ModelGrid
+from .HRRREModelGrid import HRRREModelGrid
+from .HRRRModelGrid import HRRRModelGrid
+from .HRRRZarrModelGrid import HRRRZarrModelGrid
+from .NCARModelGrid import NCARModelGrid
+from .NCARStormEventModelGrid import NCARStormEventModelGrid
 from .SSEFModelGrid import SSEFModelGrid
 from .VSEModelGrid import VSEModelGrid
-from .NCARModelGrid import NCARModelGrid
-from .FV3ModelGrid import FV3ModelGrid
-from .HRRRModelGrid import HRRRModelGrid
-from .HRRREModelGrid import HRRREModelGrid
-from .HREFv2ModelGrid import HREFv2ModelGrid
-from .HRRRZarrModelGrid import HRRRZarrModelGrid
-from .NCARStormEventModelGrid import NCARStormEventModelGrid
-from hagelslag.util.make_proj_grids import make_proj_grids, read_arps_map_file, read_ncar_map_file, get_proj_obj
-from hagelslag.util.derived_vars import relative_humidity_pressure_level, melting_layer_height
-import numpy as np
-from scipy.spatial import cKDTree
-from scipy.ndimage import gaussian_filter
+
 
 class ModelOutput(object):
     """
@@ -31,12 +34,13 @@ class ModelOutput(object):
 
         map_file (str): path to data map file
     """
-    def __init__(self, 
-                 ensemble_name, 
-                 member_name, 
-                 run_date, 
-                 variable, 
-                 start_date, 
+
+    def __init__(self,
+                 ensemble_name,
+                 member_name,
+                 run_date,
+                 variable,
+                 start_date,
                  end_date,
                  path,
                  map_file,
@@ -128,41 +132,41 @@ class ModelOutput(object):
             mg.close()
         elif self.ensemble_name.upper() == "HREFV2":
             mg = HREFv2ModelGrid(self.member_name,
-                               self.run_date,
-                               self.variable,
-                               self.start_date,
-                               self.end_date,
-                               self.path)
+                                 self.run_date,
+                                 self.variable,
+                                 self.start_date,
+                                 self.end_date,
+                                 self.path)
             self.data, self.units = mg.load_data()
-        
+
         elif self.ensemble_name.upper() == "HRRRE":
             mg = HRRREModelGrid(self.member_name,
-                               self.run_date,
-                               self.variable,
-                               self.start_date,
-                               self.end_date,
-                               self.path,
-                               single_step=self.single_step)
+                                self.run_date,
+                                self.variable,
+                                self.start_date,
+                                self.end_date,
+                                self.path,
+                                single_step=self.single_step)
             self.data, self.units = mg.load_data()
-        
+
         elif self.ensemble_name.upper() == "SAR-FV3":
             mg = FV3ModelGrid(self.member_name,
-                               self.run_date,
-                               self.variable,
-                               self.start_date,
-                               self.end_date,
-                               self.path,
-                               single_step=self.single_step)
+                              self.run_date,
+                              self.variable,
+                              self.start_date,
+                              self.end_date,
+                              self.path,
+                              single_step=self.single_step)
             self.data, self.units = mg.load_data()
 
         elif self.ensemble_name.upper() == "VSE":
             mg = VSEModelGrid(self.member_name,
-                               self.run_date,
-                               self.variable,
-                               self.start_date,
-                               self.end_date,
-                               self.path,
-                               single_step=self.single_step)
+                              self.run_date,
+                              self.variable,
+                              self.start_date,
+                              self.end_date,
+                              self.path,
+                              single_step=self.single_step)
             self.data, self.units = mg.load_data()
             mg.close()
         elif self.ensemble_name.upper() == "HRRR":
@@ -173,7 +177,7 @@ class ModelOutput(object):
                                self.path)
             self.data, self.units = mg.load_data()
             mg.close()
-            
+
         elif self.ensemble_name.upper() == "NCARSTORM":
             mg = NCARStormEventModelGrid(self.run_date,
                                          self.variable,
@@ -182,13 +186,13 @@ class ModelOutput(object):
                                          self.path)
             self.data, self.units = mg.load_data()
             mg.close()
-            
+
         elif self.ensemble_name.upper() == "HRRR-ZARR":
             mg = HRRRZarrModelGrid(self.run_date,
-                               self.variable,
-                               self.start_date,
-                               self.end_date,
-                               self.path)
+                                   self.variable,
+                                   self.start_date,
+                                   self.end_date,
+                                   self.path)
             self.data, self.units = mg.load_data()
         else:
             print(self.ensemble_name + " not supported.")
@@ -210,13 +214,14 @@ class ModelOutput(object):
             self.proj = get_proj_obj(proj_dict)
         else:
             proj_dict, grid_dict = read_ncar_map_file(map_file)
-            if self.member_name[0:7] == "1km_pbl": # Don't just look at the first 3 characters. You have to differentiate '1km_pbl1' and '1km_on_3km_pbl1'
+            if self.member_name[
+               0:7] == "1km_pbl":  # Don't just look at the first 3 characters. You have to differentiate '1km_pbl1' and '1km_on_3km_pbl1'
                 grid_dict["dx"] = 1000
                 grid_dict["dy"] = 1000
                 grid_dict["sw_lon"] = 258.697
                 grid_dict["sw_lat"] = 23.999
                 grid_dict["ne_lon"] = 282.868269206236
-                grid_dict["ne_lat"] = 36.4822338520542 
+                grid_dict["ne_lat"] = 36.4822338520542
 
             self.dx = int(grid_dict["dx"])
             mapping_data = make_proj_grids(proj_dict, grid_dict)
@@ -224,7 +229,6 @@ class ModelOutput(object):
                 setattr(self, m, v)
             self.i, self.j = np.indices(self.lon.shape)
             self.proj = get_proj_obj(proj_dict)
-
 
     def period_neighborhood_probability(self, radius, smoothing, threshold, stride, x=None, y=None, dx=None):
         """
@@ -259,4 +263,3 @@ class ModelOutput(object):
             if smoothing > 0:
                 neighbor_prob = gaussian_filter(neighbor_prob, smoothing)
         return neighbor_prob
-

@@ -1,13 +1,10 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap
-from hagelslag.evaluation import DistributedROC, DistributedReliability
-from scipy.ndimage import convolve
-from glob import glob
-import xarray as xr
 import os
 from os.path import join
+
+import numpy as np
+import pandas as pd
+
+from hagelslag.evaluation import DistributedROC, DistributedReliability
 
 eval_path = "/glade/p/work/dgagne/ncar_coarse_neighbor_eval_2016_s_2/"
 eval_files = sorted(os.listdir(eval_path))
@@ -29,10 +26,10 @@ for ev, eval_file in enumerate(eval_files):
         obs = eval_data.loc[us_mask, "MESH_Max_60min_00.50_{0:2d}".format(thresh)]
         for model in models:
             brier[thresh].loc[run_dates[ev], model] = DistributedReliability(thresholds=prob_thresholds)
-            brier[thresh].loc[run_dates[ev], model].update(eval_data.loc[us_mask, model], 
+            brier[thresh].loc[run_dates[ev], model].update(eval_data.loc[us_mask, model],
                                                            obs)
             roc[thresh].loc[run_dates[ev], model] = DistributedROC(thresholds=prob_thresholds)
-            roc[thresh].loc[run_dates[ev], model].update(eval_data.loc[us_mask, model], 
+            roc[thresh].loc[run_dates[ev], model].update(eval_data.loc[us_mask, model],
                                                          obs)
 out_path = "/glade/p/work/dgagne/ncar_coarse_neighbor_scores_2016/"
 for thresh in [25, 50, 75]:

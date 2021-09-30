@@ -1,18 +1,21 @@
-import pandas as pd
+import argparse
 import os
+import pickle
 import subprocess
+import traceback
+import warnings
+from datetime import datetime, timedelta
+from multiprocessing import Pool
+
 import numpy as np
+import pandas as pd
+import xarray as xr
+from netCDF4 import Dataset, date2num
 from scipy.interpolate import RectBivariateSpline
 from scipy.spatial import cKDTree
-import pickle
-from netCDF4 import Dataset, date2num
-from datetime import datetime, timedelta
+
 from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
-from multiprocessing import Pool
-import warnings
-import traceback
-import argparse
-import xarray as xr
+
 
 def main():
     warnings.simplefilter("ignore")
@@ -117,6 +120,7 @@ class MRMSGrid(object):
     MRMSGrid reads time series of MRMS grib2 files, interpolates them, and outputs them to netCDF4 format.
 
     """
+
     def __init__(self, start_date, end_date, variable, path_start, freq="1H"):
         self.start_date = start_date
         self.end_date = end_date
@@ -145,7 +149,7 @@ class MRMSGrid(object):
                 data_files = sorted(os.listdir(full_path))
                 file_dates = pd.to_datetime([d.split("_")[-1][0:13] for d in data_files])
                 if timestamp in file_dates:
-                    data_file = data_files[np.where(timestamp==file_dates)[0][0]]
+                    data_file = data_files[np.where(timestamp == file_dates)[0][0]]
                     print(full_path + data_file)
                     if data_file[-2:] == "gz":
                         subprocess.call(["gunzip", full_path + data_file])
@@ -217,7 +221,8 @@ class MRMSGrid(object):
             if len(nz_points[0]) > 0:
                 nz_vals = self.data[d][nz_points]
                 nz_rank = np.argsort(nz_vals)
-                original_points = cKDTree(np.vstack((self.lat[nz_points[0][nz_rank]], self.lon[nz_points[1][nz_rank]])).T)
+                original_points = cKDTree(
+                    np.vstack((self.lat[nz_points[0][nz_rank]], self.lon[nz_points[1][nz_rank]])).T)
                 all_neighbors = original_points.query_ball_tree(in_tree, radius, p=2, eps=0)
                 for n, neighbors in enumerate(all_neighbors):
                     if len(neighbors) > 0:
@@ -246,7 +251,7 @@ class MRMSGrid(object):
         out_obj.createDimension("time", out_data.shape[0])
         out_obj.createDimension("y", out_data.shape[1])
         out_obj.createDimension("x", out_data.shape[2])
-        data_var = out_obj.createVariable(self.variable, "f4", ("time", "y", "x"), zlib=True, 
+        data_var = out_obj.createVariable(self.variable, "f4", ("time", "y", "x"), zlib=True,
                                           fill_value=-9999.0,
                                           least_significant_digit=3)
         data_var[:] = out_data
@@ -270,7 +275,7 @@ class MRMSGrid(object):
         dates[:] = np.round(date2num(self.all_dates.to_pydatetime(), date_unit)).astype(np.int64)
         dates.long_name = "Valid date"
         dates.units = date_unit
-        out_obj.Conventions="CF-1.6"
+        out_obj.Conventions = "CF-1.6"
         out_obj.close()
         return
 

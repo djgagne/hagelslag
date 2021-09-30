@@ -1,7 +1,9 @@
-import pickle
-import numpy as np
-from hagelslag.util.Config import Config
 import argparse
+import pickle
+
+import numpy as np
+
+from hagelslag.util.Config import Config
 
 
 def main():

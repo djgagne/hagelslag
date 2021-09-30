@@ -1,7 +1,9 @@
-from .ModelGrid import ModelGrid
-import numpy as np
 import os
 from os.path import exists
+
+import numpy as np
+
+from .ModelGrid import ModelGrid
 
 
 class SSEFModelGrid(ModelGrid):
@@ -17,6 +19,7 @@ class SSEFModelGrid(ModelGrid):
         single_step (boolean (default=False)): Whether variable information is stored with each time step in a separate
             file or one file containing all timesteps.
     """
+
     def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=False):
         self.path = path
         self.member = member
@@ -31,9 +34,9 @@ class SSEFModelGrid(ModelGrid):
         potential_filenames = []
         if single_step:
             for hour in forecast_hours:
-                potential_filenames.append("{0}ar{1}00.net{2}{3:06d}".format(full_path, 
+                potential_filenames.append("{0}ar{1}00.net{2}{3:06d}".format(full_path,
                                                                              run_date.strftime("%Y%m%d"),
-                                                                             variable.ljust(6,"_"),
+                                                                             variable.ljust(6, "_"),
                                                                              int(hour) * 3600))
         else:
             potential_filenames.append("{0}ssef_{1}_{2}_{3}.nc".format(full_path,

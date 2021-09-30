@@ -1,6 +1,8 @@
-from .ModelGrid import ModelGrid
-import numpy as np
 from datetime import timedelta
+
+import numpy as np
+
+from .ModelGrid import ModelGrid
 
 
 class NCARModelGrid(ModelGrid):
@@ -16,6 +18,7 @@ class NCARModelGrid(ModelGrid):
         single_step (boolean (default=False)): Whether variable information is stored with each time step in a separate
             file or one file containing all timesteps.
     """
+
     def __init__(self, member, run_date, variable, start_date, end_date, path, single_step=False):
         self.member = member
         self.path = path

@@ -1,17 +1,20 @@
-import numpy as np
-import pandas as pd
-import pickle
 import json
 import os
-from sklearn.decomposition import PCA
+import pickle
 from copy import deepcopy
 from glob import glob
 from multiprocessing import Pool
-from sklearn.linear_model import LinearRegression
-from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
 from os.path import join
-from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
+
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
+
+from hagelslag.evaluation.ProbabilityMetrics import DistributedROC
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file
+
 
 class TrackModeler(object):
     """
@@ -30,7 +33,7 @@ class TrackModeler(object):
                  weighting_function,
                  map_file,
                  group_col="Microphysics"):
-        
+
         self.train_data_path = train_data_path
         self.forecast_data_path = forecast_data_path
         self.ensemble_name = ensemble_name
@@ -50,8 +53,8 @@ class TrackModeler(object):
 
         if self.map_file[-3:] == "map":
             self.proj_dict, self.grid_dict = read_arps_map_file(self.map_file)
-        else:                                               
-            self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)   
+        else:
+            self.proj_dict, self.grid_dict = read_ncar_map_file(self.map_file)
         return
 
     def load_data(self, mode="train", format="csv"):
@@ -66,7 +69,7 @@ class TrackModeler(object):
         """
         if mode in self.data.keys():
             run_dates = pd.date_range(start=self.start_dates[mode],
-                                         end=self.end_dates[mode], freq="1D")
+                                      end=self.end_dates[mode], freq="1D")
             run_date_str = [d.strftime("%Y%m%d-%H%M") for d in run_dates.date]
             print(np.unique(run_dates.strftime('%Y%m')))
             all_total_track_files = sorted(glob(getattr(self, mode + "_data_path") +
@@ -84,12 +87,13 @@ class TrackModeler(object):
                 if file_date in run_date_str:
                     step_track_files.append(step_file)
 
-            self.data[mode]["total"] = pd.concat(map(pd.read_csv, total_track_files),
-                                                 ignore_index=True,sort='True')
+            self.data[mode]["total"] = pd.concat([pd.read_csv(total_track_file)
+                                                  for total_track_file in total_track_files],
+                                                 ignore_index=True, sort='True')
             self.data[mode]["total"] = self.data[mode]["total"].fillna(value=0)
             self.data[mode]["total"] = self.data[mode]["total"].replace([np.inf, -np.inf], 0)
             self.data[mode]["step"] = pd.concat(map(pd.read_csv, step_track_files),
-                                                ignore_index=True,sort='True')
+                                                ignore_index=True, sort='True')
             self.data[mode]["step"] = self.data[mode]["step"].fillna(value=0)
             self.data[mode]["step"] = self.data[mode]["step"].replace([np.inf, -np.inf], 0)
             if mode == "forecast":
@@ -316,8 +320,8 @@ class TrackModeler(object):
                 self.size_distribution_models[group]["multi"][model_name] = deepcopy(model_objs[m])
                 try:
                     self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
-                                                                   (log_labels - log_means) / log_sds,
-                                                                               sample_weight=weights)
+                                                                                  (log_labels - log_means) / log_sds,
+                                                                                  sample_weight=weights)
                 except:
                     self.size_distribution_models[group]["multi"][model_name].fit(group_data[input_columns],
                                                                                   (log_labels - log_means) / log_sds)
@@ -389,10 +393,10 @@ class TrackModeler(object):
                             "pc_{0:d}".format(comp)][model_name].fit(group_data[input_columns],
                                                                      out_pc_labels[:, comp])
         return
-    
+
     def predict_size_distribution_models(self, model_names, input_columns, metadata_cols,
-                                        data_mode="forecast", location=6, 
-                                        calibrate=False):
+                                         data_mode="forecast", location=6,
+                                         calibrate=False):
         """
         Make predictions using fitted size distribution models. Each ML model predicts the normalized shape
         and scale parameters simultaneously using multitask learning. Only scikit learn models that support
@@ -419,7 +423,7 @@ class TrackModeler(object):
                 log_sd = self.size_distribution_models[group]["lognorm"]["sd"]
                 for m, model_name in enumerate(model_names):
                     multi_predictions = self.size_distribution_models[group]["multi"][model_name].predict(
-                        self.data[data_mode]["combo"].loc[group_idxs,input_columns])
+                        self.data[data_mode]["combo"].loc[group_idxs, input_columns])
                     if calibrate:
                         multi_predictions[:, 0] = self.size_distribution_models[group]["calshape"][model_name].predict(
                             multi_predictions[:, 0:1])
@@ -428,9 +432,9 @@ class TrackModeler(object):
                     multi_predictions = np.exp(multi_predictions * log_sd + log_mean)
                     if multi_predictions.shape[1] == 2:
                         multi_predictions_temp = np.zeros((multi_predictions.shape[0], 3))
-                        multi_predictions_temp[:, 0] = multi_predictions[:,0]
+                        multi_predictions_temp[:, 0] = multi_predictions[:, 0]
                         multi_predictions_temp[:, 1] = location
-                        multi_predictions_temp[:, 2] = multi_predictions[:,1]
+                        multi_predictions_temp[:, 2] = multi_predictions[:, 1]
                     for p, pred_col in enumerate(["shape", "location", "scale"]):
                         predictions.loc[group_idxs, model_name.replace(" ", "-") + "_" + pred_col] = \
                             multi_predictions_temp[:, p]
@@ -844,9 +848,7 @@ class TrackModeler(object):
 
     def output_forecasts_json_parallel(self, forecasts,
                                        condition_model_names,
-                                       size_model_names,
                                        dist_model_names,
-                                       track_model_names,
                                        json_data_path,
                                        out_path,
                                        num_procs):
@@ -864,17 +866,9 @@ class TrackModeler(object):
             for ml_model in condition_model_names:
                 step_forecasts["condition_" + ml_model.replace(" ", "-")] = forecasts["condition"][group].loc[
                     forecasts["condition"][group]["Track_ID"] == track_id, ml_model].copy()
-            # for ml_model in size_model_names:
-            #    step_forecasts["size_" + ml_model.replace(" ", "-")] = forecasts["size"][group][ml_model].loc[
-            #        forecasts["size"][group][ml_model]["Track_ID"] == track_id].copy()
             for ml_model in dist_model_names:
                 step_forecasts["dist_" + ml_model.replace(" ", "-")] = forecasts["dist"][group][ml_model].loc[
                     forecasts["dist"][group][ml_model]["Track_ID"] == track_id].copy()
-            # for model_type in forecasts["track"].keys():
-            #    for ml_model in track_model_names:
-            #        mframe = forecasts["track"][model_type][group][ml_model]
-            #        step_forecasts[model_type + "_" + ml_model.replace(" ", "-")] = mframe.loc[
-            #            mframe["Track_ID"] == track_id].copy()
             pool.apply_async(output_forecast, (step_forecasts, run_date, ensemble_name, member, track_num,
                                                json_data_path,
                                                out_path))
@@ -925,6 +919,3 @@ def output_forecast(step_forecasts, run_date, ensemble_name, member, track_num, 
         print(out_json_filename + " not found")
         return
     return
-    
-
-

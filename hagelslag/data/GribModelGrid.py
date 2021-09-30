@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+import datetime
+from os.path import exists
+
+import numpy as np
 import pandas as pd
 import pygrib
-import numpy as np
-from os.path import exists
-import datetime
 from netCDF4 import Dataset
 
 
@@ -81,11 +81,11 @@ class GribModelGrid(object):
             data values of unknown variable name, given the ID.
         """
         names = self.unknown_names
-        Id = None
+        grib_id = None
         for key, value in names.items():
             if selected_variable == value:
-                Id = key
-        return Id, None
+                grib_id = key
+        return grib_id, None
 
     def load_lightning_data(self):
         """
@@ -135,11 +135,7 @@ class GribModelGrid(object):
             if type(self.variable) is int:
                 data_values = grib[self.variable].values
                 print(grib[self.variable])
-                if grib[self.variable].units == 'unknown':
-                    Id = grib[self.variable].parameterNumber
-                    # units = self.unknown_units[Id]
-                # else:
-                # units = grib[self.variable].units
+
             elif type(self.variable) is str:
                 if '_' in self.variable:
                     # Multiple levels

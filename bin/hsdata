@@ -1,17 +1,17 @@
 #!/usr/bin/env python
-import argparse, pdb
-from multiprocessing import Pool
-from hagelslag.util.Config import Config
-from hagelslag.processing.TrackProcessing import TrackProcessor
-from hagelslag.util.make_proj_grids import read_ncar_map_file
-from hagelslag.util.create_sector_grid_data import SectorProcessor
-from datetime import timedelta
-import pandas as pd
-import numpy as np
+import argparse
 import os
 import traceback
-from netCDF4 import Dataset, date2num
+from datetime import timedelta
+from multiprocessing import Pool
 from os.path import join, exists
+
+import numpy as np
+import pandas as pd
+from netCDF4 import Dataset
+
+from hagelslag.processing.TrackProcessing import TrackProcessor
+from hagelslag.util.Config import Config
 
 
 def main():
@@ -126,13 +126,13 @@ def process_ensemble_member(run_date, member, config):
         if config.train:
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
-        
+
         print("Find model tracks", run_date, member)
         if patch_radius is None:
             model_tracks = track_proc.find_model_tracks()
         else:
             model_tracks = track_proc.find_model_patch_tracks()
-        
+
         if model_tracks:
             print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
             print("Extract model attributes", run_date, member)
@@ -154,62 +154,65 @@ def process_ensemble_member(run_date, member, config):
                         track_errors = None
                     else:
                         track_pairings = track_proc.match_tracks(model_tracks, mrms_tracks,
-                                                             unique_matches=config.unique_matches,
-                                                             closest_matches=config.closest_matches)
+                                                                 unique_matches=config.unique_matches,
+                                                                 closest_matches=config.closest_matches)
                         track_proc.match_size_distributions(model_tracks, mrms_tracks, track_pairings)
                         track_errors = track_proc.calc_track_errors(model_tracks,
-                                                                mrms_tracks,
-                                                                track_pairings)
+                                                                    mrms_tracks,
+                                                                    track_pairings)
                     print("Output data", run_date, member)
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member,
-                                                         config, track_proc.model_grid.proj, mrms_tracks, track_errors)
+                                                             config, track_proc.model_grid.proj, mrms_tracks,
+                                                             track_errors)
                     if patch_radius is not None:
                         print("Output netCDF", run_date, member)
                         forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                     if config.json:
                         print("Output json", run_date, member)
                         forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
-                                            observed_tracks=mrms_tracks,
-                                            track_errors=track_errors)
+                                                observed_tracks=mrms_tracks,
+                                                track_errors=track_errors)
                     obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                     if config.json:
                         obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                     print("Output csv", run_date, member)
                     for table_name, table_data in obs_data.items():
                         csv_filename = join(config.csv_path, "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                                  "obs",
-                                                                                  member,
-                                                                                  run_date.strftime(
-                                                                                      config.run_date_format)))
+                                                                                          "obs",
+                                                                                          member,
+                                                                                          run_date.strftime(
+                                                                                              config.run_date_format)))
                         table_data.to_csv(csv_filename,
-                                      na_rep="nan",
-                                      float_format="%0.5f",
-                                      index=False)
+                                          na_rep="nan",
+                                          float_format="%0.5f",
+                                          index=False)
                         os.chmod(csv_filename, 0o666)
                 else:
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
-                                                         track_proc.model_grid.proj)
+                                                             track_proc.model_grid.proj)
                     if patch_radius is not None:
                         forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                     if config.json:
                         forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
             elif len(model_tracks) > 0:
                 print(run_date, member, "Make Forecast Track Data")
-                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
+                forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
+                                                         track_proc.model_grid.proj)
                 if patch_radius is not None:
                     print(run_date, member, "Track Data to netCDF")
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
-            print('No {0} {1} modeled tracks found'.format(run_date,member))
+            print('No {0} {1} modeled tracks found'.format(run_date, member))
             forecast_data = {}
 
         for table_name, table_data in forecast_data.items():
             csv_filename = join(config.csv_path, "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                          config.ensemble_name,
-                                                                          member,
-                                                                          run_date.strftime(config.run_date_format)))
+                                                                              config.ensemble_name,
+                                                                              member,
+                                                                              run_date.strftime(
+                                                                                  config.run_date_format)))
             print("Output csv file " + csv_filename)
             table_data.to_csv(csv_filename,
                               na_rep="nan",
@@ -264,7 +267,7 @@ def process_observed_tracks(run_date, member, config):
         mrms_tracks = track_proc.find_mrms_tracks()
         if len(mrms_tracks) > 0:
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-            if config.json:       
+            if config.json:
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
             # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
             #    try:
@@ -339,9 +342,9 @@ def rematch_ensemble_tracks(run_date, member, config):
                                            )
             for table_name, table_data in obs_data.items():
                 table_data.to_csv(join(config.csv_path, "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                                 "obs",
-                                                                                 member,
-                                                                                 run_date.strftime("%Y%m%d"))),
+                                                                                     "obs",
+                                                                                     member,
+                                                                                     run_date.strftime("%Y%m%d"))),
                                   na_rep="nan",
                                   float_format="%0.5f",
                                   index=False)
@@ -351,9 +354,9 @@ def rematch_ensemble_tracks(run_date, member, config):
             forecast_data = {}
         for table_name, table_data in forecast_data.items():
             table_data.to_csv(join(config.csv_path, "{0}_{1}_{2}_{3}.csv".format(table_name,
-                                                                             config.ensemble_name,
-                                                                             member,
-                                                                             run_date.strftime("%Y%m%d"))),
+                                                                                 config.ensemble_name,
+                                                                                 member,
+                                                                                 run_date.strftime("%Y%m%d"))),
                               na_rep="nan",
                               float_format="%0.5f",
                               index=False)
@@ -483,11 +486,11 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
             else:
                 if forecast_track.observations is not None:
                     num_labels = len(forecast_track.observations)
-                    for l in range(num_labels):
+                    for label in range(num_labels):
                         if config.label_type == "gamma":
-                            hail_label = forecast_track.observations[l].loc[step].values.tolist()
+                            hail_label = forecast_track.observations[label].loc[step].values.tolist()
                         else:
-                            hail_label = [forecast_track.observations[l].loc[step, "Max_Hail_Size"]]
+                            hail_label = [forecast_track.observations[label].loc[step, "Max_Hail_Size"]]
                         forecast_data['track_step'].loc[track_step_count] = record + hail_label
                         track_step_count += 1
                 else:
@@ -545,11 +548,11 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
                 except OSError:
                     print("directory already created")
 
-        json_filename = config.geojson_path + "/".join(full_path) + \
-                        "/{0}_{1}_{2}_model_track_{3:03d}.json".format(ensemble_name,
-                                                                       run_date.strftime("%Y%m%d"),
-                                                                       member,
-                                                                       f)
+        json_filename = join(config.geojson_path, "/".join(full_path),
+                             "{0}_{1}_{2}_model_track_{3:03d}.json".format(ensemble_name,
+                                                                           run_date.strftime("%Y%m%d"),
+                                                                           member,
+                                                                           f))
         json_metadata = dict(id=track_id,
                              ensemble_name=ensemble_name,
                              ensemble_member=member,
@@ -662,7 +665,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
     if hasattr(config, "future_variables"):
         for f_variable in config.future_variables:
             out_file.variables[f_variable + "_future"][:] = np.vstack([f_track.attributes[f_variable + "-future"]
-                                                                 for f_track in forecast_tracks])
+                                                                       for f_track in forecast_tracks])
     if config.train:
         for label_column in label_columns:
             try:
@@ -672,12 +675,12 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
                 out_file.variables[label_column][:] = 0
 
     # Save configuration dictionary as global attributes.
-    for k,v in config.__dict__.items():
+    for k, v in config.__dict__.items():
         # Don't save attributes that are already netCDF varaible names
-        if k=="dates": continue
-        if k=="storm_variables": continue
-        if k=="potential_variables": continue
-        if k=="tendency_variables": continue
+        if k == "dates": continue
+        if k == "storm_variables": continue
+        if k == "potential_variables": continue
+        if k == "tendency_variables": continue
         v = str(v)
         # Don't clobber existing attribute.
         if hasattr(out_file, k):
@@ -685,7 +688,7 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             alt_key = "config_" + k
             if hasattr(out_file, alt_key):
                 # If alternative key exists too, raise attribute error.
-                raise AttributeError("Can't save "+k+":"+" "+v+" as global attribute. It already exists.")
+                raise AttributeError("Can't save " + k + ":" + " " + v + " as global attribute. It already exists.")
             else:
                 setattr(out_file, alt_key, v)
         else:

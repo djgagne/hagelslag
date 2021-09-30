@@ -1,7 +1,8 @@
-from netCDF4 import Dataset
-import numpy as np
-from pandas import date_range
 from os.path import exists
+
+import numpy as np
+from netCDF4 import Dataset
+from pandas import date_range
 
 
 class ModelGrid(object):
@@ -21,10 +22,11 @@ class ModelGrid(object):
         forecast_hours: array of all hours in the forecast
         file_objects (list): List of the file objects for each model time step
     """
-    def __init__(self, 
-                 filenames, 
-                 run_date, 
-                 start_date, 
+
+    def __init__(self,
+                 filenames,
+                 run_date,
+                 start_date,
                  end_date,
                  variable,
                  frequency="1H"):
@@ -35,8 +37,8 @@ class ModelGrid(object):
         self.end_date = np.datetime64(end_date)
         self.frequency = frequency
         self.valid_dates = date_range(start=self.start_date,
-                                         end=self.end_date,
-                                         freq=self.frequency)
+                                      end=self.end_date,
+                                      freq=self.frequency)
         self.forecast_hours = (self.valid_dates.values - self.run_date).astype("timedelta64[h]").astype(int)
         self.file_objects = []
         self.__enter__()
@@ -164,4 +166,3 @@ class ModelGrid(object):
         Close links to all open file objects and delete the objects.
         """
         self.__exit__()
-

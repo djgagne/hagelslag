@@ -1,10 +1,11 @@
+from os.path import exists
+
 import numpy as np
 import pandas as pd
-from pyproj import Proj
 import pygrib
-from scipy.spatial import cKDTree
+from pyproj import Proj
 from scipy.ndimage import gaussian_filter
-from os.path import exists
+from scipy.spatial import cKDTree
 
 
 class HailForecastGrid(object):
@@ -33,6 +34,7 @@ class HailForecastGrid(object):
         proj (Proj): a pyproj projection object used for converting lat-lon points to x-y coordinate values
         projparams (dict): PROJ4 parameters describing map projection
     """
+
     def __init__(self, run_date, start_date, end_date, ensemble_name, ml_model, members,
                  variable, message_number, path):
         self.run_date = run_date
@@ -91,7 +93,7 @@ class HailForecastGrid(object):
                 grbs.close()
         return
 
-    def period_neighborhood_probability(self, radius, smoothing, threshold, stride,start_time,end_time):
+    def period_neighborhood_probability(self, radius, smoothing, threshold, stride, start_time, end_time):
         """
         Calculate the neighborhood probability over the full period of the forecast
 
@@ -110,14 +112,15 @@ class HailForecastGrid(object):
         neighbor_prob = np.zeros((self.data.shape[0], neighbor_x.shape[0], neighbor_x.shape[1]))
         print('Forecast Hours: {0}-{1}'.format(start_time, end_time))
         for m in range(len(self.members)):
-            period_max = self.data[m,start_time:end_time,:,:].max(axis=0)
+            period_max = self.data[m, start_time:end_time, :, :].max(axis=0)
             valid_i, valid_j = np.where(period_max >= threshold)
             print(self.members[m], len(valid_i))
             if len(valid_i) > 0:
                 var_kd_tree = cKDTree(np.vstack((self.x[valid_i, valid_j], self.y[valid_i, valid_j])).T)
-                exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(int)
+                exceed_points = np.unique(np.concatenate(var_kd_tree.query_ball_tree(neighbor_kd_tree, radius))).astype(
+                    int)
                 exceed_i, exceed_j = np.unravel_index(exceed_points, neighbor_x.shape)
                 neighbor_prob[m][exceed_i, exceed_j] = 1
                 if smoothing > 0:
-                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], smoothing,mode='constant')
+                    neighbor_prob[m] = gaussian_filter(neighbor_prob[m], smoothing, mode='constant')
         return neighbor_prob

@@ -1,5 +1,6 @@
-from setuptools import setup
 import os
+
+from setuptools import setup
 
 classifiers = ['Development Status :: 4 - Beta',
                'Intended Audience :: Science/Research',
@@ -32,11 +33,11 @@ if __name__ == "__main__":
           license="MIT",
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
-          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter", 
-                "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"],
-          data_files=[("mapfiles", ["mapfiles/ssef2013.map", 
-                                    "mapfiles/ssef2014.map", 
-                                    "mapfiles/ssef2015.map", 
+          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter",
+                   "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"],
+          data_files=[("mapfiles", ["mapfiles/ssef2013.map",
+                                    "mapfiles/ssef2014.map",
+                                    "mapfiles/ssef2015.map",
                                     "mapfiles/ncar_grib_table.txt",
                                     "mapfiles/hrrr_map_2016.txt",
                                     "mapfiles/ncar_ensemble_map_2015.txt",

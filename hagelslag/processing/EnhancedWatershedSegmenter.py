@@ -10,9 +10,10 @@
 @author: David John Gagne (djgagne@ou.edu)
 """
 
+from collections import OrderedDict
+
 import numpy as np
 from scipy.ndimage import find_objects
-from collections import OrderedDict
 
 
 class EnhancedWatershed(object):

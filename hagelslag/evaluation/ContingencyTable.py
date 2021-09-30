@@ -16,6 +16,7 @@ class ContingencyTable(object):
         N: total number of items in table
 
     """
+
     def __init__(self, a, b, c, d):
         self.table = np.array([[a, b], [c, d]], dtype=float)
         self.N = self.table.sum()
@@ -111,8 +112,8 @@ class ContingencyTable(object):
     def hss(self):
         """Doolittle (Heidke) Skill Score.  2(ad-bc)/((a+b)(b+d) + (a+c)(c+d))"""
         return 2 * (self.table[0, 0] * self.table[1, 1] - self.table[0, 1] * self.table[1, 0]) / (
-            (self.table[0, 0] + self.table[0, 1]) * (self.table[0, 1] + self.table[1, 1]) +
-            (self.table[0, 0] + self.table[1, 0]) * (self.table[1, 0] + self.table[1, 1]))
+                (self.table[0, 0] + self.table[0, 1]) * (self.table[0, 1] + self.table[1, 1]) +
+                (self.table[0, 0] + self.table[1, 0]) * (self.table[1, 0] + self.table[1, 1]))
 
     def pss(self):
         """Peirce (Hansen-Kuipers, True) Skill Score (ad - bc)/((a+c)(b+d))"""

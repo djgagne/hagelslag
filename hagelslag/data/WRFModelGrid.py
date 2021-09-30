@@ -1,14 +1,16 @@
-from netCDF4 import Dataset
-from os.path import isdir, exists, join
-import numpy as np
 from glob import glob
+from os.path import isdir, exists, join
+
 import arrow
+import numpy as np
+from netCDF4 import Dataset
 
 
 class WRFModelGrid(object):
     """
     Load data from raw WRF model output files.
     """
+
     def __init__(self, forecast_date, variable, domain, path, nocolons=False):
         self.forecast_date = arrow.get(forecast_date)
         self.variable = variable
@@ -47,7 +49,7 @@ class WRFModelGrid(object):
             if time_var in var_list:
                 for attr in patch_zero.variables[time_var].ncattrs():
                     var_attrs[attr] = getattr(patch_zero.variables[time_var], attr)
-                var_val = patch_zero.variables[time_var][:]        
+                var_val = patch_zero.variables[time_var][:]
             patch_zero.close()
         else:
             wrf_data = Dataset(join(self.path, self.wrf_filename))
@@ -55,9 +57,9 @@ class WRFModelGrid(object):
             if time_var in var_list:
                 for attr in wrf_data.variables[time_var].ncattrs():
                     var_attrs[attr] = getattr(wrf_data.variables[time_var], attr)
-                var_val = wrf_data.variables[time_var][:]   
+                var_val = wrf_data.variables[time_var][:]
             wrf_data.close()
-        return var_val, var_attrs 
+        return var_val, var_attrs
 
     def load_full_grid(self):
         var_data = None
@@ -149,7 +151,7 @@ class WRFModelGrid(object):
                     else:
                         var_attrs[attr] = getattr(wrf_data.variables[self.variable], attr)
 
-                var_data = wrf_data.variables[self.variable][:] 
+                var_data = wrf_data.variables[self.variable][:]
                 if np.any(is_stag):
                     stag_dim = np.where(is_stag)[0][0]
                     if stag_dim == 1:
