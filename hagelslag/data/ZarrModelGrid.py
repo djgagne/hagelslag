@@ -1,10 +1,10 @@
+from os.path import join
+
 import numpy as np
 import pandas as pd
-from pandas import date_range
-from os.path import exists, join
 import s3fs
 import xarray as xr
-from datetime import timedelta
+from pandas import date_range
 
 
 class ZarrModelGrid(object):
@@ -23,6 +23,7 @@ class ZarrModelGrid(object):
         valid_dates: DatetimeIndex of all model timesteps
         forecast_hours: array of all hours in the forecast
     """
+
     def __init__(self,
                  path,
                  run_date,

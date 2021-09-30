@@ -1,12 +1,13 @@
-import pandas as pd
-import numpy as np
-import json
 import argparse
-from os.path import exists
-from multiprocessing import Pool
-from glob import glob
-from datetime import datetime
+import json
 import traceback
+from datetime import datetime
+from glob import glob
+from multiprocessing import Pool
+from os.path import exists
+
+import pandas as pd
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -37,6 +38,7 @@ def main():
         else:
             output[0].to_csv(out_file, mode="w", index_label="Step_ID")
         return
+
     csv_files = sorted(glob(args.csv + "track_step_{0}_*.csv".format(args.ens)))
     print(csv_files)
     for csv_file in csv_files:
@@ -83,20 +85,20 @@ def merge_input_csv_forecast_json(input_csv_file, forecast_json_path, condition_
             for param in gamma_params:
                 model_pred_cols.append(dist_model.replace(" ", "-") + "_" + param)
         pred_data = pd.DataFrame(index=input_data.index, columns=model_pred_cols,
-                                dtype=float)
+                                 dtype=float)
         for track_id in track_ids:
             track_id_num = track_id.split("_")[-1]
             json_filename = full_json_path + "{0}_{1}_{2}_model_track_{3}.json".format(ens_name,
-                                                                                    run_date,
-                                                                                    ens_member,
-                                                                                    track_id_num)
+                                                                                       run_date,
+                                                                                       ens_member,
+                                                                                       track_id_num)
             json_file = open(json_filename)
             json_data = json.load(json_file)
             json_file.close()
             for s, step in enumerate(json_data["features"]):
                 step_id = track_id + "_{0:02d}".format(s)
                 for cond_model in condition_models_ns:
-                    pred_data.loc[step_id, cond_model + "_Condition"]  = step["properties"]["condition_" + cond_model]
+                    pred_data.loc[step_id, cond_model + "_Condition"] = step["properties"]["condition_" + cond_model]
                 for dist_model in dist_models_ns:
                     pred_data.loc[step_id, [dist_model + "_" + p
                                             for p in gamma_params]] = step["properties"]["dist_" + dist_model]
@@ -105,6 +107,7 @@ def merge_input_csv_forecast_json(input_csv_file, forecast_json_path, condition_
     except Exception as e:
         print(traceback.format_exc())
         raise e
+
+
 if __name__ == "__main__":
     main()
-

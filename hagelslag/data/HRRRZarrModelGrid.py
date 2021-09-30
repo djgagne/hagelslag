@@ -1,7 +1,6 @@
-import numpy as np
 import pandas as pd
+
 from hagelslag.data.ZarrModelGrid import ZarrModelGrid
-from os.path import join
 
 
 class HRRRZarrModelGrid(ZarrModelGrid):

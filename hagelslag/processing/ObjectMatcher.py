@@ -1,6 +1,7 @@
 import numpy as np
-from hagelslag.util.munkres import Munkres
 import pandas as pd
+
+from hagelslag.util.munkres import Munkres
 
 
 class ObjectMatcher(object):
@@ -183,6 +184,7 @@ class TrackStepMatcher(object):
     """
     Determine if each step in a track is in close proximity to steps from another set of tracks
     """
+
     def __init__(self, cost_function_components, max_values):
         self.cost_function_components = cost_function_components
         self.max_values = max_values

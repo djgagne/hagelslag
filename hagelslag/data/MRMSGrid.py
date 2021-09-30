@@ -1,9 +1,10 @@
-from netCDF4 import Dataset, num2date
-import pandas as pd
-import numpy as np
 import os
-from scipy.spatial import cKDTree
+
+import numpy as np
+import pandas as pd
+from netCDF4 import Dataset, num2date
 from scipy.ndimage import gaussian_filter
+from scipy.spatial import cKDTree
 
 
 class MRMSGrid(object):
@@ -31,6 +32,7 @@ class MRMSGrid(object):
         data (ndarray or None): Array of gridded observations after load_data is called. None otherwise.
         valid_dates (ndarray): Contains the dates where data loaded successfully.
     """
+
     def __init__(self, start_date, end_date, variable, path, freq="1H"):
         self.start_date = start_date
         self.end_date = end_date
@@ -49,7 +51,7 @@ class MRMSGrid(object):
         valid_dates = []
         mrms_files = np.array(sorted(os.listdir(self.path + self.variable + "/")))
         mrms_file_dates = np.array([m_file.split("_")[-2].split("-")[0]
-            for m_file in mrms_files])
+                                    for m_file in mrms_files])
         old_mrms_file = None
         file_obj = None
         for t in range(self.all_dates.shape[0]):
@@ -60,8 +62,8 @@ class MRMSGrid(object):
                     if file_obj is not None:
                         file_obj.close()
                     file_obj = Dataset(self.path + self.variable + "/" + mrms_file)
-                    #old_mrms_file = mrms_file
-                    
+                    # old_mrms_file = mrms_file
+
                     if "time" in file_obj.variables.keys():
                         time_var = "time"
                     else:
@@ -76,7 +78,7 @@ class MRMSGrid(object):
                     valid_dates.append(self.all_dates[t])
         if file_obj is not None:
             file_obj.close()
-        
+
         self.data = np.array(data)
         self.data[self.data < 0] = 0
         self.data[self.data > 150] = 150

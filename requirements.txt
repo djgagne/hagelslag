@@ -10,4 +10,9 @@ scikit-image
 pygrib
 arrow>=0.8
 cython
-ncepgrib2
+grib2io
+s3fs
+xarray
+sphinx
+pytest
+mock

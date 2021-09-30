@@ -2,9 +2,8 @@
 """
 Read a scikit-learn tree ensemble object and output the object into a human-readable text format.
 """
-import pickle
 import argparse
-
+import pickle
 
 __author__ = "David John Gagne <djgagne@ou.edu>"
 __copyright__ = "Copyright 2015, David John Gagne"
@@ -61,10 +60,10 @@ def output_tree_ensemble(tree_ensemble_obj, output_filename, attribute_names=Non
     for t, tree in enumerate(tree_ensemble_obj.estimators_):
         print("Writing Tree {0:d}".format(t))
         out_file = open(output_filename + ".{0:d}.tree", "w")
-        #out_file.write("Tree {0:d}\n".format(t))
+        # out_file.write("Tree {0:d}\n".format(t))
         tree_str = print_tree_recursive(tree.tree_, 0, attribute_names)
         out_file.write(tree_str)
-        #out_file.write("\n")
+        # out_file.write("\n")
         out_file.close()
     return
 
@@ -114,6 +113,7 @@ def print_tree_recursive(tree_obj, node_index, attribute_names=None):
     if tree_obj.children_right[node_index] > 0:
         tree_str += print_tree_recursive(tree_obj, tree_obj.children_right[node_index], attribute_names)
     return tree_str
+
 
 if __name__ == "__main__":
     main()

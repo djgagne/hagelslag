@@ -1,5 +1,6 @@
-from setuptools import setup
 import os
+
+from setuptools import setup
 
 classifiers = ['Development Status :: 4 - Beta',
                'Intended Audience :: Science/Research',
@@ -7,8 +8,10 @@ classifiers = ['Development Status :: 4 - Beta',
                'Programming Language :: Python :: 2',
                'Programming Language :: Python :: 2.7',
                'Programming Language :: Python :: 3',
-               'Programming Language :: Python :: 3.5',
                'Programming Language :: Python :: 3.6',
+               'Programming Language :: Python :: 3.7',
+               'Programming Language :: Python :: 3.8',
+               'Programming Language :: Python :: 3.9',
                ]
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -22,7 +25,7 @@ if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
 
     setup(name="hagelslag",
-          version="0.4.0b1",
+          version="0.4.1b1",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
           author_email="dgagne@ucar.edu",
@@ -30,11 +33,11 @@ if __name__ == "__main__":
           license="MIT",
           url="https://github.com/djgagne/hagelslag",
           packages=["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"],
-          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter", 
-                "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"],
-          data_files=[("mapfiles", ["mapfiles/ssef2013.map", 
-                                    "mapfiles/ssef2014.map", 
-                                    "mapfiles/ssef2015.map", 
+          scripts=["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter",
+                   "bin/hswrf3d", "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"],
+          data_files=[("mapfiles", ["mapfiles/ssef2013.map",
+                                    "mapfiles/ssef2014.map",
+                                    "mapfiles/ssef2015.map",
                                     "mapfiles/ncar_grib_table.txt",
                                     "mapfiles/hrrr_map_2016.txt",
                                     "mapfiles/ncar_ensemble_map_2015.txt",

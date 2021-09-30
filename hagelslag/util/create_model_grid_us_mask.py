@@ -1,11 +1,12 @@
-from skimage.draw import polygon
+import argparse
+
 import numpy as np
 import shapefile
 from netCDF4 import Dataset
-from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 from pyproj import Proj
-import argparse
-import matplotlib.pyplot as plt
+from skimage.draw import polygon
+
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 
 
 def main():
@@ -19,9 +20,9 @@ def main():
     print("Creating mask grid")
     mask_grid = create_mask_grid(args.shape, mapping_data, proj_dict, grid_dict)
     output_netcdf_file(args.out, mask_grid, proj_dict, grid_dict)
-    #plt.figure(figsize=(10, 6))
-    #plt.contourf(mapping_data["lon"], mapping_data["lat"], mask_grid, cmap="Reds", vmin=0, vmax=1)
-    #plt.show()
+    # plt.figure(figsize=(10, 6))
+    # plt.contourf(mapping_data["lon"], mapping_data["lat"], mask_grid, cmap="Reds", vmin=0, vmax=1)
+    # plt.show()
     return
 
 
@@ -42,7 +43,7 @@ def create_mask_grid(mask_shape_file, mapping_data, proj_dict, grid_dict):
     sf = shapefile.Reader(mask_shape_file)
     s = 0
     for state_shape in sf.shapeRecords():
-        print(s, state_shape.record[4]) #changed [5])
+        print(s, state_shape.record[4])  # changed [5])
         part_start = list(state_shape.shape.parts)
         part_end = list(state_shape.shape.parts[1:]) + [len(state_shape.shape.points)]
         for p in range(len(part_start)):

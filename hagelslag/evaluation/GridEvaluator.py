@@ -1,9 +1,11 @@
-from netCDF4 import Dataset
+from datetime import timedelta
+
 import numpy as np
+from netCDF4 import Dataset
+from scipy.ndimage import binary_dilation
+
 from hagelslag.data.MRMSGrid import MRMSGrid
 from hagelslag.evaluation.ProbabilityMetrics import DistributedROC, DistributedReliability
-from datetime import timedelta
-from scipy.ndimage import binary_dilation
 
 
 class GridEvaluator(object):
@@ -45,6 +47,7 @@ class GridEvaluator(object):
     mask_variable : str, optional (default="RadarQualityIndex_00.00")
         Name of the MRMS variable used for masking.
     """
+
     def __init__(self, run_date, ensemble_name, ensemble_member,
                  model_names, size_thresholds, start_hour, end_hour, window_size, time_skip,
                  forecast_path, mrms_path, mrms_variable, obs_mask=True,
@@ -60,9 +63,9 @@ class GridEvaluator(object):
         self.window_size = window_size
         self.time_skip = time_skip
         self.hour_windows = []
-        for hour in self.valid_hours[self.window_size-1::self.time_skip]:
-            self.hour_windows.append(slice(hour-self.window_size+1 - self.start_hour,
-                                           hour+1-self.start_hour))
+        for hour in self.valid_hours[self.window_size - 1::self.time_skip]:
+            self.hour_windows.append(slice(hour - self.window_size + 1 - self.start_hour,
+                                           hour + 1 - self.start_hour))
         self.forecast_path = forecast_path
         self.mrms_path = mrms_path
         self.mrms_variable = mrms_variable
@@ -82,7 +85,8 @@ class GridEvaluator(object):
         for model_name in self.model_names:
             self.raw_forecasts[model_name] = {}
             forecast_file = self.forecast_path + run_date_str + "/" + \
-                model_name.replace(" ", "-") + "_hailprobs_{0}_{1}.nc".format(self.ensemble_member, run_date_str)
+                            model_name.replace(" ", "-") + "_hailprobs_{0}_{1}.nc".format(self.ensemble_member,
+                                                                                          run_date_str)
             forecast_obj = Dataset(forecast_file)
             forecast_hours = forecast_obj.variables["forecast_hour"][:]
             valid_hour_indices = np.where((self.start_hour <= forecast_hours) & (forecast_hours <= self.end_hour))[0]
@@ -102,7 +106,7 @@ class GridEvaluator(object):
                     np.array([self.raw_forecasts[model_name][size_threshold][sl].sum(axis=0)
                               for sl in self.hour_windows])
 
-    def load_obs(self,  mask_threshold=0.5):
+    def load_obs(self, mask_threshold=0.5):
         """
         Loads observations and masking grid (if needed).
 
@@ -122,7 +126,7 @@ class GridEvaluator(object):
                 mask_grid.load_data()
                 self.raw_obs[self.mask_variable] = np.where(mask_grid.data >= mask_threshold, 1, 0)
                 self.window_obs[self.mask_variable] = np.array([self.raw_obs[self.mask_variable][sl].max(axis=0)
-                                                               for sl in self.hour_windows])
+                                                                for sl in self.hour_windows])
 
     def dilate_obs(self, dilation_radius):
         """
@@ -134,7 +138,8 @@ class GridEvaluator(object):
         for s in self.size_thresholds:
             self.dilated_obs[s] = np.zeros(self.window_obs[self.mrms_variable].shape)
             for t in range(self.dilated_obs[s].shape[0]):
-                self.dilated_obs[s][t][binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
+                self.dilated_obs[s][t][
+                    binary_dilation(self.window_obs[self.mrms_variable][t] >= s, iterations=dilation_radius)] = 1
 
     def roc_curves(self, prob_thresholds):
         """
@@ -195,11 +200,3 @@ class GridEvaluator(object):
                             self.dilated_obs[size_threshold][h]
                         )
         return all_rel_curves
-
-
-
-
-
-
-
-

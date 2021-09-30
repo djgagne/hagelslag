@@ -1,16 +1,17 @@
-from netCDF4 import Dataset
+import argparse
+import json
+import os
+import pickle
+import traceback
+from datetime import datetime
+from glob import glob
+from multiprocessing import Pool
+
 import numpy as np
 import pandas as pd
-import json
-from glob import glob
-import os
-from datetime import datetime
-from multiprocessing import Pool
-import argparse
-import pickle
+from netCDF4 import Dataset
 from scipy.ndimage import binary_dilation
 from scipy.stats import multivariate_normal
-import traceback
 
 
 def load_grid_info(grid_file):
@@ -73,20 +74,20 @@ def main():
         for run_date in run_dates:
             for member in members:
                 group = member_info.loc[member, "Microphysics"]
-                apply(sample_member_run_tracks, (member,
-                                                 group,
-                                                 run_date,
-                                                 model_names,
-                                                 start_hour,
-                                                 end_hour,
-                                                 grid_shape,
-                                                 dx,
-                                                 track_path,
-                                                 num_samples,
-                                                 thresholds,
-                                                 copula_file,
-                                                 out_path
-                                                 ))
+                sample_member_run_tracks(member,
+                                         group,
+                                         run_date,
+                                         model_names,
+                                         start_hour,
+                                         end_hour,
+                                         grid_shape,
+                                         dx,
+                                         track_path,
+                                         num_samples,
+                                         thresholds,
+                                         copula_file,
+                                         out_path
+                                         )
 
     return
 
@@ -133,6 +134,7 @@ class TrackSampler(object):
     Monte Carlo sampler of forecast storm tracks.
 
     """
+
     def __init__(self, member, group, run_date, model_names, start_hour,
                  end_hour, grid_shape, dx, track_path, num_samples, copula_file=None):
         self.member = member

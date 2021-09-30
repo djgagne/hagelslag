@@ -1,7 +1,8 @@
-import numpy as np
-from .ModelGrid import ModelGrid
-from datetime import timedelta
 from os.path import join
+
+import numpy as np
+
+from .ModelGrid import ModelGrid
 
 
 class NCARWRF2020ModelGrid(ModelGrid):
@@ -9,6 +10,7 @@ class NCARWRF2020ModelGrid(ModelGrid):
     Loads model output from the NCAR MMM WRF 2020 3 km real-time runs
 
     """
+
     def __init__(self, member_name, run_date, variable, start_date, end_date, path):
         self.member_name = member_name
         self.pressure_levels = np.array([1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100])

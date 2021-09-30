@@ -1,7 +1,9 @@
-import numpy as np
-from .ModelGrid import ModelGrid
 from datetime import timedelta
 from os.path import join
+
+import numpy as np
+
+from .ModelGrid import ModelGrid
 
 
 class NCARStormEventModelGrid(ModelGrid):
@@ -9,6 +11,7 @@ class NCARStormEventModelGrid(ModelGrid):
     Loads model output from the NCAR MMM 1 and 3 km WRF runs on Cheyenne.
 
     """
+
     def __init__(self, run_date, variable, start_date, end_date, path):
         self.pressure_levels = np.array([1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100])
         self.path = path

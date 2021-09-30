@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 import numpy as np
 import pandas as pd
-from hagelslag.data.MRMSGrid import MRMSGrid
-from hagelslag.evaluation.ProbabilityMetrics import DistributedReliability, DistributedROC
 from netCDF4 import Dataset
-from datetime import timedelta
 from scipy.signal import fftconvolve
 from skimage.morphology import disk
+
+from hagelslag.data.MRMSGrid import MRMSGrid
+from hagelslag.evaluation.ProbabilityMetrics import DistributedReliability, DistributedROC
 
 
 class NeighborEvaluator(object):
@@ -92,7 +94,7 @@ class NeighborEvaluator(object):
                         self.period_forecasts[period_var] = forecast_data.variables[period_var][:]
         forecast_data.close()
 
-    def load_obs(self,  mask_threshold=0.5):
+    def load_obs(self, mask_threshold=0.5):
         """
         Loads observations and masking grid (if needed).
 
@@ -177,7 +179,7 @@ class NeighborEvaluator(object):
             A pandas DataFrame with full-period metadata and verification statistics
         """
         score_columns = ["Run_Date", "Ensemble Name", "Model_Name", "Forecast_Variable", "Neighbor_Radius",
-                         "Smoothing_Radius", "Size_Threshold",  "ROC", "Reliability"]
+                         "Smoothing_Radius", "Size_Threshold", "ROC", "Reliability"]
         all_scores = pd.DataFrame(columns=score_columns)
         if self.coordinate_file is not None:
             coord_mask = np.where((self.coordinates["lon"] >= self.lon_bounds[0]) &

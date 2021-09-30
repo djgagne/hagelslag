@@ -1,10 +1,11 @@
-from .STObject import STObject
-from .EnhancedWatershedSegmenter import EnhancedWatershed
-from .Watershed import Watershed
-from .Hysteresis import Hysteresis
-from hagelslag.processing.ObjectMatcher import ObjectMatcher
-from scipy.ndimage import find_objects, center_of_mass, gaussian_filter
 import numpy as np
+from scipy.ndimage import find_objects, center_of_mass, gaussian_filter
+
+from hagelslag.processing.ObjectMatcher import ObjectMatcher
+from .EnhancedWatershedSegmenter import EnhancedWatershed
+from .Hysteresis import Hysteresis
+from .STObject import STObject
+from .Watershed import Watershed
 
 
 def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, max_area=100, max_range=1,
@@ -220,7 +221,7 @@ def track_storms(storm_objects, times, distance_components, distance_maxima, dis
         if len(past_time_objects) == 0:
             tracked_objects.extend(storm_objects[t])
         elif len(past_time_objects) > 0 and len(storm_objects[t]) > 0:
-            assignments = obj_matcher.match_objects(past_time_objects, storm_objects[t], times[t-1], times[t])
+            assignments = obj_matcher.match_objects(past_time_objects, storm_objects[t], times[t - 1], times[t])
             unpaired = list(range(len(storm_objects[t])))
             for pair in assignments:
                 past_time_objects[pair[0]].extend(storm_objects[t][pair[1]])

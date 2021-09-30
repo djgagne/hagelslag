@@ -3,6 +3,7 @@ class Config(object):
     Class that loads options from a config file and converts
     them into attributes.
     """
+
     def __init__(self, filename, required_attributes=()):
         config = None
         print(filename)
@@ -25,4 +26,3 @@ class Config(object):
                     if not has_required[i]:
                         print("{0} not found.".format(required_attributes[i]))
                         exit(1)
-

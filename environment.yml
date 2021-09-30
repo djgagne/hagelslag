@@ -5,6 +5,7 @@ dependencies:
   - python=3.8
   - numpy
   - scipy
+  - s3fs
   - matplotlib
   - xarray
   - netcdf4
@@ -22,5 +23,7 @@ dependencies:
   - cython
   - sphinx
   - mock
+  - jasper
   - pip:
-      - git+https://github.com/jswhit/ncepgrib2.git
+      - grib2io
+      - .

@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, InsetPosition
 
 
@@ -218,7 +218,7 @@ def reliability_diagram(rel_objs, obj_labels, colors, markers, filename, figsize
 
 
 def attributes_diagram(rel_objs, obj_labels, colors, markers, filename, figsize=(8, 8), xlabel="Forecast Probability",
-                       ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300, 
+                       ylabel="Observed Relative Frequency", ticks=np.arange(0, 1.05, 0.05), dpi=300,
                        title="Attributes Diagram", legend_params=None, inset_params=None,
                        inset_position=(0.12, 0.72, 0.25, 0.25), bootstrap_sets=None, ci=(2.5, 97.5)):
     """

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import numpy as np
+
 from .GribModelGrid import GribModelGrid
 from .ModelGrid import ModelGrid
 
@@ -18,24 +19,24 @@ class FV3ModelGrid(GribModelGrid):
                 file (True) or one file containing all timesteps (False).
     """
 
-    def __init__(self, member, run_date, variable, start_date, 
-                end_date, path, single_step=True):
+    def __init__(self, member, run_date, variable, start_date,
+                 end_date, path, single_step=True):
         self.path = path
         self.member = member
         filenames = []
         self.forecast_hours = np.arange((start_date - run_date).total_seconds() / 3600,
                                         (end_date - run_date).total_seconds() / 3600 + 1, dtype=int)
-        
+
         for forecast_hr in self.forecast_hours:
-            file_name=self.path+'{0}/{1}_{2}f{3:03d}.grib2'.format(
-                                                        run_date.strftime("%Y%m%d"),
-                                                        self.member,
-                                                        run_date.strftime("%Y%m%d%H"),
-                                                        forecast_hr)
+            file_name = self.path + '{0}/{1}_{2}f{3:03d}.grib2'.format(
+                run_date.strftime("%Y%m%d"),
+                self.member,
+                run_date.strftime("%Y%m%d%H"),
+                forecast_hr)
             filenames.append(file_name)
         self.netcdf_variables = ["hske_1000", "hske_3000", "hmf_1000", "hmf_3000", "ihm_1000", "ihm_3000"]
         super(FV3ModelGrid, self).__init__(filenames, run_date, start_date, end_date, variable, member)
-        
+
         return
 
     def load_data(self):
@@ -43,4 +44,3 @@ class FV3ModelGrid(GribModelGrid):
             return ModelGrid.load_data(self)
         else:
             return GribModelGrid.load_data(self)
-

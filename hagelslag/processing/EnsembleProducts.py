@@ -1,26 +1,21 @@
-from hagelslag.data.ModelOutput import ModelOutput
-from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
-import numpy as np
-import pandas as pd
-from scipy.ndimage import gaussian_filter
-from scipy.signal import fftconvolve
-from scipy.stats import gamma, bernoulli
-from scipy.interpolate import interp1d
-from scipy.spatial import cKDTree
-from skimage.morphology import disk
-from netCDF4 import Dataset, date2num, num2date
-import os
-from glob import glob
-from os.path import join, exists
 import json
 from datetime import timedelta
+from glob import glob
+from os.path import join, exists
 
+import numpy as np
+import pandas as pd
+from grib2io import Grib2Message
+from netCDF4 import Dataset, num2date
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
+from scipy.signal import fftconvolve
+from scipy.spatial import cKDTree
+from scipy.stats import gamma
+from skimage.morphology import disk
 
-try:
-    from ncepgrib2 import Grib2Encode
-    grib_support = True
-except ImportError("ncepgrib2 not available"):
-    grib_support = False
+from hagelslag.data.ModelOutput import ModelOutput
+from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 
 
 class EnsembleMemberProduct(object):
@@ -44,6 +39,7 @@ class EnsembleMemberProduct(object):
         condition_model_name (str): Name of the condition ML model being used if different from model_name
         condition_threshold (float): Probability threshold for including or excluding storms.
     """
+
     def __init__(self, ensemble_name, model_name, member, run_date, variable, start_date, end_date, path, single_step,
                  size_distribution_training_path, watershed_var, map_file=None,
                  condition_model_name=None, condition_threshold=0.5):
@@ -113,7 +109,7 @@ class EnsembleMemberProduct(object):
             self.data = np.zeros((self.forecast_hours.size,
                                   self.mapping_data["lon"].shape[0],
                                   self.mapping_data["lon"].shape[1]), dtype=np.float32)
-            
+
             if self.percentiles is not None:
                 self.percentile_data = np.zeros([len(self.percentiles)] + list(self.data.shape))
             full_condition_name = "condition_" + self.condition_model_name.replace(" ", "-")
@@ -130,7 +126,7 @@ class EnsembleMemberProduct(object):
                     if forecast_time in self.times:
                         t = np.where(self.times == forecast_time)[0][0]
                         mask = np.array(step["properties"]["masks"], dtype=int).ravel()
-                        rankings = np.argsort(np.array(step["properties"]["timesteps"]).ravel()[mask==1])
+                        rankings = np.argsort(np.array(step["properties"]["timesteps"]).ravel()[mask == 1])
                         i = np.array(step["properties"]["i"], dtype=int).ravel()[mask == 1][rankings]
                         j = np.array(step["properties"]["j"], dtype=int).ravel()[mask == 1][rankings]
                         if rankings.size > 0 and forecast_params[0] > 0.1 and 1 < forecast_params[2] < 100:
@@ -183,8 +179,8 @@ class EnsembleMemberProduct(object):
 
         """
         forecast_file = join(csv_path, "hail_forecasts_{0}_{1}_{2}.csv".format(self.ensemble_name,
-                                                                    self.member,
-                                                                    self.run_date.strftime("%Y%m%d-%H%M")))
+                                                                               self.member,
+                                                                               self.run_date.strftime("%Y%m%d-%H%M")))
         if exists(forecast_file):
             self.hail_forecast_table = pd.read_csv(forecast_file)
         return
@@ -203,7 +199,7 @@ class EnsembleMemberProduct(object):
         if exists(nc_file):
             nc_patches = Dataset(nc_file)
             nc_times = pd.DatetimeIndex(num2date(nc_patches.variables["time"][:],
-                                             nc_patches.variables["time"].units))
+                                                 nc_patches.variables["time"].units))
             time_indices = np.isin(nc_times, self.times)
             self.nc_patches = dict()
             self.nc_patches["time"] = nc_times[time_indices]
@@ -215,10 +211,11 @@ class EnsembleMemberProduct(object):
             nc_patches.close()
             print(nc_file)
         else:
-            print('no {0} {1} netCDF4 file'.format(self.member,self.run_date.strftime("%Y%m%d")))
+            print('no {0} {1} netCDF4 file'.format(self.member, self.run_date.strftime("%Y%m%d")))
             self.nc_patches = None
-            return 
+            return
         return
+
     def quantile_match(self):
         """
         For each storm object, get the percentiles of the enhanced watershed variable field relative to the training
@@ -229,13 +226,13 @@ class EnsembleMemberProduct(object):
         """
         if self.nc_patches is None:
             self.data = None
-            return 
+            return
 
         mask_indices = np.where(self.nc_patches["masks"] == 1)
         obj_values = self.nc_patches["obj_values"][mask_indices]
         obj_values = np.array(obj_values)
         percentiles = np.linspace(0.1, 99.9, 100)
-        
+
         try:
             filename = join(self.size_distribution_training_path,
                             '{0}_{1}_{2}_Size_Distribution.csv'.format(self.ensemble_name,
@@ -243,11 +240,11 @@ class EnsembleMemberProduct(object):
                                                                        self.member))
             if not exists(filename):
                 filename = join(self.size_distribution_training_path,
-                        '{0}_{1}_Size_Distribution.csv'.format(self.ensemble_name,
-                                                                self.watershed_var))
+                                '{0}_{1}_Size_Distribution.csv'.format(self.ensemble_name,
+                                                                       self.watershed_var))
             train_period_obj_per_vals = pd.read_csv(filename)
-            train_period_obj_per_vals = train_period_obj_per_vals.loc[:,"Obj_Values"].values
-            per_func = interp1d(train_period_obj_per_vals, percentiles / 100.0, 
+            train_period_obj_per_vals = train_period_obj_per_vals.loc[:, "Obj_Values"].values
+            per_func = interp1d(train_period_obj_per_vals, percentiles / 100.0,
                                 bounds_error=False, fill_value=(0.1, 99.9))
         except FileNotFoundError:
             obj_per_vals = np.percentile(obj_values, percentiles)
@@ -380,22 +377,22 @@ class EnsembleMemberProduct(object):
                   self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
                   self.proj_dict["lat_1"] * lscale,
                   self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
-        pdtmp1 = np.array([1,                # parameter category Moisture
-                           31,               # parameter number Hail
-                           4,                # Type of generating process Ensemble Forecast
-                           0,                # Background generating process identifier
-                           31,               # Generating process or model from NCEP
-                           0,                # Hours after reference time data cutoff
-                           0,                # Minutes after reference time data cutoff
-                           1,                # Forecast time units Hours
-                           0,                # Forecast time
-                           1,                # Type of first fixed surface Ground
-                           1,                # Scale value of first fixed surface
-                           0,                # Value of first fixed surface
-                           1,                # Type of second fixed surface
-                           1,                # Scale value of 2nd fixed surface
-                           0,                # Value of 2nd fixed surface
-                           0,                # Derived forecast type
+        pdtmp1 = np.array([1,  # parameter category Moisture
+                           31,  # parameter number Hail
+                           4,  # Type of generating process Ensemble Forecast
+                           0,  # Background generating process identifier
+                           31,  # Generating process or model from NCEP
+                           0,  # Hours after reference time data cutoff
+                           0,  # Minutes after reference time data cutoff
+                           1,  # Forecast time units Hours
+                           0,  # Forecast time
+                           1,  # Type of first fixed surface Ground
+                           1,  # Scale value of first fixed surface
+                           0,  # Value of first fixed surface
+                           1,  # Type of second fixed surface
+                           1,  # Scale value of 2nd fixed surface
+                           0,  # Value of 2nd fixed surface
+                           0,  # Derived forecast type
                            self.num_samples  # Number of ensemble members
                            ], dtype=np.int32)
         grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
@@ -403,14 +400,16 @@ class EnsembleMemberProduct(object):
         for t, time in enumerate(self.times):
             time_list = list(self.run_date.utctimetuple()[0:6])
             if grib_objects[time] is None:
-                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                # grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time] = Grib2Message(discipline=0,
+                                                  idsect=np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
             data = self.percentile_data[:, t] / 1000.0
             masked_data = np.ma.array(data, mask=data <= 0)
             for p, percentile in enumerate(self.percentiles):
-                print("GRIB {3} Percentile {0}. Max: {1} Min: {2}".format(percentile, 
-                                                                          masked_data[p].max(), 
+                print("GRIB {3} Percentile {0}. Max: {1} Min: {2}".format(percentile,
+                                                                          masked_data[p].max(),
                                                                           masked_data[p].min(),
                                                                           time))
                 if percentile in range(1, 100):
@@ -429,7 +428,7 @@ class EnsembleMemberProduct(object):
             Series of GRIB2 messages
         """
         if self.data is None:
-            return None 
+            return None
         lscale = 1e6
         grib_id_start = [7, 0, 14, 14, 2]
         gdsinfo = np.array([0, np.product(self.data.shape[-2:]), 0, 0, 30], dtype=np.int32)
@@ -446,30 +445,32 @@ class EnsembleMemberProduct(object):
                   self.grid_dict["dx"] * 1e3, self.grid_dict["dy"] * 1e3, 0b00000000, 0b01000000,
                   self.proj_dict["lat_1"] * lscale,
                   self.proj_dict["lat_2"] * lscale, -90 * lscale, 0]
-        pdtmp1 = np.array([1,                # parameter category Moisture
-                           31,               # parameter number Hail
-                           4,                # Type of generating process Ensemble Forecast
-                           0,                # Background generating process identifier
-                           31,               # Generating process or model from NCEP
-                           0,                # Hours after reference time data cutoff
-                           0,                # Minutes after reference time data cutoff
-                           1,                # Forecast time units Hours
-                           0,                # Forecast time
-                           1,                # Type of first fixed surface Ground
-                           1,                # Scale value of first fixed surface
-                           0,                # Value of first fixed surface
-                           1,                # Type of second fixed surface
-                           1,                # Scale value of 2nd fixed surface
-                           0,                # Value of 2nd fixed surface
-                           0,                # Derived forecast type
-                           1                 # Number of ensemble members
+        pdtmp1 = np.array([1,  # parameter category Moisture
+                           31,  # parameter number Hail
+                           4,  # Type of generating process Ensemble Forecast
+                           0,  # Background generating process identifier
+                           31,  # Generating process or model from NCEP
+                           0,  # Hours after reference time data cutoff
+                           0,  # Minutes after reference time data cutoff
+                           1,  # Forecast time units Hours
+                           0,  # Forecast time
+                           1,  # Type of first fixed surface Ground
+                           1,  # Scale value of first fixed surface
+                           0,  # Value of first fixed surface
+                           1,  # Type of second fixed surface
+                           1,  # Scale value of 2nd fixed surface
+                           0,  # Value of 2nd fixed surface
+                           0,  # Derived forecast type
+                           1  # Number of ensemble members
                            ], dtype=np.int32)
         grib_objects = pd.Series(index=self.times, data=[None] * self.times.size, dtype=object)
         drtmp1 = np.array([0, 0, 4, 8, 0], dtype=np.int32)
         for t, time in enumerate(self.times):
             time_list = list(self.run_date.utctimetuple()[0:6])
             if grib_objects[time] is None:
-                grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                # grib_objects[time] = Grib2Encode(0, np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
+                grib_objects[time] = Grib2Message(discipline=0,
+                                                  idsect=np.array(grib_id_start + time_list + [2, 1], dtype=np.int32))
                 grib_objects[time].addgrid(gdsinfo, gdtmp1)
             pdtmp1[8] = (time.to_pydatetime() - self.run_date).total_seconds() / 3600.0
             data = self.data[t] / 1000.0
@@ -490,13 +491,12 @@ class EnsembleMemberProduct(object):
         """
         for t, time in enumerate(self.times.to_pydatetime()):
             grib_objects[time].end()
-            filename = path + "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
-                                                                 self.member,
-                                                                 self.model_name.replace(" ", "-"),
-                                                                 self.variable,
-                                                                 self.run_date.strftime("%Y%m%d%H") +
-                                                                 "f{0:02d}".format(self.forecast_hours[t])
-                                                                 )
-            fo = open(filename, "wb")
-            fo.write(grib_objects[time].msg)
-            fo.close()
+            filename = join(path, "{0}_{1}_{2}_{3}_{4}.grib2".format(self.ensemble_name,
+                                                                     self.member,
+                                                                     self.model_name.replace(" ", "-"),
+                                                                     self.variable,
+                                                                     self.run_date.strftime("%Y%m%d%H") +
+                                                                     "f{0:02d}".format(self.forecast_hours[t])
+                                                                     ))
+            with open(filename, "wb") as fo:
+                fo.write(grib_objects[time]._msg)

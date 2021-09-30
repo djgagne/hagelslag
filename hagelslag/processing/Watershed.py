@@ -1,6 +1,6 @@
-from skimage.morphology import watershed
-from scipy.ndimage import label, find_objects
 import numpy as np
+from scipy.ndimage import label, find_objects
+from skimage.segmentation import watershed
 
 
 class Watershed(object):
@@ -14,6 +14,7 @@ class Watershed(object):
         core_intensity: the intensity used to determine the initial objects.
 
     """
+
     def __init__(self, min_intensity, max_intensity):
         self.min_intensity = min_intensity
         self.max_intensity = max_intensity

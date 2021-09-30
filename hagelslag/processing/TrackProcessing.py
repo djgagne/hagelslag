@@ -1,19 +1,21 @@
-from hagelslag.data.ModelOutput import ModelOutput
+from datetime import timedelta
+from glob import glob
+
+import numpy as np
+import pandas as pd
+from netCDF4 import Dataset
+from scipy.interpolate import interp1d
+from scipy.ndimage import find_objects, gaussian_filter
+from scipy.stats import gamma
+
 from hagelslag.data.MRMSGrid import MRMSGrid
+from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
-from hagelslag.processing.Watershed import Watershed
 from hagelslag.processing.Hysteresis import Hysteresis
+from hagelslag.processing.Watershed import Watershed
 from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
-from scipy.ndimage import find_objects, gaussian_filter
 from .STObject import STObject, read_geojson
-import numpy as np
-from scipy.interpolate import interp1d
-from glob import glob
-import pandas as pd
-from datetime import timedelta
-from scipy.stats import gamma
-from netCDF4 import Dataset
 
 
 class TrackProcessor(object):
@@ -46,6 +48,7 @@ class TrackProcessor(object):
         single_step: Whether model timesteps are in separate files or aggregated into one file.
         mask_file: netCDF filename containing a mask of valid grid points on the model domain.
     """
+
     def __init__(self,
                  run_date,
                  start_date,
@@ -99,7 +102,7 @@ class TrackProcessor(object):
         self.single_step = single_step
         self.model_grid = ModelOutput(self.ensemble_name, self.ensemble_member, self.run_date, self.variable,
                                       self.start_date, self.end_date, self.model_path, self.model_map_file,
-                                        single_step=self.single_step)
+                                      single_step=self.single_step)
         self.model_grid.load_map_info(self.model_map_file)
         if self.mrms_path is not None:
             self.mrms_variable = mrms_variable
@@ -181,7 +184,7 @@ class TrackProcessor(object):
                 if len(slices) > 0:
                     dims = (slices[0][0].stop - slices[0][0].start, slices[0][1].stop - slices[0][1].start)
                     if h > 0:
-                        model_obj.estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+                        model_obj.estimate_motion(hour, self.model_grid.data[h - 1], dims[1], dims[0])
 
             del model_data
             del hour_labels
@@ -250,16 +253,16 @@ class TrackProcessor(object):
                 for s, sl in enumerate(obj_slices):
                     model_objects[-1].append(STObject(self.model_grid.data[h][sl],
                                                       np.where(hour_labels[sl] == s + 1, 1, 0),
-                                                      self.model_grid.x[sl], 
-                                                      self.model_grid.y[sl], 
-                                                      self.model_grid.i[sl], 
+                                                      self.model_grid.x[sl],
+                                                      self.model_grid.y[sl],
+                                                      self.model_grid.i[sl],
                                                       self.model_grid.j[sl],
                                                       hour,
                                                       hour,
                                                       dx=self.model_grid.dx))
                     if h > 0:
                         dims = model_objects[-1][-1].timesteps[0].shape
-                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h-1], dims[1], dims[0])
+                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h - 1], dims[1], dims[0])
             del hour_labels
             del scaled_data
             del model_data
@@ -315,18 +318,18 @@ class TrackProcessor(object):
         tracked_obs_objects = []
         if self.mrms_ew is not None:
             self.mrms_grid.load_data()
-            
+
             if len(self.mrms_grid.data) != len(self.hours):
                 print('Less than 24 hours of observation data found')
-                
+
                 return tracked_obs_objects
-         
+
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
                 mrms_data[mrms_data < 0] = 0
                 hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
-                                                                                      self.gaussian_window)),
+                                                                                          self.gaussian_window)),
                                                        self.size_filter)
                 hour_labels[mrms_data < self.mrms_ew.min_intensity] = 0
                 obj_slices = find_objects(hour_labels)
@@ -345,8 +348,8 @@ class TrackProcessor(object):
                                                         dx=self.model_grid.dx))
                         if h > 0:
                             dims = obs_objects[-1][-1].timesteps[0].shape
-                            obs_objects[-1][-1].estimate_motion(hour, self.mrms_grid.data[h-1], dims[1], dims[0])
-        
+                            obs_objects[-1][-1].estimate_motion(hour, self.mrms_grid.data[h - 1], dims[1], dims[0])
+
             for h, hour in enumerate(self.hours):
                 past_time_objs = []
                 for obj in tracked_obs_objects:
@@ -364,7 +367,7 @@ class TrackProcessor(object):
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
-        
+
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
@@ -414,11 +417,11 @@ class TrackProcessor(object):
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
         for storm_var in storm_variables:
-            print("Storm {0} {1} {2}".format(storm_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            print("Storm {0} {1} {2}".format(storm_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
                                                  self.run_date, storm_var, self.start_date - timedelta(hours=1),
                                                  self.end_date + timedelta(hours=1),
-                                                 self.model_path,self.model_map_file, 
+                                                 self.model_path, self.model_map_file,
                                                  self.single_step)
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
@@ -426,13 +429,13 @@ class TrackProcessor(object):
             if storm_var not in potential_variables + tendency_variables + future_variables:
                 del model_grids[storm_var]
         for potential_var in potential_variables:
-            print("Potential {0} {1} {2}".format(potential_var,self.ensemble_member, self.run_date.strftime("%Y%m%d")))
+            print("Potential {0} {1} {2}".format(potential_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             if potential_var not in model_grids.keys():
                 model_grids[potential_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
                                                          self.run_date, potential_var,
                                                          self.start_date - timedelta(hours=1),
                                                          self.end_date + timedelta(hours=1),
-                                                         self.model_path, self.model_map_file, 
+                                                         self.model_path, self.model_map_file,
                                                          self.single_step)
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
@@ -443,11 +446,11 @@ class TrackProcessor(object):
             print("Future {0} {1} {2}".format(future_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             if future_var not in model_grids.keys():
                 model_grids[future_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
-                                                         self.run_date, future_var,
-                                                         self.start_date - timedelta(hours=1),
-                                                         self.end_date + timedelta(hours=1),
-                                                         self.model_path, self.model_map_file,
-                                                         self.single_step)
+                                                      self.run_date, future_var,
+                                                      self.start_date - timedelta(hours=1),
+                                                      self.end_date + timedelta(hours=1),
+                                                      self.model_path, self.model_map_file,
+                                                      self.single_step)
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[future_var], future=True)
@@ -460,12 +463,11 @@ class TrackProcessor(object):
                                                         self.run_date, tendency_var,
                                                         self.start_date - timedelta(hours=1),
                                                         self.end_date,
-                                                        self.model_path, self.model_map_file, 
+                                                        self.model_path, self.model_map_file,
                                                         self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]
-
 
     @staticmethod
     def match_hail_sizes(model_tracks, obs_tracks, track_pairings):
@@ -487,10 +489,10 @@ class TrackProcessor(object):
             obs_hail_sizes = np.array([step[obs_track.masks[t] == 1].max()
                                        for t, step in enumerate(obs_track.timesteps)])
             if obs_track.times.size > 1 and model_track.times.size > 1:
-                normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min())\
-                    * (obs_track.times - obs_track.times.min())
-                normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min())\
-                    * (model_track.times - model_track.times.min())
+                normalized_obs_times = 1.0 / (obs_track.times.max() - obs_track.times.min()) \
+                                       * (obs_track.times - obs_track.times.min())
+                normalized_model_times = 1.0 / (model_track.times.max() - model_track.times.min()) \
+                                         * (model_track.times - model_track.times.min())
                 hail_interp = interp1d(normalized_obs_times, obs_hail_sizes, kind="nearest",
                                        bounds_error=False, fill_value=0)
                 model_track.observations = hail_interp(normalized_model_times)
@@ -498,7 +500,7 @@ class TrackProcessor(object):
                 model_track.observations = np.ones(model_track.times.shape) * obs_hail_sizes[0]
             elif model_track.times.size == 1:
                 model_track.observations = np.array([obs_hail_sizes.max()])
-            print(pair[0], "obs",  obs_hail_sizes)
+            print(pair[0], "obs", obs_hail_sizes)
             print(pair[0], "model", model_track.observations)
         for u in unpaired:
             model_tracks[u].observations = np.zeros(model_tracks[u].times.shape)
@@ -529,6 +531,7 @@ class TrackProcessor(object):
                 for param in obs_hail_dists.columns:
                     model_hail_dists.loc[model_track.times, param] = obs_hail_dists.loc[obs_track.times[0], param]
             return model_hail_dists
+
         unpaired = list(range(len(model_tracks)))
         for p, pair in enumerate(track_pairings):
             unpaired.remove(pair[0])
@@ -544,12 +547,13 @@ class TrackProcessor(object):
 
     def match_hail_size_step_distributions(self, model_tracks, obs_tracks, track_pairings):
         """
-        Given a matching set of observed tracks for each model track, 
+        Given a matching set of observed tracks for each model track, combine the hail size values and create
+        an observed hail size distribution.
         
         Args:
-            model_tracks: 
-            obs_tracks: 
-            track_pairings: 
+            model_tracks: List of STObjects
+            obs_tracks: List of STObjects
+            track_pairings:
 
         Returns:
 
@@ -611,6 +615,5 @@ class TrackProcessor(object):
             track_errors.loc[pair[0], 'translation_error_x'] = model_com[0] - obs_com[0]
             track_errors.loc[pair[0], 'translation_error_y'] = model_com[1] - obs_com[1]
             track_errors.loc[pair[0], 'start_time_difference'] = model_track.start_time - obs_track.start_time
-            track_errors.loc[pair[0], 'end_time_difference'] = model_track.end_time - obs_track.end_time 
+            track_errors.loc[pair[0], 'end_time_difference'] = model_track.end_time - obs_track.end_time
         return track_errors
-

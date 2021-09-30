@@ -1,4 +1,5 @@
 import numpy as np
+
 __author__ = 'David John Gagne <djgagne@ou.edu>'
 
 
@@ -19,6 +20,7 @@ class MulticlassContingencyTable(object):
     The contingency table is stored in table as a numpy array with the rows corresponding to forecast categories,
     and the columns corresponding to observation categories.
     """
+
     def __init__(self, table=None, n_classes=2, class_names=("1", "0")):
         self.table = table
         self.n_classes = n_classes
@@ -55,9 +57,9 @@ class MulticlassContingencyTable(object):
         s = np.zeros(self.table.shape, dtype=float)
         for (i, j) in np.ndindex(*s.shape):
             if i == j:
-                s[i, j] = 1.0 / (k - 1.0) * (np.sum(1.0 / a[0:j]) + np.sum(a[j:k-1]))
+                s[i, j] = 1.0 / (k - 1.0) * (np.sum(1.0 / a[0:j]) + np.sum(a[j:k - 1]))
             elif i < j:
-                s[i, j] = 1.0 / (k - 1.0) * (np.sum(1.0 / a[0:i]) - (j - i) + np.sum(a[j:k-1]))
+                s[i, j] = 1.0 / (k - 1.0) * (np.sum(1.0 / a[0:i]) - (j - i) + np.sum(a[j:k - 1]))
             else:
                 s[i, j] = s[j, i]
         return np.sum(self.table / float(self.table.sum()) * s)

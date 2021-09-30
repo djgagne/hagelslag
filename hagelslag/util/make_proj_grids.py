@@ -1,5 +1,5 @@
-from pyproj import Proj
 import numpy as np
+from pyproj import Proj
 
 
 def main():
@@ -22,10 +22,10 @@ def read_arps_map_file(map_filename):
     grid_names = ['sw_lat', 'sw_lon', 'ne_lat', 'ne_lon', 'dx', 'dy']
     for i in range(len(proj_names) + len(grid_names)):
         if i < len(proj_names):
-            proj_dict[proj_names[i]] = float(map_params[i+2])
+            proj_dict[proj_names[i]] = float(map_params[i + 2])
         else:
             j = i - len(proj_names)
-            grid_dict[grid_names[j]] = float(map_params[i+2])
+            grid_dict[grid_names[j]] = float(map_params[i + 2])
     return proj_dict, grid_dict
 
 
@@ -69,6 +69,7 @@ def make_proj_grids(proj_dict, grid_dict):
 
 def get_proj_obj(proj_dict):
     return Proj(proj_dict)
+
 
 if __name__ == "__main__":
     main()

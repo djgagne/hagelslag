@@ -1,9 +1,12 @@
-import numpy as np
-import pandas as pd
 import json
 from glob import glob
-from hagelslag.evaluation.ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
+from os.path import join
+
+import numpy as np
+import pandas as pd
 from scipy.stats import gamma
+
+from hagelslag.evaluation.ProbabilityMetrics import DistributedCRPS, DistributedReliability, DistributedROC
 
 
 class ObjectEvaluator(object):
@@ -31,6 +34,7 @@ class ObjectEvaluator(object):
         matched_forecasts (dict): Forecasts merged with observation information.
 
     """
+
     def __init__(self, run_date, ensemble_name, ensemble_member, model_names, model_types, forecast_bins,
                  dist_thresholds, forecast_json_path, track_data_csv_path):
         self.run_date = run_date
@@ -57,7 +61,9 @@ class ObjectEvaluator(object):
             self.forecasts[model_type] = {}
             for model_name in self.model_names[model_type]:
                 self.forecasts[model_type][model_name] = pd.DataFrame(columns=self.metadata_columns +
-                                                                      list(self.forecast_bins[model_type].astype(str)))
+                                                                              list(
+                                                                                  self.forecast_bins[model_type].astype(
+                                                                                      str)))
 
     def load_forecasts(self):
         """
@@ -90,14 +96,14 @@ class ObjectEvaluator(object):
         """
         Loads the track total and step files and merges the information into a single data frame.
         """
-        track_total_file = self.track_data_csv_path + \
-            "track_total_{0}_{1}_{2}.csv".format(self.ensemble_name,
-                                                 self.ensemble_member,
-                                                 self.run_date.strftime("%Y%m%d"))
-        track_step_file = self.track_data_csv_path + \
-            "track_step_{0}_{1}_{2}.csv".format(self.ensemble_name,
-                                                self.ensemble_member,
-                                                self.run_date.strftime("%Y%m%d"))
+        track_total_file = join(self.track_data_csv_path,
+                                "track_total_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                     self.ensemble_member,
+                                                                     self.run_date.strftime("%Y%m%d")))
+        track_step_file = join(self.track_data_csv_path,
+                               "track_step_{0}_{1}_{2}.csv".format(self.ensemble_name,
+                                                                   self.ensemble_member,
+                                                                   self.run_date.strftime("%Y%m%d")))
         track_total_cols = ["Track_ID", "Translation_Error_X", "Translation_Error_Y", "Start_Time_Error"]
         track_step_cols = ["Step_ID", "Track_ID", "Hail_Size", "Shape", "Location", "Scale"]
         track_total_data = pd.read_csv(track_total_file, usecols=track_total_cols)
@@ -159,7 +165,7 @@ class ObjectEvaluator(object):
                         f_params = sub_forecasts[self.forecast_bins[model_type]].values[f]
                     forecast_cdfs[f] = gamma_cdf(self.dist_thresholds, f_params[0], f_params[1], f_params[2])
                 obs_cdfs = np.array([gamma_cdf(self.dist_thresholds, *params)
-                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                                     for params in sub_forecasts[self.type_cols[model_type]].values])
                 crps_obj.update(forecast_cdfs, obs_cdfs)
             else:
                 crps_obj.update(sub_forecasts[self.forecast_bins[model_type].astype(str)].values,
@@ -193,12 +199,12 @@ class ObjectEvaluator(object):
                 forecast_values = np.array([gamma_sf(intensity_threshold, *params)
                                             for params in sub_forecasts[self.forecast_bins[model_type]].values])
                 obs_probs = np.array([gamma_sf(intensity_threshold, *params)
-                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                                      for params in sub_forecasts[self.type_cols[model_type]].values])
                 obs_values[obs_probs >= 0.01] = 1
             elif len(self.forecast_bins[model_type]) > 1:
                 fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
-                forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
-                                    fbin]
+                forecast_values = 1 - sub_forecasts[
+                                          self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:, fbin]
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             else:
                 forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)[0]].values
@@ -232,12 +238,12 @@ class ObjectEvaluator(object):
                 forecast_values = np.array([gamma_sf(intensity_threshold, *params)
                                             for params in sub_forecasts[self.forecast_bins[model_type]].values])
                 obs_probs = np.array([gamma_sf(intensity_threshold, *params)
-                                    for params in sub_forecasts[self.type_cols[model_type]].values])
+                                      for params in sub_forecasts[self.type_cols[model_type]].values])
                 obs_values[obs_probs >= 0.01] = 1
             elif len(self.forecast_bins[model_type]) > 1:
                 fbin = np.argmin(np.abs(self.forecast_bins[model_type] - intensity_threshold))
                 forecast_values = 1 - sub_forecasts[self.forecast_bins[model_type].astype(str)].values.cumsum(axis=1)[:,
-                                    fbin]
+                                      fbin]
                 obs_values[sub_forecasts[self.type_cols[model_type]].values >= intensity_threshold] = 1
             else:
                 forecast_values = sub_forecasts[self.forecast_bins[model_type].astype(str)[0]].values
@@ -305,8 +311,6 @@ class ObjectEvaluator(object):
                                  for obs in obs_max_hail]) / float(obs_max_hail.shape[1])
             crps.update(forecast_cdfs, obs_cdfs)
         return crps
-
-
 
 
 def gamma_sf(x, a, loc, b):

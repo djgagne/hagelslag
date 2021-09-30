@@ -1,8 +1,9 @@
+import json
+
 import numpy as np
 from skimage.measure import regionprops
-from skimage.segmentation import find_boundaries
 from skimage.morphology import convex_hull_image
-import json
+from skimage.segmentation import find_boundaries
 
 
 class STObject(object):
@@ -71,7 +72,7 @@ class STObject(object):
     def __str__(self):
         com_x, com_y = self.center_of_mass(self.start_time)
         data = dict(maxsize=self.max_size(), comx=com_x, comy=com_y, start=self.start_time, end=self.end_time)
-        return "ST Object [maxSize=%(maxsize)d,initialCenter=%(comx)0.2f,%(comy)0.2f,duration=%(start)02d-%(end)02d]" %\
+        return "ST Object [maxSize=%(maxsize)d,initialCenter=%(comx)0.2f,%(comy)0.2f,duration=%(start)02d-%(end)02d]" % \
                data
 
     def center_of_mass(self, time):
@@ -153,7 +154,7 @@ class STObject(object):
 
     def get_corner(self, time):
         """
-        Gets the corner array indices of the STObject at a given time that corresponds 
+        Gets the corner array indices of the STObject at a given time that corresponds
         to the upper left corner of the bounding box for the STObject.
 
         Args:
@@ -235,7 +236,7 @@ class STObject(object):
         chull = convex_hull_image(padded_mask)
         boundary_image = find_boundaries(chull, mode='inner', background=0)
         # Now remove the padding.
-        boundary_image = boundary_image[1:-1,1:-1]
+        boundary_image = boundary_image[1:-1, 1:-1]
         boundary_x = self.x[ti].ravel()[boundary_image.ravel()]
         boundary_y = self.y[ti].ravel()[boundary_image.ravel()]
         r = np.sqrt((boundary_x - com_x) ** 2 + (boundary_y - com_y) ** 2)
@@ -273,7 +274,7 @@ class STObject(object):
             for v in v_shifts:
                 i_shift = i_vals - v
                 if np.all((0 <= i_shift) & (i_shift < intensity_grid.shape[0]) &
-                                  (0 <= j_shift) & (j_shift < intensity_grid.shape[1])):
+                          (0 <= j_shift) & (j_shift < intensity_grid.shape[1])):
                     shift_vals = intensity_grid[i_shift, j_shift]
                 else:
                     shift_vals = np.zeros(i_shift.shape)
@@ -284,7 +285,7 @@ class STObject(object):
                     best_u = u * self.dx
                     best_v = v * self.dx
         # 60 seems arbitrarily high
-        #if min_error > 60:
+        # if min_error > 60:
         #    best_u = 0
         #    best_v = 0
         self.u[ti] = best_u
@@ -344,7 +345,6 @@ class STObject(object):
         for t in range(self.times.size):
             self.attributes[var_name].append(data_array[self.i[t], self.j[t]])
 
-
     def extract_tendency_grid(self, model_grid):
         """
         Extracts the difference in model outputs
@@ -360,7 +360,7 @@ class STObject(object):
             t_index = t - model_grid.start_hour
             self.attributes[var_name].append(
                 model_grid.data[t_index, self.i[ti], self.j[ti]] - model_grid.data[t_index - 1, self.i[ti], self.j[ti]]
-                )
+            )
 
     def calc_attribute_statistics(self, statistic_name):
         """
@@ -405,7 +405,7 @@ class STObject(object):
             stat_val = np.median(self.attributes[attribute][ti].ravel()[ma])
         elif statistic == "skew":
             stat_val = np.mean(self.attributes[attribute][ti].ravel()[ma]) - \
-                    np.median(self.attributes[attribute][ti].ravel()[ma])
+                       np.median(self.attributes[attribute][ti].ravel()[ma])
         elif 'percentile' in statistic:
             per = int(statistic.split("_")[1])
             stat_val = np.percentile(self.attributes[attribute][ti].ravel()[ma], per)
@@ -415,7 +415,7 @@ class STObject(object):
                 stat_val = 0
             else:
                 stat_val = self.calc_attribute_statistic(attribute, stat_name, time) \
-                    - self.calc_attribute_statistic(attribute, stat_name, time - 1)
+                           - self.calc_attribute_statistic(attribute, stat_name, time - 1)
         else:
             stat_val = np.nan
         return stat_val
@@ -445,8 +445,8 @@ class STObject(object):
             if ti == 0:
                 stat_val = 0
             else:
-                stat_val = self.calc_timestep_statistic(stat_name, time) -\
-                    self.calc_timestep_statistic(stat_name, time - 1)
+                stat_val = self.calc_timestep_statistic(stat_name, time) - \
+                           self.calc_timestep_statistic(stat_name, time - 1)
         else:
             stat_val = np.nan
         return stat_val
@@ -485,7 +485,7 @@ class STObject(object):
         ti = np.where(self.times == time)[0][0]
         shape_stats = []
         try:
-            props = regionprops(self.masks[ti], self.timesteps[ti])[0]           
+            props = regionprops(self.masks[ti], self.timesteps[ti])[0]
         except:
             for stat_name in stat_names:
                 shape_stats.append(np.nan)
@@ -544,6 +544,7 @@ class STObject(object):
         file_obj.close()
         return
 
+
 def read_geojson(filename):
     """
     Reads a geojson file containing an STObject and initializes a new STObject from the information in the file.
@@ -577,4 +578,3 @@ def read_geojson(filename):
     for k, v in attribute_data.items():
         sto.attributes[k] = v
     return sto
-
