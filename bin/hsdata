@@ -198,7 +198,7 @@ def process_ensemble_member(run_date, member, config):
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config, track_proc.model_grid.proj)
                 if patch_radius is not None:
                     print(run_date, member, "Track Data to netCDF")
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config, track_proc.model_grid.proj)
                 if config.json:
                     forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj)
         else:
@@ -560,7 +560,7 @@ def forecast_tracks_to_json(forecast_tracks, run_date, member, config, proj, obs
         os.chmod(json_filename, 0o666)
 
 
-def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config):
+def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, member, config, proj):
     ensemble_name = config.ensemble_name
     patch_count = 0
     for f, forecast_track in enumerate(forecast_tracks):
@@ -636,10 +636,11 @@ def forecast_track_patches_to_netcdf(forecast_tracks, patch_radius, run_date, me
             l_var.long_name = label_column
             l_var.units = ""
     out_file.variables["time"][:] = np.concatenate([f_track.times for f_track in forecast_tracks])
-    for c_var in ["lon", "lat"]:
-        out_file.variables["centroid_" + c_var][:] = np.concatenate([np.array(f_track.attributes[c_var])[:,
-                                                                     patch_radius, patch_radius]
-                                                                     for f_track in forecast_tracks])
+
+    cx = [f_track.center_of_mass(step)[0] for f_track in forecast_tracks for step in f_track.times]
+    cy = [f_track.center_of_mass(step)[1] for f_track in forecast_tracks for step in f_track.times]
+    out_file.variables["centroid_lon"][:],  out_file.variables["centroid_lat"][:] = proj(cx, cy, inverse=True)
+
     for c_var in ["i", "j"]:
         out_file.variables["centroid_" + c_var][:] = np.concatenate([np.array(getattr(f_track, c_var))[:,
                                                                      patch_radius, patch_radius]
