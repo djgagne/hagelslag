@@ -25,7 +25,7 @@ if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
 
     setup(name="hagelslag",
-          version="0.4.1b1",
+          version="0.5",
           description="Object-based severe weather forecast system",
           author="David John Gagne",
           author_email="dgagne@ucar.edu",
