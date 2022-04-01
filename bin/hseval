@@ -13,9 +13,8 @@ from hagelslag.evaluation.NeighborEvaluator import NeighborEvaluator
 from hagelslag.data.MRMSGrid import MRMSGrid
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.data.HailForecastGrid import HailForecastGrid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from netCDF4 import Dataset
-from os.path import isdir
 score_counter = 0
 
 
@@ -62,19 +61,19 @@ def evaluate_objects(config, num_procs):
 
     """
     pool = Pool(num_procs)
-    run_dates = pd.DatetimeIndex(start=config.start_date,
-                                 end=config.end_date, freq="1D")
+    run_dates = pd.date_range(start=config.start_date,
+                              end=config.end_date, freq="1D")
     ensemble_members = config.ensemble_members
     score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Model_Type", "Forecast_Hour"]
 
     def append_scores(score_dict):
         global score_counter
         if score_counter == 0:
-            for model_type, scores in score_dict.iteritems():
+            for model_type, scores in score_dict.items():
                 scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
                               index_label="Index")
         else:
-            for model_type, scores in score_dict.iteritems():
+            for model_type, scores in score_dict.items():
                 scores.to_csv(config.out_path + config.obj_scores_file + "{0}.csv".format(model_type),
                               mode="a", index_label="Index", header=False)
         score_counter += 1
@@ -177,8 +176,8 @@ def evaluate_object_run(run_date, ensemble_member, config, score_columns):
 
 def evaluate_grids(config, num_procs):
     pool = Pool(num_procs)
-    run_dates = pd.DatetimeIndex(start=config.start_date,
-                                 end=config.end_date, freq="1D")
+    run_dates = pd.date_range(start=config.start_date,
+                              end=config.end_date, freq="1D")
     ensemble_members = config.ensemble_members
     score_columns = ["Run_Date", "Ensemble_Name", "Ensemble_Member", "Model_Name", "Size_Threshold", "Window_Size",
                      "Window_Start", "Window_End", "ROC", "Reliability"]
@@ -356,7 +355,7 @@ def evaluate_single_neighborhood(run_date, start_hour, end_hour, ensemble_name, 
 
 def evaluate_reduced_neighborhood(config, num_procs):
     pool = Pool(num_procs)
-    run_dates = pd.DatetimeIndex(start=config.start_date, end=config.end_date, freq="1D")
+    run_dates = pd.date_range(start=config.start_date, end=config.end_date, freq="1D")
     for run_date in run_dates.to_pydatetime():
         print(run_date)
         pool.apply_async(evaluate_reduced_neighborhood_run, (run_date, config.start_hour, config.end_hour,

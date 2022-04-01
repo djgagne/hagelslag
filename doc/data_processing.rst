@@ -56,6 +56,51 @@ creating a file handler that extends the ModelGrid class and then adding it to M
 The ModelGrid subclasses contain ways to specify the file being opened in their __init__ method. The ModelOutput class
 calls the appropriate ModelGrid object, as well as loading data and map projection information.
 
+Adding a New Modeling System to Hagelslag
+-----------------------------------------
+Hagelslag contains support for multiple convection allowing model frameworks, but you may need to add support
+for others in the future. Follow these instructions to do so and make your model output archive
+accessible by hsdata:
+1. Create a derived ModelGrid class, such as HRRRModelGrid, that inherits from the ModelGrid, GribModelGrid, or
+ZarrModelGrid base class. The `__init__` method should generate a list of CAM filenames based on the NWP initial date,
+requested forecast period, and ensemble member name. Then, that information should be passed to the
+`super(NewModelGrid, self).__init__` call to initialize the parent class with the list of filenames
+and other arguments. Assuming the model output is storred in netCDF, grib2, or zarr format, the parent
+class load_data method should handle other operations from there.
+2. Add your new subclass to ModelOutput.py in ModelOutput.load_data. There are a series of if statements for each CAM
+type. Add yours to the list. It should resemble the following::
+
+        elif self.ensemble_name.upper() == "NCAR":
+            mg = NCARModelGrid(self.member_name,
+                               self.run_date,
+                               self.variable,
+                               self.start_date,
+                               self.end_date,
+                               self.path,
+                               single_step=self.single_step)
+            self.data, self.units = mg.load_data()
+            mg.close()
+
+3. Create a map projection text file. The current ones are stored in the mapfiles directory. Most of the entries are
+arguments for pyproj projections except for dx, dy, sw_lon, sw_lat, ne_lon, and ne_lat. The map file will be used in hsdata
+to reconstruct the CAM grid. If you do not specify the map projection correctly, the created lat-lon and x-y grids
+may have a different number of grid dimensions than the data. Double check to be sure. The contents of an example
+map file are below::
+    proj=lcc # map projection
+    a=6370000 # Major Radius of Earth in m. Note that WRF uses a spherical Earth.
+    b=6370000 # Minor radius of Earth in m
+    lat_0=38.33643 # Center latitude of projection
+    lon_0=-101. # Center longitude of projection
+    lat_1=32.0 # First standard parallel
+    lat_2=46.0 # Second standard parallel
+    units=m # units of x-y grid and a, b
+    dx=3000 # grid spacing in x direction
+    dy=3000 # grid spacing in y direction
+    sw_lon=-120.81058 # lon coordinates of SW corner of grid
+    sw_lat=23.159264 # lat coordinates of SW corner of grid
+    ne_lon=-65.02124 # lon coordinates of NE corner of grid
+    ne_lat=46.88567 # lat coordinates of NE corner of grid
+
 Object Finding
 --------------
 Storm objects are found with the enhanced watershed method. The enhanced watershed finds local maxima in a given
