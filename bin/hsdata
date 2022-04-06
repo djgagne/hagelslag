@@ -137,10 +137,10 @@ def process_ensemble_member(run_date, member, config):
             mrms_tracks = track_proc.find_mrms_tracks()
 
         print("Find model tracks", run_date, member)
-        if segment_full_object:
-            model_tracks = track_proc.find_model_tracks()
-        else:
+        if (not segment_full_object) and (patch_radius is not None):
             model_tracks = track_proc.find_model_patch_tracks()
+        else:
+            model_tracks = track_proc.find_model_tracks()
 
         if model_tracks:
             print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
