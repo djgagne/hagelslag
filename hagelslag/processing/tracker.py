@@ -58,7 +58,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
     return label_grid
 
 
-def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, obj_buffer=0):
+def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, buffer_radius=1):
     """
     After storms are labeled, this method extracts the storm objects from the grid and places them into STObjects.
     The STObjects contain intensity, location, and shape information about each storm at each timestep.
@@ -71,7 +71,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, o
         times: List or array of time values, preferably as integers
         dx: grid spacing in same units as x_grid and y_grid.
         dt: period elapsed between times
-        obj_buffer: number of extra pixels beyond bounding box of object to store in each STObject
+        buffer_radius: number of extra pixels beyond bounding box of object to store in each STObject
 
     Returns:
         storm_objects: list of lists containing STObjects identified at each time.
@@ -84,9 +84,9 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, o
             object_slices = list(find_objects(label_grid[t], label_grid[t].max()))
             if len(object_slices) > 0:
                 for o, obj_slice in enumerate(object_slices):
-                    if obj_buffer > 0:
-                        obj_slice_buff = [slice(np.maximum(0, osl.start - obj_buffer),
-                                                np.minimum(osl.stop + obj_buffer, label_grid.shape[l + 1]))
+                    if buffer_radius > 0:
+                        obj_slice_buff = [slice(np.maximum(0, osl.start - buffer_radius),
+                                                np.minimum(osl.stop + buffer_radius, label_grid.shape[l + 1]))
                                           for l, osl in enumerate(obj_slice)]
                     else:
                         obj_slice_buff = obj_slice

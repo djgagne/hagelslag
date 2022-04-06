@@ -504,6 +504,30 @@ class STObject(object):
                 shape_stats.append(props[stat_name])
         return shape_stats
 
+    def to_geojson_feature(self, proj):
+        """
+        Output the data in the STObject to a geoJSON file.
+
+        Args:
+            proj: PyProj object for converting the x and y coordinates back to latitude and longitue values.
+            metadata: Metadata describing the object to be included in the top-level properties.
+        """
+        json_features = []
+        for t, time in enumerate(self.times):
+            feature = {"type": "Feature",
+                       "geometry": {"type": "Polygon"},
+                       "properties": {}}
+            boundary_coords = self.boundary_polygon(time)
+            lonlat = np.vstack(proj(boundary_coords[0], boundary_coords[1], inverse=True))
+            lonlat_list = lonlat.T.tolist()
+            if len(lonlat_list) > 0:
+                lonlat_list.append(lonlat_list[0])
+            feature["geometry"]["coordinates"] = [lonlat_list]
+            for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
+                feature["properties"][attr] = getattr(self, attr)[t].tolist()
+            json_features.append(feature)
+        return json_features
+
     def to_geojson(self, filename, proj, metadata=None):
         """
         Output the data in the STObject to a geoJSON file.
