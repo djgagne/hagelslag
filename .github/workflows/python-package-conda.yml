@@ -23,7 +23,7 @@ jobs:
       run: | 
         sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
         sudo apt update
-        sudo apt install libjasper1 libjasper-dev
+        sudo apt install libjasper1 libjasper-dev libpng-dev libz-dev
         ldconfig -p | grep libjasper
     - name: Install dependencies
       run: |
