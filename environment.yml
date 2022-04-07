@@ -1,6 +1,7 @@
 name: hagelslag
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python=3.8
   - numpy
@@ -24,6 +25,7 @@ dependencies:
   - sphinx
   - mock
   - jasper
+  - flake8
   - pip:
       - grib2io
       - .

@@ -25,7 +25,7 @@ class STObject(object):
         v: storm motion in y-direction
     """
 
-    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
+    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=3000, u=None, v=None):
         if hasattr(grid, "shape") and len(grid.shape) == 2:
             self.timesteps = [grid]
             self.masks = [np.array(mask, dtype=int)]

@@ -58,7 +58,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
     return label_grid
 
 
-def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, buffer_radius=1):
+def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, buffer_radius=0):
     """
     After storms are labeled, this method extracts the storm objects from the grid and places them into STObjects.
     The STObjects contain intensity, location, and shape information about each storm at each timestep.
@@ -109,9 +109,9 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, b
         object_slices = list(find_objects(label_grid, label_grid.max()))
         if len(object_slices) > 0:
             for o, obj_slice in enumerate(object_slices):
-                if obj_buffer > 0:
-                    obj_slice_buff = [slice(np.maximum(0, osl.start - obj_buffer),
-                                            np.minimum(osl.stop + obj_buffer, label_grid.shape[l + 1]))
+                if buffer_radius > 0:
+                    obj_slice_buff = [slice(np.maximum(0, osl.start - buffer_radius),
+                                            np.minimum(osl.stop + buffer_radius, label_grid.shape[l]))
                                       for l, osl in enumerate(obj_slice)]
                 else:
                     obj_slice_buff = obj_slice
@@ -121,8 +121,8 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, b
                                                   y_grid[obj_slice_buff],
                                                   ij_grid[0][obj_slice_buff],
                                                   ij_grid[1][obj_slice_buff],
-                                                  times,
-                                                  times,
+                                                  times[0],
+                                                  times[-1],
                                                   dx=dx,
                                                   step=dt))
     return storm_objects

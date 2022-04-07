@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from datetime import datetime, timedelta
 from hagelslag.data.ModelOutput import ModelOutput
-from hagelslag.processing.tracker import label_storm_objects, extract_storm_objects
+from hagelslag.processing.tracker import label_storm_objects, extract_storm_objects, extract_storm_patches
 from hagelslag.processing.TrackProcessing import TrackProcessor
 from hagelslag.processing.ObjectMatcher import shifted_centroid_distance, centroid_distance, time_distance
 import os
@@ -55,6 +55,9 @@ class TestTracking(unittest.TestCase):
         storm_objs = extract_storm_objects(label_grid, self.model_grid.data[0], self.model_grid.x,
                                            self.model_grid.y, np.array([0]))
         self.assertEqual(len(storm_objs[0]), label_grid.max(), "Storm objects do not match number of labeled objects")
+        storm_patch_objs = extract_storm_patches(label_grid, self.model_grid.data[0], self.model_grid.x,
+                                                 self.model_grid.y, np.array([0]))
+        self.assertEqual(len(storm_patch_objs[0]), len(storm_objs[0]), "Full object and patch extraction counts don't match.")
 
     def test_track_processing(self):
         ws_params = (25, 50)

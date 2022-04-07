@@ -173,7 +173,7 @@ def process_ensemble_member(run_date, member, config):
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                              config, track_proc.model_grid.proj, mrms_tracks,
                                                              track_errors)
-                    if patch_radius is not None:
+                    if (patch_radius is not None) and (not segment_full_object):
                         print("Output netCDF", run_date, member)
                         forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                     if config.json:
