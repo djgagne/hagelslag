@@ -201,7 +201,7 @@ def process_ensemble_member(run_date, member, config):
                 else:
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                              track_proc.model_grid.proj)
-                    if patch_radius is not None:
+                    if (patch_radius is not None) and (not segment_full_object):
                         forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                     if config.json:
                         forecast_tracks_to_single_geojson(model_tracks, run_date, member,
@@ -210,7 +210,7 @@ def process_ensemble_member(run_date, member, config):
                 print(run_date, member, "Make Forecast Track Data")
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                          track_proc.model_grid.proj)
-                if patch_radius is not None:
+                if (patch_radius is not None) and (not segment_full_object):
                     print(run_date, member, "Track Data to netCDF")
                     forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
                 if config.json:
