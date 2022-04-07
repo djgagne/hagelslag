@@ -107,7 +107,7 @@ def process_ensemble_member(run_date, member, config):
         if hasattr(config, "buffer_radius"):
             buffer_radius = config.buffer_radius
         else:
-            buffer_radius = 1
+            buffer_radius = 0
 
         print("Patch Radius", patch_radius)
         track_proc = TrackProcessor(run_date,
