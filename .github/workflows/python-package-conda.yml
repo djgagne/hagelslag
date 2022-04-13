@@ -9,31 +9,37 @@ jobs:
       max-parallel: 5
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.8
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
+    - uses: actions/checkout@v2
     - name: Install grib dependencies
-      run: | 
+      shell: bash -l {0}
+      run: |
         sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
         sudo apt update
         sudo apt install libjasper1 libjasper-dev libopenjp2-7 libopenjp2-tools libopenjp2-7-dev
         ldconfig -p | grep libjasper
-    - name: Install dependencies
+    - name: "Set up Python 3.8"
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        mamba-version: "*"
+        channel-priority: true
+        environment-file: environment.yml
+        auto-activate-base: false
+        activate-environment: test
+    - shell: bash -l {0}
       run: |
-        conda env update --file environment.yml --name base
-        pip install .
+        conda info
+        conda list
+        conda config --show-sources
+        conda config --show
+        printenv | sort
     - name: Lint with flake8
+      shell: bash -l {0}
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
+      shell: bash -l {0}
       run: |
         pytest
