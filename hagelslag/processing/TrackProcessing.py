@@ -71,7 +71,7 @@ class TrackProcessor(object):
                  single_step=True,
                  mask_file=None,
                  patch_radius=32,
-                 buffer_radius=1):
+                 buffer_radius=0):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -177,10 +177,10 @@ class TrackProcessor(object):
                 hour_labels = label_storm_objects(model_data, self.segmentation_approach,
                                                   self.model_ew.min_intensity, self.model_ew.max_intensity,
                                                   min_area=self.size_filter, gaussian_sd=self.gaussian_window)
-            model_objects.extend(extract_storm_objects(hour_labels, model_data, self.model_grid.x,
+            model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
-                                                       buffer_radius=self.buffer_radius))
+                                                       patch_radius=self.patch_radius))
             for model_obj in model_objects[-1]:
                 slices = list(find_objects(model_obj.masks[-1]))
                 if len(slices) > 0:
@@ -232,10 +232,11 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h] * self.mask
             else:
                 model_data = self.model_grid.data[h]
-            model_data[:self.patch_radius] = 0
-            model_data[-self.patch_radius:] = 0
-            model_data[:, :self.patch_radius] = 0
-            model_data[:, -self.patch_radius:] = 0
+            if self.patch_radius is not None:
+                model_data[:self.patch_radius] = 0
+                model_data[-self.patch_radius:] = 0
+                model_data[:, :self.patch_radius] = 0
+                model_data[:, -self.patch_radius:] = 0
             if self.segmentation_approach == "ew":
                 scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
                 hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
@@ -248,10 +249,10 @@ class TrackProcessor(object):
                 hour_labels = label_storm_objects(model_data, self.segmentation_approach,
                                                   self.model_ew.min_intensity, self.model_ew.max_intensity,
                                                   min_area=self.size_filter, gaussian_sd=self.gaussian_window)
-            model_objects.extend(extract_storm_patches(hour_labels, model_data, self.model_grid.x,
+            model_objects.extend(extract_storm_objects(hour_labels, model_data, self.model_grid.x,
                                                        self.model_grid.y, [hour],
                                                        dx=self.model_grid.dx,
-                                                       patch_radius=self.patch_radius))
+                                                       buffer_radius=self.buffer_radius))
             for model_obj in model_objects[-1]:
                 slices = list(find_objects(model_obj.masks[-1]))
                 if len(slices) > 0:
@@ -265,11 +266,18 @@ class TrackProcessor(object):
                                                   self.object_matcher.cost_function_components,
                                                   self.object_matcher.max_values,
                                                   self.object_matcher.weights))
+        if self.patch_radius is not None:
+            tracked_model_patches = [sto.extract_patch(self.patch_radius, self.model_grid.x, self.model_grid.y,
+                                                       self.model_grid.i, self.model_grid.j)
+                                     for sto in tracked_model_objects]
+        else:
+            tracked_model_patches = []
+
         if self.segmentation_approach == "ew":
             self.model_ew.min_intensity = min_orig
             self.model_ew.max_intensity = max_orig
             self.model_ew.data_increment = data_increment_orig
-        return tracked_model_objects
+        return tracked_model_objects, tracked_model_patches
 
     def load_model_tracks(self, json_path):
         model_track_files = sorted(glob(json_path + "{0}/{1}/{2}_*.json".format(self.run_date.strftime("%Y%m%d"),
@@ -305,14 +313,35 @@ class TrackProcessor(object):
                 print('Less than 24 hours of observation data found')
 
                 return tracked_obs_objects
-
+            if self.segmentation_approach == "ew":
+                min_orig = self.mrms_ew.min_intensity
+                max_orig = self.mrms_ew.max_intensity
+                data_increment_orig = self.mrms_ew.data_increment
+                self.mrms_ew.min_intensity = 0
+                self.mrms_ew.data_increment = 1
+                self.mrms_ew.max_intensity = 100
+            else:
+                min_orig = 0
+                max_orig = 1
+                data_increment_orig = 1
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
                 mrms_data[mrms_data < 0] = 0
-                hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
-                                                                                          self.gaussian_window)),
-                                                       self.size_filter)
+                if self.segmentation_approach == "ew":
+                    scaled_data = np.array(rescale_data(mrms_data, min_orig, max_orig))
+                    hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
+                                                      self.mrms_ew.min_intensity, self.mrms_ew.max_intensity,
+                                                      min_area=self.size_filter, max_area=self.mrms_ew.max_size,
+                                                      max_range=self.mrms_ew.delta,
+                                                      increment=self.mrms_ew.data_increment,
+                                                      gaussian_sd=self.gaussian_window)
+                    del scaled_data
+                else:
+
+                    hour_labels = label_storm_objects(mrms_data, self.segmentation_approach,
+                                                      self.mrms_ew.min_intensity, self.mrms_ew.max_intensity,
+                                                      min_area=self.size_filter, gaussian_sd=self.gaussian_window)
                 hour_labels[mrms_data < self.mrms_ew.min_intensity] = 0
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(list(obj_slices))
@@ -349,7 +378,10 @@ class TrackProcessor(object):
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
-
+            if self.segmentation_approach == "ew":
+                self.mrms_ew.min_intensity = min_orig
+                self.mrms_ew.max_intensity = max_orig
+                self.mrms_ew.data_increment = data_increment_orig
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
@@ -375,7 +407,7 @@ class TrackProcessor(object):
         return self.track_step_matcher.match(model_tracks, obs_tracks)
 
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
-                                 tendency_variables=None, future_variables=None):
+                                 tendency_variables=None, future_variables=None, tracked_model_patches=None):
         """
         Extract model attribute data for each model track. Storm variables are those that describe the model storm
         directly, such as radar reflectivity or updraft helicity. Potential variables describe the surrounding
@@ -408,6 +440,9 @@ class TrackProcessor(object):
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[storm_var])
             if storm_var not in potential_variables + tendency_variables + future_variables:
                 del model_grids[storm_var]
         for potential_var in potential_variables:
@@ -422,6 +457,9 @@ class TrackProcessor(object):
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
             if potential_var not in tendency_variables + future_variables:
                 del model_grids[potential_var]
         for future_var in future_variables:
@@ -436,6 +474,9 @@ class TrackProcessor(object):
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[future_var], future=True)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[future_var], future=True)
             if future_var not in tendency_variables:
                 del model_grids[future_var]
         for tendency_var in tendency_variables:
@@ -449,6 +490,9 @@ class TrackProcessor(object):
                                                         self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]
 
     @staticmethod

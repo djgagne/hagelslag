@@ -135,12 +135,15 @@ def process_ensemble_member(run_date, member, config):
         if config.train:
             print("Find obs tracks", run_date, member)
             mrms_tracks = track_proc.find_mrms_tracks()
+        else:
+            mrms_tracks = []
 
         print("Find model tracks", run_date, member)
         if (not segment_full_object) and (patch_radius is not None):
             model_tracks = track_proc.find_model_patch_tracks()
+            model_patches = None
         else:
-            model_tracks = track_proc.find_model_tracks()
+            model_tracks, model_patches = track_proc.find_model_tracks()
 
         if model_tracks:
             print(run_date, member, "Found this many model tracks: {0:d}".format(len(model_tracks)))
@@ -154,7 +157,8 @@ def process_ensemble_member(run_date, member, config):
                                                 config.storm_variables,
                                                 config.potential_variables,
                                                 config.tendency_variables,
-                                                future_variables=future_variables)
+                                                future_variables=future_variables,
+                                                tracked_model_patches=model_patches)
             if config.train and len(model_tracks) > 0:
                 if len(mrms_tracks) > 0 and len(model_tracks) > 0:
                     if match_steps:
@@ -173,19 +177,16 @@ def process_ensemble_member(run_date, member, config):
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member,
                                                              config, track_proc.model_grid.proj, mrms_tracks,
                                                              track_errors)
-                    if (patch_radius is not None) and (not segment_full_object):
+                    if patch_radius is not None:
                         print("Output netCDF", run_date, member)
-                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                        if model_patches is None:
+                            model_patches = model_tracks
+                        forecast_track_patches_to_netcdf(model_patches, patch_radius, run_date, member, config)
                     if config.json:
                         print("Output json", run_date, member)
                         forecast_tracks_to_single_geojson(model_tracks, run_date, member, config,
                                                           track_proc.model_grid.proj)
-                        #forecast_tracks_to_json(model_tracks, run_date, member, config, track_proc.model_grid.proj,
-                        #                        observed_tracks=mrms_tracks,
-                        #                        track_errors=track_errors)
                     obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-                    #if config.json:
-                    #    obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
                     print("Output csv", run_date, member)
                     for table_name, table_data in obs_data.items():
                         csv_filename = join(config.csv_path, "{0}_{1}_{2}_{3}.csv".format(table_name,
@@ -201,8 +202,8 @@ def process_ensemble_member(run_date, member, config):
                 else:
                     forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                              track_proc.model_grid.proj)
-                    if (patch_radius is not None) and (not segment_full_object):
-                        forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    if patch_radius is not None:
+                        forecast_track_patches_to_netcdf(model_patches, patch_radius, run_date, member, config)
                     if config.json:
                         forecast_tracks_to_single_geojson(model_tracks, run_date, member,
                                                           config, track_proc.model_grid.proj)
@@ -210,9 +211,11 @@ def process_ensemble_member(run_date, member, config):
                 print(run_date, member, "Make Forecast Track Data")
                 forecast_data = make_forecast_track_data(model_tracks, run_date, member, config,
                                                          track_proc.model_grid.proj)
-                if (patch_radius is not None) and (not segment_full_object):
+                if patch_radius is not None:
                     print(run_date, member, "Track Data to netCDF")
-                    forecast_track_patches_to_netcdf(model_tracks, patch_radius, run_date, member, config)
+                    if model_patches is None:
+                        model_patches = model_tracks
+                    forecast_track_patches_to_netcdf(model_patches, patch_radius, run_date, member, config)
                 if config.json:
                     forecast_tracks_to_single_geojson(model_tracks, run_date, member,
                                                       config, track_proc.model_grid.proj)
@@ -282,11 +285,6 @@ def process_observed_tracks(run_date, member, config):
             obs_data = make_obs_track_data(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
             if config.json:
                 obs_tracks_to_json(mrms_tracks, member, run_date, config, track_proc.model_grid.proj)
-            # if not os.access(config.csv_path + run_date.strftime("%Y%m%d"), os.R_OK):
-            #    try:
-            #        os.mkdir(config.csv_path + run_date.strftime("%Y%m%d"))
-            #    except:
-            #        print config.csv_path + run_date.strftime("%Y%m%d") + " already exists"
             for table_name, table_data in obs_data.items():
                 csv_filename = config.csv_path + "{0}_{1}_{2}_{3}.csv".format(table_name,
                                                                               "obs",
