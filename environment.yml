@@ -28,4 +28,3 @@ dependencies:
   - flake8
   - pip:
       - grib2io
-      - .

@@ -28,6 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         mamba env update --file environment.yml --name base
+        pip install .
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
