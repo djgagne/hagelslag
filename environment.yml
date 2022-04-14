@@ -26,5 +26,7 @@ dependencies:
   - mock
   - jasper
   - flake8
+  - zarr
+  - pyarrow
   - pip:
       - .
