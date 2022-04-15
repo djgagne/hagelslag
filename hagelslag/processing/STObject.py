@@ -591,13 +591,13 @@ class STObject(object):
                 shape_stats.append(props[stat_name])
         return shape_stats
 
-    def to_geojson_feature(self, proj):
+    def to_geojson_feature(self, proj, output_grids=True):
         """
         Output the data in the STObject to a geoJSON file.
 
         Args:
-            proj: PyProj object for converting the x and y coordinates back to latitude and longitue values.
-            metadata: Metadata describing the object to be included in the top-level properties.
+            proj: PyProj object for converting the x and y coordinates back to latitude and longitude values.
+            output_grids: Whether or not to output the primary gridded fields to the geojson file.
         """
         json_features = []
         for t, time in enumerate(self.times):
@@ -610,8 +610,13 @@ class STObject(object):
             if len(lonlat_list) > 0:
                 lonlat_list.append(lonlat_list[0])
             feature["geometry"]["coordinates"] = [lonlat_list]
-            for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
-                feature["properties"][attr] = getattr(self, attr)[t].tolist()
+            if output_grids:
+                for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
+                    feature["properties"][attr] = getattr(self, attr)[t].tolist()
+                feature["properties"]["lon"], feature["properties"]["lat"] = proj(self.x, self.y, inverse=True)
+            feature["properties"]["valid_time"] = time
+            feature["properties"]["centroid_lon"], \
+                feature["properties"]["centroid_lat"] = proj(*self.center_of_mass(time), inverse=True)
             json_features.append(feature)
         return json_features
 
