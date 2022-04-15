@@ -1,9 +1,10 @@
 import json
 
 import numpy as np
-from skimage.measure import regionprops
+from skimage.measure import regionprops, find_contours
 from skimage.morphology import convex_hull_image
 from skimage.segmentation import find_boundaries
+from scipy.ndimage import binary_erosion, binary_dilation, binary_fill_holes
 
 
 class STObject(object):
@@ -115,7 +116,6 @@ class STObject(object):
             diff = time - self.start_time
             valid = np.flatnonzero(self.masks[diff] > 0)
             if valid.size > 0:
-                print(valid)
                 com_i = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
                                                                                  self.i[diff].ravel()[valid])
                 com_j = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
@@ -312,7 +312,9 @@ class STObject(object):
 
     def boundary_polygon(self, time):
         """
-        Get coordinates of object boundary in counter-clockwise order
+        Get coordinates of object boundary in counter-clockwise order based on the convex hull of the object.
+        For non-convex objects, the convex hull will not be representative of the object shape and boundary_contour
+        should be used instead.
         """
         ti = np.where(time == self.times)[0][0]
         com_x, com_y = self.center_of_mass(time)
@@ -332,6 +334,28 @@ class STObject(object):
         coord_order = np.argsort(polar_coords, order=['theta', 'r'])
         ordered_coords = np.vstack([boundary_x[coord_order], boundary_y[coord_order]])
         return ordered_coords
+
+    def boundary_contour(self, time):
+        """
+        Calculate the contour around the edge of the binary mask for the object. For objects with interior holes
+        or multiple connections, binary dilation, hole filling, and erosion are used to generate a single edge
+        contour instead of multiple contours.
+
+        Args:
+            time:
+
+        Returns:
+            array of shape (2, number of contour points) containing the x and y coordinates of the object edge.
+        """
+        ti = np.where(time == self.times)[0][0]
+        image_mask = binary_erosion(binary_fill_holes(binary_dilation(self.masks[ti])))
+        padded_mask = np.pad(image_mask, 1, 'constant', constant_values=0)
+        c_out = find_contours(padded_mask, level=0.5, fully_connected="high")
+        x_cont = self.x[ti][np.floor(c_out[0][:, 0]).astype(int), np.floor(c_out[0][:, 1]).astype(int)]
+        y_cont = self.y[ti][np.floor(c_out[0][:, 0]).astype(int), np.floor(c_out[0][:, 1]).astype(int)]
+        ordered_coords = np.vstack([x_cont, y_cont])
+        return ordered_coords
+
 
     def estimate_motion(self, time, intensity_grid, max_u, max_v):
         """
@@ -591,7 +615,7 @@ class STObject(object):
                 shape_stats.append(props[stat_name])
         return shape_stats
 
-    def to_geojson_feature(self, proj, output_grids=True):
+    def to_geojson_feature(self, proj, output_grids=False):
         """
         Output the data in the STObject to a geoJSON file.
 
@@ -604,16 +628,14 @@ class STObject(object):
             feature = {"type": "Feature",
                        "geometry": {"type": "Polygon"},
                        "properties": {}}
-            boundary_coords = self.boundary_polygon(time)
+            boundary_coords = self.boundary_contour(time)
             lonlat = np.vstack(proj(boundary_coords[0], boundary_coords[1], inverse=True))
             lonlat_list = lonlat.T.tolist()
-            if len(lonlat_list) > 0:
-                lonlat_list.append(lonlat_list[0])
             feature["geometry"]["coordinates"] = [lonlat_list]
             if output_grids:
                 for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
                     feature["properties"][attr] = getattr(self, attr)[t].tolist()
-                feature["properties"]["lon"], feature["properties"]["lat"] = proj(self.x, self.y, inverse=True)
+                feature["properties"]["lon"], feature["properties"]["lat"] = proj(self.x[t], self.y[t], inverse=True)
             feature["properties"]["valid_time"] = time
             feature["properties"]["centroid_lon"], \
                 feature["properties"]["centroid_lat"] = proj(*self.center_of_mass(time), inverse=True)
