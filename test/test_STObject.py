@@ -1,7 +1,7 @@
 from hagelslag.processing.STObject import STObject
 import numpy as np
 from pyproj import Proj
-
+import json
 
 def test_STObject_creation():
     data = np.array([[0, 0, 0, 0],
@@ -33,6 +33,6 @@ def test_STObject_creation():
     assert (boundary_coords[0].min() >= sto.x[0].min()) & (boundary_coords[0].max() <= sto.x[0].max())
     assert (boundary_coords[1].min() >= sto.y[0].min()) & (boundary_coords[1].max() <= sto.y[0].max())
     proj = Proj(proj="lcc", lat_0=30, lon_0=-96, lat_1=31, lat_2=50)
-    json_obj = sto.to_geojson_feature(proj, output_grids=False)
-    assert "i" not in json_obj[0]["properties"].keys()
+    json_obj = sto.to_geojson_feature(proj, output_grids=True)
+    json_str = json.dumps(json_obj)
     return

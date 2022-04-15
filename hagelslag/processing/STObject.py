@@ -635,8 +635,13 @@ class STObject(object):
             if output_grids:
                 for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
                     feature["properties"][attr] = getattr(self, attr)[t].tolist()
-                feature["properties"]["lon"], feature["properties"]["lat"] = proj(self.x[t], self.y[t], inverse=True)
-            feature["properties"]["valid_time"] = time
+                lon_grid, lat_grid = proj(self.x[t], self.y[t], inverse=True)
+                feature["properties"]["lon"] = lon_grid.tolist()
+                feature["properties"]["lat"] = lat_grid.tolist()
+            if type(time) in [int, np.int32, np.int64]:
+                feature["properties"]["valid_time"] = int(time)
+            else:
+                feature["properties"]["valid_time"] = str(time)
             feature["properties"]["centroid_lon"], \
                 feature["properties"]["centroid_lat"] = proj(*self.center_of_mass(time), inverse=True)
             json_features.append(feature)
