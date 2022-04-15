@@ -10,7 +10,6 @@ scikit-image
 pygrib
 arrow>=0.8
 cython
-grib2io
 s3fs
 xarray
 sphinx

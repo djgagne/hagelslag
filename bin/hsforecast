@@ -3,7 +3,7 @@ import argparse
 import os
 import traceback
 from multiprocessing import Pool
-
+from os.path import join
 from hagelslag.processing.EnsembleProducts import *
 from hagelslag.processing.TrackModeler import TrackModeler
 from hagelslag.util.Config import Config
@@ -276,8 +276,8 @@ def training_data_percentiles(member_list, ensemble_name, watershed_obj, csv_dat
             dataframe_values = {'Obj_Values': obj_percent_val, 'Percentiles': percentiles}
             obj_value_percentile = pd.DataFrame(data=dataframe_values)
             if csv_outpath:
-                csv_path = csv_outpath + '{0}_{1}_{2}_Size_Distribution.csv'.format(ensemble_name,
-                                                                                    watershed_obj, member)
+                csv_path = join(csv_outpath, '{0}_{1}_{2}_Size_Distribution.csv'.format(ensemble_name,
+                                                                                    watershed_obj, member))
                 obj_value_percentile.to_csv(csv_path, index=False)
                 print('Output csv: {0}'.format(csv_path))
             ensemble_obj_data.append(obj_values)
@@ -293,8 +293,8 @@ def training_data_percentiles(member_list, ensemble_name, watershed_obj, csv_dat
         dataframe_values = {'Obj_Values': ens_obj_percent_val, 'Percentiles': percentiles}
         ens_obj_value_percentile = pd.DataFrame(data=dataframe_values)
         if csv_outpath:
-            csv_path = csv_outpath + '{0}_{1}_Size_Distribution.csv'.format(ensemble_name,
-                                                                            watershed_obj)
+            csv_path = join(csv_outpath, '{0}_{1}_Size_Distribution.csv'.format(ensemble_name,
+                                                                            watershed_obj))
             ens_obj_value_percentile.to_csv(csv_path, index=False)
             print('Output csv: {0}'.format(csv_path))
     return

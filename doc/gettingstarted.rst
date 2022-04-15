@@ -9,7 +9,7 @@ Installation
 ------------
 
 Hagelslag can be installed directly from ``source``, or it can be downloaded with ``pip``. Hagelslag is compatible with
-Python 2.7 and 3.5.
+Python > 3.6.
 
 Source
 ------
@@ -22,27 +22,43 @@ Make sure the following dependencies are installed before trying to install hage
 
 * numpy
 * scipy
+* s3fs
 * matplotlib
-* pandas 
+* xarray
+* netcdf4
+* pandas
 * scikit-learn
-* scikit-image
-* pyproj
-* netCDF4-python
-* scikit-image
+* pytest
+* h5py
+* pip
+*pyproj
 * pygrib
-* basemap
+* scikit-image
+* jupyter
+* jupyterlab
+* arrow
+* cython
+* sphinx
+* mock
+* jasper
+* grib2io
 
 Most of these should be installable with the `Anaconda Python distribution <https://www.continuum.io/downloads>`_ or pip.
 Pygrib requires the `ECMWF GRIB-API <https://software.ecmwf.int/wiki/display/GRIB/Home>`_.
-Basemap may need to be installed from source because the geos library the anaconda binary uses conflicts with other packages.
-Alternatively, use the conda-forge channel in anaconda to install all of the dependencies. If you install them all
-simultaneously, it should handle any potential conflicts.
+If you install them all simultaneously, it should handle any potential conflicts.
+All hagelslag dependencies can be installed into a conda environment with the following command::
+
+    conda env create -f environment.yml
+
+You can also add depndencies to an existing environment with the following command::
+
+   conda env update -f environment.yml
 
 Quick Start 
 ------
 After cloning hagelslag, run the following command within the hagelslag directory::
     
-    python setup.py install
+    pip install .
 
 Example bash scripts for running different aspects of hagelslag are included in ``hagelslag/example_scripts``. 
 Any paths that begin with ``...\hagelslag`` should include the directory hagelslag was cloned into.

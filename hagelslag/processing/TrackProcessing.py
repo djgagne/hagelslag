@@ -13,7 +13,7 @@ from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from hagelslag.processing.Hysteresis import Hysteresis
 from hagelslag.processing.Watershed import Watershed
-from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, track_storms
+from hagelslag.processing.tracker import label_storm_objects, extract_storm_patches, extract_storm_objects, track_storms
 from .ObjectMatcher import ObjectMatcher, TrackMatcher, TrackStepMatcher
 from .STObject import STObject, read_geojson
 
@@ -70,7 +70,8 @@ class TrackProcessor(object):
                  mrms_watershed_params=None,
                  single_step=True,
                  mask_file=None,
-                 patch_radius=32):
+                 patch_radius=32,
+                 buffer_radius=0):
         self.run_date = run_date
         self.start_date = start_date
         self.end_date = end_date
@@ -125,6 +126,7 @@ class TrackProcessor(object):
             self.mask = mask_data.variables["usa_mask"][:]
             mask_data.close()
         self.patch_radius = patch_radius
+        self.buffer_radius = buffer_radius
         return
 
     def find_model_patch_tracks(self):
@@ -206,11 +208,22 @@ class TrackProcessor(object):
             List of STObjects containing model track information.
         """
         self.model_grid.load_data()
-        model_objects = []
         tracked_model_objects = []
+        model_objects = []
         if self.model_grid.data is None:
             print("No model output found")
             return tracked_model_objects
+        if self.segmentation_approach == "ew":
+            min_orig = self.model_ew.min_intensity
+            max_orig = self.model_ew.max_intensity
+            data_increment_orig = self.model_ew.data_increment
+            self.model_ew.min_intensity = 0
+            self.model_ew.data_increment = 1
+            self.model_ew.max_intensity = 100
+        else:
+            min_orig = 0
+            max_orig = 1
+            data_increment_orig = 1
         for h, hour in enumerate(self.hours):
             # Identify storms at each time step and apply size filter
             print("Finding {0} objects for run {1} Hour: {2:02d}".format(self.ensemble_member,
@@ -219,75 +232,52 @@ class TrackProcessor(object):
                 model_data = self.model_grid.data[h] * self.mask
             else:
                 model_data = self.model_grid.data[h]
-
-            # remember orig values
-
-            # scale to int 0-100.
+            if self.patch_radius is not None:
+                model_data[:self.patch_radius] = 0
+                model_data[-self.patch_radius:] = 0
+                model_data[:, :self.patch_radius] = 0
+                model_data[:, -self.patch_radius:] = 0
             if self.segmentation_approach == "ew":
-                min_orig = self.model_ew.min_intensity
-                max_orig = self.model_ew.max_intensity
-                data_increment_orig = self.model_ew.data_increment
-                scaled_data = np.array(rescale_data(self.model_grid.data[h], min_orig, max_orig))
-                self.model_ew.min_intensity = 0
-                self.model_ew.data_increment = 1
-                self.model_ew.max_intensity = 100
+                scaled_data = np.array(rescale_data(model_data, min_orig, max_orig))
+                hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
+                                                  self.model_ew.min_intensity, self.model_ew.max_intensity,
+                                                  min_area=self.size_filter, max_area=self.model_ew.max_size,
+                                                  max_range=self.model_ew.delta, increment=self.model_ew.data_increment,
+                                                  gaussian_sd=self.gaussian_window)
+                del scaled_data
             else:
-                min_orig = 0
-                max_orig = 1
-                data_increment_orig = 1
-                scaled_data = self.model_grid.data[h]
-            hour_labels = self.model_ew.label(gaussian_filter(scaled_data, self.gaussian_window))
-            hour_labels[model_data < self.model_ew.min_intensity] = 0
-            if self.size_filter > 1:
-                hour_labels = self.model_ew.size_filter(hour_labels, self.size_filter)
-            # Return to orig values
-            if self.segmentation_approach == "ew":
-                self.model_ew.min_intensity = min_orig
-                self.model_ew.max_intensity = max_orig
-                self.model_ew.data_increment = data_increment_orig
-            obj_slices = find_objects(hour_labels)
-
-            num_slices = len(list(obj_slices))
-            model_objects.append([])
-            if num_slices > 0:
-                for s, sl in enumerate(obj_slices):
-                    model_objects[-1].append(STObject(self.model_grid.data[h][sl],
-                                                      np.where(hour_labels[sl] == s + 1, 1, 0),
-                                                      self.model_grid.x[sl],
-                                                      self.model_grid.y[sl],
-                                                      self.model_grid.i[sl],
-                                                      self.model_grid.j[sl],
-                                                      hour,
-                                                      hour,
-                                                      dx=self.model_grid.dx))
+                hour_labels = label_storm_objects(model_data, self.segmentation_approach,
+                                                  self.model_ew.min_intensity, self.model_ew.max_intensity,
+                                                  min_area=self.size_filter, gaussian_sd=self.gaussian_window)
+            model_objects.extend(extract_storm_objects(hour_labels, model_data, self.model_grid.x,
+                                                       self.model_grid.y, [hour],
+                                                       dx=self.model_grid.dx,
+                                                       buffer_radius=self.buffer_radius))
+            for model_obj in model_objects[-1]:
+                slices = list(find_objects(model_obj.masks[-1]))
+                if len(slices) > 0:
+                    dims = (slices[0][0].stop - slices[0][0].start, slices[0][1].stop - slices[0][1].start)
                     if h > 0:
-                        dims = model_objects[-1][-1].timesteps[0].shape
-                        model_objects[-1][-1].estimate_motion(hour, self.model_grid.data[h - 1], dims[1], dims[0])
-            del hour_labels
-            del scaled_data
-            del model_data
-        for h, hour in enumerate(self.hours):
-            past_time_objs = []
-            for obj in tracked_model_objects:
-                # Potential trackable objects are identified
-                if obj.end_time == hour - 1:
-                    past_time_objs.append(obj)
-            # If no objects existed in the last time step, then consider objects in current time step all new
-            if len(past_time_objs) == 0:
-                tracked_model_objects.extend(model_objects[h])
-            # Match from previous time step with current time step
-            elif len(past_time_objs) > 0 and len(model_objects[h]) > 0:
-                assignments = self.object_matcher.match_objects(past_time_objs, model_objects[h], hour - 1, hour)
-                unpaired = list(range(len(model_objects[h])))
-                for pair in assignments:
-                    past_time_objs[pair[0]].extend(model_objects[h][pair[1]])
-                    unpaired.remove(pair[1])
-                if len(unpaired) > 0:
-                    for up in unpaired:
-                        tracked_model_objects.append(model_objects[h][up])
-            print("Tracked Model Objects: {0:03d} Hour: {1:02d}".format(len(tracked_model_objects), hour))
+                        model_obj.estimate_motion(hour, self.model_grid.data[h - 1], dims[1], dims[0])
 
-        return tracked_model_objects
+            del model_data
+            del hour_labels
+        tracked_model_objects.extend(track_storms(model_objects, self.hours,
+                                                  self.object_matcher.cost_function_components,
+                                                  self.object_matcher.max_values,
+                                                  self.object_matcher.weights))
+        if self.patch_radius is not None:
+            tracked_model_patches = [sto.extract_patch(self.patch_radius, self.model_grid.x, self.model_grid.y,
+                                                       self.model_grid.i, self.model_grid.j)
+                                     for sto in tracked_model_objects]
+        else:
+            tracked_model_patches = []
+
+        if self.segmentation_approach == "ew":
+            self.model_ew.min_intensity = min_orig
+            self.model_ew.max_intensity = max_orig
+            self.model_ew.data_increment = data_increment_orig
+        return tracked_model_objects, tracked_model_patches
 
     def load_model_tracks(self, json_path):
         model_track_files = sorted(glob(json_path + "{0}/{1}/{2}_*.json".format(self.run_date.strftime("%Y%m%d"),
@@ -323,14 +313,35 @@ class TrackProcessor(object):
                 print('Less than 24 hours of observation data found')
 
                 return tracked_obs_objects
-
+            if self.segmentation_approach == "ew":
+                min_orig = self.mrms_ew.min_intensity
+                max_orig = self.mrms_ew.max_intensity
+                data_increment_orig = self.mrms_ew.data_increment
+                self.mrms_ew.min_intensity = 0
+                self.mrms_ew.data_increment = 1
+                self.mrms_ew.max_intensity = 100
+            else:
+                min_orig = 0
+                max_orig = 1
+                data_increment_orig = 1
             for h, hour in enumerate(self.hours):
                 mrms_data = np.zeros(self.mrms_grid.data[h].shape)
                 mrms_data[:] = np.array(self.mrms_grid.data[h])
                 mrms_data[mrms_data < 0] = 0
-                hour_labels = self.mrms_ew.size_filter(self.mrms_ew.label(gaussian_filter(mrms_data,
-                                                                                          self.gaussian_window)),
-                                                       self.size_filter)
+                if self.segmentation_approach == "ew":
+                    scaled_data = np.array(rescale_data(mrms_data, min_orig, max_orig))
+                    hour_labels = label_storm_objects(scaled_data, self.segmentation_approach,
+                                                      self.mrms_ew.min_intensity, self.mrms_ew.max_intensity,
+                                                      min_area=self.size_filter, max_area=self.mrms_ew.max_size,
+                                                      max_range=self.mrms_ew.delta,
+                                                      increment=self.mrms_ew.data_increment,
+                                                      gaussian_sd=self.gaussian_window)
+                    del scaled_data
+                else:
+
+                    hour_labels = label_storm_objects(mrms_data, self.segmentation_approach,
+                                                      self.mrms_ew.min_intensity, self.mrms_ew.max_intensity,
+                                                      min_area=self.size_filter, gaussian_sd=self.gaussian_window)
                 hour_labels[mrms_data < self.mrms_ew.min_intensity] = 0
                 obj_slices = find_objects(hour_labels)
                 num_slices = len(list(obj_slices))
@@ -367,7 +378,10 @@ class TrackProcessor(object):
                         for up in unpaired:
                             tracked_obs_objects.append(obs_objects[h][up])
                 print("Tracked Obs Objects: {0:03d} Hour: {1:02d}".format(len(tracked_obs_objects), hour))
-
+            if self.segmentation_approach == "ew":
+                self.mrms_ew.min_intensity = min_orig
+                self.mrms_ew.max_intensity = max_orig
+                self.mrms_ew.data_increment = data_increment_orig
         return tracked_obs_objects
 
     def match_tracks(self, model_tracks, obs_tracks, unique_matches=True, closest_matches=False):
@@ -393,7 +407,7 @@ class TrackProcessor(object):
         return self.track_step_matcher.match(model_tracks, obs_tracks)
 
     def extract_model_attributes(self, tracked_model_objects, storm_variables, potential_variables,
-                                 tendency_variables=None, future_variables=None):
+                                 tendency_variables=None, future_variables=None, tracked_model_patches=None):
         """
         Extract model attribute data for each model track. Storm variables are those that describe the model storm
         directly, such as radar reflectivity or updraft helicity. Potential variables describe the surrounding
@@ -416,6 +430,9 @@ class TrackProcessor(object):
         for l_var in ["lon", "lat"]:
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
         for storm_var in storm_variables:
             print("Storm {0} {1} {2}".format(storm_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,
@@ -426,6 +443,9 @@ class TrackProcessor(object):
             model_grids[storm_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[storm_var])
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[storm_var])
             if storm_var not in potential_variables + tendency_variables + future_variables:
                 del model_grids[storm_var]
         for potential_var in potential_variables:
@@ -440,6 +460,9 @@ class TrackProcessor(object):
                 model_grids[potential_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[potential_var], potential=True)
             if potential_var not in tendency_variables + future_variables:
                 del model_grids[potential_var]
         for future_var in future_variables:
@@ -454,6 +477,9 @@ class TrackProcessor(object):
                 model_grids[future_var].load_data()
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_grid(model_grids[future_var], future=True)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_grid(model_grids[future_var], future=True)
             if future_var not in tendency_variables:
                 del model_grids[future_var]
         for tendency_var in tendency_variables:
@@ -467,6 +493,9 @@ class TrackProcessor(object):
                                                         self.single_step)
             for model_obj in tracked_model_objects:
                 model_obj.extract_tendency_grid(model_grids[tendency_var])
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_tendency_grid(model_grids[tendency_var])
             del model_grids[tendency_var]
 
     @staticmethod

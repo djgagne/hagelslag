@@ -1,9 +1,10 @@
 import json
 
 import numpy as np
-from skimage.measure import regionprops
+from skimage.measure import regionprops, find_contours
 from skimage.morphology import convex_hull_image
 from skimage.segmentation import find_boundaries
+from scipy.ndimage import binary_erosion, binary_dilation, binary_fill_holes
 
 
 class STObject(object):
@@ -25,7 +26,7 @@ class STObject(object):
         v: storm motion in y-direction
     """
 
-    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=4000, u=None, v=None):
+    def __init__(self, grid, mask, x, y, i, j, start_time, end_time, step=1, dx=3000, u=None, v=None):
         if hasattr(grid, "shape") and len(grid.shape) == 2:
             self.timesteps = [grid]
             self.masks = [np.array(mask, dtype=int)]
@@ -100,6 +101,92 @@ class STObject(object):
             com_x = None
             com_y = None
         return com_x, com_y
+
+    def center_of_mass_ij(self, time):
+        """
+        Calculate the center of mass in terms of row and column coordinates at a given timestep.
+
+        Args:
+            time: Time at which the center of mass calculation is performed
+
+        Returns:
+            The x- and y-coordinates of the center of mass.
+        """
+        if self.start_time <= time <= self.end_time:
+            diff = time - self.start_time
+            valid = np.flatnonzero(self.masks[diff] > 0)
+            if valid.size > 0:
+                com_i = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
+                                                                                 self.i[diff].ravel()[valid])
+                com_j = 1.0 / self.timesteps[diff].ravel()[valid].sum() * np.sum(self.timesteps[diff].ravel()[valid] *
+                                                                                 self.j[diff].ravel()[valid])
+            else:
+                com_i = np.mean(self.i[diff])
+                com_j = np.mean(self.j[diff])
+            com_i = int(np.round(com_i))
+            com_j = int(np.round(com_j))
+        else:
+            com_i = None
+            com_j = None
+        return com_i, com_j
+
+    def extract_patch(self, patch_radius, full_x, full_y, full_i, full_j):
+        """
+        Extract patch of uniform radius from existing STObject. This is intended for extracting patches from
+        STObjects that are built around the bounding box of the original object. Areas outside the object are
+        padded with zeros.
+
+        Args:
+            patch_radius (int): radius of patch in pixels
+            full_x: full x grid encompassing the original field from which the objects have been extracted.
+            full_y: full y grid
+            full_i: full i (row) grid
+            full_j: full j (row) grid
+
+        Returns:
+            new STObject containing the a patched slice of the original STObject.
+        """
+        com_ijs = [self.center_of_mass_ij(time) for time in self.times]
+        patch_grid = []
+        patch_mask = []
+        patch_x = []
+        patch_y = []
+        patch_i = []
+        patch_j = []
+        for t, time in enumerate(self.times):
+            obj_slice_buff = (slice(com_ijs[t][0] - patch_radius, com_ijs[t][0] + patch_radius),
+                              slice(com_ijs[t][1] - patch_radius, com_ijs[t][1] + patch_radius))
+            obj_slice_local = [[com_ijs[t][0] - self.i[t].min() - patch_radius,
+                                com_ijs[t][0] - self.i[t].min() + patch_radius],
+                               [com_ijs[t][1] - self.j[t].min() - patch_radius,
+                                com_ijs[t][1] - self.j[t].min() + patch_radius]]
+            patch_i.append(full_i[obj_slice_buff])
+            patch_j.append(full_j[obj_slice_buff])
+            patch_x.append(full_x[obj_slice_buff])
+            patch_y.append(full_y[obj_slice_buff])
+            pad_i_l = abs(obj_slice_local[0][0]) if obj_slice_local[0][0] < 0 else 0
+            pad_i_u = obj_slice_local[0][1] - self.timesteps[t].shape[0] \
+                if obj_slice_local[0][1] - self.timesteps[t].shape[0] > 0 else 0
+            pad_j_l = abs(obj_slice_local[1][0]) if obj_slice_local[1][0] < 0 else 0
+            pad_j_u = obj_slice_local[1][1] - self.timesteps[t].shape[1] \
+                if obj_slice_local[1][1] - self.timesteps[t].shape[1] > 0 else 0
+
+            if obj_slice_local[0][0] < 0:
+                obj_slice_local[0][0] = 0
+                obj_slice_local[0][1] += pad_i_l
+            if obj_slice_local[1][0] < 0:
+                obj_slice_local[1][0] = 0
+                obj_slice_local[1][1] += pad_j_l
+            pad_grid = np.pad(self.timesteps[t], pad_width=[(pad_i_l, pad_i_l + pad_i_u), (pad_j_l, pad_j_l + pad_j_u)])
+            pad_mask = np.pad(self.masks[t], pad_width=[(pad_i_l, pad_i_l + pad_i_u), (pad_j_l, pad_j_l + pad_j_u)])
+            obj_slice_const = (slice(obj_slice_local[0][0], obj_slice_local[0][1]),
+                               slice(obj_slice_local[1][0], obj_slice_local[1][1]))
+            patch_grid.append(pad_grid[obj_slice_const])
+            patch_mask.append(pad_mask[obj_slice_const])
+        patch_obj = STObject(patch_grid, patch_mask, patch_x, patch_y, patch_i, patch_j, self.start_time,
+                             self.end_time, step=self.step, dx=self.dx, u=self.u, v=self.v)
+        return patch_obj
+
 
     def closest_distance(self, time, other_object, other_time):
         """
@@ -225,7 +312,9 @@ class STObject(object):
 
     def boundary_polygon(self, time):
         """
-        Get coordinates of object boundary in counter-clockwise order
+        Get coordinates of object boundary in counter-clockwise order based on the convex hull of the object.
+        For non-convex objects, the convex hull will not be representative of the object shape and boundary_contour
+        should be used instead.
         """
         ti = np.where(time == self.times)[0][0]
         com_x, com_y = self.center_of_mass(time)
@@ -245,6 +334,28 @@ class STObject(object):
         coord_order = np.argsort(polar_coords, order=['theta', 'r'])
         ordered_coords = np.vstack([boundary_x[coord_order], boundary_y[coord_order]])
         return ordered_coords
+
+    def boundary_contour(self, time):
+        """
+        Calculate the contour around the edge of the binary mask for the object. For objects with interior holes
+        or multiple connections, binary dilation, hole filling, and erosion are used to generate a single edge
+        contour instead of multiple contours.
+
+        Args:
+            time:
+
+        Returns:
+            array of shape (2, number of contour points) containing the x and y coordinates of the object edge.
+        """
+        ti = np.where(time == self.times)[0][0]
+        image_mask = binary_erosion(binary_fill_holes(binary_dilation(self.masks[ti])))
+        padded_mask = np.pad(image_mask, 1, 'constant', constant_values=0)
+        c_out = find_contours(padded_mask, level=0.5, fully_connected="high")
+        x_cont = self.x[ti][np.floor(c_out[0][:, 0]).astype(int), np.floor(c_out[0][:, 1]).astype(int)]
+        y_cont = self.y[ti][np.floor(c_out[0][:, 0]).astype(int), np.floor(c_out[0][:, 1]).astype(int)]
+        ordered_coords = np.vstack([x_cont, y_cont])
+        return ordered_coords
+
 
     def estimate_motion(self, time, intensity_grid, max_u, max_v):
         """
@@ -503,6 +614,38 @@ class STObject(object):
             else:
                 shape_stats.append(props[stat_name])
         return shape_stats
+
+    def to_geojson_feature(self, proj, output_grids=False):
+        """
+        Output the data in the STObject to a geoJSON file.
+
+        Args:
+            proj: PyProj object for converting the x and y coordinates back to latitude and longitude values.
+            output_grids: Whether or not to output the primary gridded fields to the geojson file.
+        """
+        json_features = []
+        for t, time in enumerate(self.times):
+            feature = {"type": "Feature",
+                       "geometry": {"type": "Polygon"},
+                       "properties": {}}
+            boundary_coords = self.boundary_contour(time)
+            lonlat = np.vstack(proj(boundary_coords[0], boundary_coords[1], inverse=True))
+            lonlat_list = lonlat.T.tolist()
+            feature["geometry"]["coordinates"] = [lonlat_list]
+            if output_grids:
+                for attr in ["timesteps", "masks", "x", "y", "i", "j"]:
+                    feature["properties"][attr] = getattr(self, attr)[t].tolist()
+                lon_grid, lat_grid = proj(self.x[t], self.y[t], inverse=True)
+                feature["properties"]["lon"] = lon_grid.tolist()
+                feature["properties"]["lat"] = lat_grid.tolist()
+            if type(time) in [int, np.int32, np.int64]:
+                feature["properties"]["valid_time"] = int(time)
+            else:
+                feature["properties"]["valid_time"] = str(time)
+            feature["properties"]["centroid_lon"], \
+                feature["properties"]["centroid_lat"] = proj(*self.center_of_mass(time), inverse=True)
+            json_features.append(feature)
+        return json_features
 
     def to_geojson(self, filename, proj, metadata=None):
         """

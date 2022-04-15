@@ -3,7 +3,7 @@ import pandas as pd
 
 from .ContingencyTable import ContingencyTable
 
-__author__ = "David John Gagne <djgagne@ou.edu>"
+__author__ = "David John Gagne <dgagne@ucar.edu>"
 
 
 class ROC(object):
