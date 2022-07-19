@@ -13,11 +13,8 @@ classifiers = ['Development Status :: 4 - Beta',
                ]
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if on_rtd:
-    requires = []
-else:
-    with open("requirements.txt") as require_file:
-        requires = [r.strip() for r in require_file.readlines()]
+
+requires = ["numpy", "matplotlib", "scipy", "xarray", "pandas", "scikit-image", "scikit-learn"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
