@@ -31,7 +31,7 @@ Make sure the following dependencies are installed before trying to install hage
 * pytest
 * h5py
 * pip
-*pyproj
+* pyproj
 * pygrib
 * scikit-image
 * jupyter
@@ -56,7 +56,11 @@ You can also add depndencies to an existing environment with the following comma
 
 Quick Start 
 ------
-After cloning hagelslag, run the following command within the hagelslag directory::
+A stable version of hagelslag can be installed from the Python Package Index (PyPI) with the pip command::
+
+   pip install hagelslag
+
+The latest version from github can be installed with pip as well. After cloning hagelslag with git, run the following command within the hagelslag directory::
     
     pip install .
 
