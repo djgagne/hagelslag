@@ -47,6 +47,8 @@ def main():
         config.run_date_format = "%Y%m%d-%H%M"
     if not hasattr(config, "geojson_path"):
         config.geojson_path = None
+    if not hasattr(config, "output_geojson_grid"):
+        config.output_geojson_grid = False
     config.json = args.json
     if args.proc > 1:
         pool = Pool(args.proc)
@@ -517,7 +519,7 @@ def make_forecast_track_data(forecast_tracks, run_date, member, config, proj, ob
 def forecast_tracks_to_single_geojson(forecast_tracks, run_date, member, config, proj):
     json_obj = {"type": "FeatureCollection", "features": []}
     for f, forecast_track in enumerate(forecast_tracks):
-        json_obj["features"].extend(forecast_track.to_geojson_feature(proj))
+        json_obj["features"].extend(forecast_track.to_geojson_feature(proj, output_grids=config.output_geojson_grid))
     if not(exists(config.geojson_path)):
         os.makedirs(config.geojson_path)
     run_date_str = run_date.strftime(config.run_date_format)

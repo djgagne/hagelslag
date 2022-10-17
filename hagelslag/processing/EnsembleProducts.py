@@ -5,7 +5,6 @@ from os.path import join, exists
 
 import numpy as np
 import pandas as pd
-from grib2io import Grib2Message
 from netCDF4 import Dataset, num2date
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
@@ -17,6 +16,10 @@ from skimage.morphology import disk
 from hagelslag.data.ModelOutput import ModelOutput
 from hagelslag.util.make_proj_grids import read_arps_map_file, read_ncar_map_file, make_proj_grids
 
+try:
+    from grib2io import Grib2Message
+except ImportError:
+    print("grib2io not available. Please install it with pip if you would like to write forecasts to grib2 format.")
 
 class EnsembleMemberProduct(object):
     """

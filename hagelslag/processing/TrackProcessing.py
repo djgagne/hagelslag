@@ -430,6 +430,9 @@ class TrackProcessor(object):
         for l_var in ["lon", "lat"]:
             for model_obj in tracked_model_objects:
                 model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
+            if tracked_model_patches is not None:
+                for model_obj in tracked_model_patches:
+                    model_obj.extract_attribute_array(getattr(self.model_grid, l_var), l_var)
         for storm_var in storm_variables:
             print("Storm {0} {1} {2}".format(storm_var, self.ensemble_member, self.run_date.strftime("%Y%m%d")))
             model_grids[storm_var] = ModelOutput(self.ensemble_name, self.ensemble_member,

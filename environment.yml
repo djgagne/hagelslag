@@ -26,6 +26,7 @@ dependencies:
   - mock
   - jasper
   - flake8
-  - openjpeg
+  - zarr
+  - pyarrow
   - pip:
-      - grib2io
+      - .

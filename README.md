@@ -1,7 +1,5 @@
 # Hagelslag
-
-[![Build Status](https://travis-ci.org/djgagne/hagelslag.svg?branch=master)](https://travis-ci.org/djgagne/hagelslag)
-
+## Storm tracking, machine learning, and probabilistic evaluation
 [![NSF-1261776](https://img.shields.io/badge/NSF-1261776-blue)](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1261776&HistoricalAwards=false)
 
 Hagelslag is an object-based severe storm forecasting system that utilizing image processing and machine learning tools
