@@ -10,14 +10,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install grib dependencies
-      shell: bash -l {0}
-      run: |
-        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
-        sudo apt update
-        sudo apt install libjasper1 libjasper-dev libopenjp2-7 libopenjp2-tools libopenjp2-7-dev
-        ldconfig -p | grep libjasper
-    - name: "Set up Python 3.8"
+    - name: "Set up Python 3"
       uses: conda-incubator/setup-miniconda@v2
       with:
         mamba-version: "*"
