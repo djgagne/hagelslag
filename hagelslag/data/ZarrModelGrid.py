@@ -38,7 +38,7 @@ class ZarrModelGrid(object):
         self.end_date = pd.to_datetime(end_date)
         self.frequency = frequency
         self.valid_dates = date_range(start=self.start_date, end=self.end_date, freq=self.frequency)
-        self.forecast_hours = (self.valid_dates - self.run_date).astype("timedelta64[h]").astype(int)
+        self.forecast_hours = (self.valid_dates - self.run_date).values.astype("timedelta64[h]").astype(int)
 
     def load_data(self):
 
