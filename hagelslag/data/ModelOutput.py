@@ -15,6 +15,7 @@ from .NCARModelGrid import NCARModelGrid
 from .NCARStormEventModelGrid import NCARStormEventModelGrid
 from .SSEFModelGrid import SSEFModelGrid
 from .VSEModelGrid import VSEModelGrid
+from .MPASHrrrGrid import MPASHrrrGrid
 
 
 class ModelOutput(object):
@@ -193,6 +194,15 @@ class ModelOutput(object):
                                    self.start_date,
                                    self.end_date,
                                    self.path)
+            self.data, self.units = mg.load_data()
+
+        elif self.ensemble_name.upper() == "MPAS-INTERP":
+            mg = MPASHrrrGrid(self.run_date,
+                              self.variable,
+                              self.start_date,
+                              self.end_date,
+                              self.member_name,
+                              self.path)
             self.data, self.units = mg.load_data()
         else:
             print(self.ensemble_name + " not supported.")
