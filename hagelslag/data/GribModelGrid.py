@@ -3,7 +3,6 @@ from os.path import exists
 
 import numpy as np
 import pandas as pd
-import pygrib
 from netCDF4 import Dataset
 
 
