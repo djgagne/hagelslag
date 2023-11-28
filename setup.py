@@ -10,18 +10,20 @@ classifiers = ['Development Status :: 4 - Beta',
                'Programming Language :: Python :: 3.7',
                'Programming Language :: Python :: 3.8',
                'Programming Language :: Python :: 3.9',
+               'Programming Language :: Python :: 3.10',
+               'Programming Language :: Python :: 3.11',
                ]
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
-requires = ["numpy", "matplotlib", "scipy", "xarray", "pandas", "scikit-image", "scikit-learn"]
+requires = ["numpy", "matplotlib", "scipy", "xarray", "pandas", "scikit-image", "scikit-learn", "dask", "zarr", "numba"]
 
 if __name__ == "__main__":
     pkg_description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
 
     setup(name="hagelslag",
-          version="0.5",
-          description="Object-based severe weather forecast system",
+          version="0.6",
+          description="Track weather objects, make ML forecasts, and evaluate them.",
           author="David John Gagne",
           author_email="dgagne@ucar.edu",
           long_description=pkg_description,

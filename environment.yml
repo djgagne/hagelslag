@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.8
+  - python<=3.11
   - numpy
   - scipy
   - s3fs
@@ -24,6 +24,8 @@ dependencies:
   - cython
   - sphinx
   - mock
+  - dask
+  - numba
   - jasper
   - flake8
   - zarr
