@@ -1,0 +1,20 @@
+High Resolution Rapid Refresh (HRRR)
+CONUS 3-D Native Level Fields (50 levels)
+GRIB2 Table Documentation
+25 Oct 2012
+
+RecordNumber,TableNumber,DisciplineNumber,CategoryNumber,ParameterNumber,WGrib2Name,NCLName,FieldType,Description,Units,
+1,0,0,3,0,PRES,PRES_P0_L100_GLC0,Pressure,Pressure,Pa,
+2,0,0,1,22,CLWMR,CLWMR_P0_L100_GLC0,Mixing Ratio,Cloud water mixing ratio,kg/kg,
+3,8,0,6,0,CICE,CICE_P0_L100_GLC0,Mixing Ratio,Cloud ice mixing ratio,kg/kg,
+4,8,0,1,24,RWMR,RWMR_P0_L100_GLC0,Mixing Ratio,Rain mixing ratio,kg/kg,
+5,8,0,1,25,SNMR,SNMR_P0_L100_GLC0,Mixing Ratio,Snow mixing ratio,kg/kg,
+6,0,0,1,32,GRLE,GRLE_P0_L100_GLC0,Mixing Ratio,Graupel mixing ratio,kg/kg,
+7,0,0,6,1,TCDC,TCDC_P0_L100_GLC0,Cloud Cover,Total cloud cover,%,
+8,0,0,3,5,HGT,HGT_P0_L100_GLC0,Geopotential Height,Geopotential height,gpm,
+9,0,0,0,0,TMP,TMP_P0_L100_GLC0,Temperature,Temperature,K,
+10,0,0,1,0,SPFH,SPFH_P0_L100_GLC0,Specific Humidity,Specific humidity,kg/kg,
+11.1,0,0,2,2,UGRD,UGRD_P0_L100_GLC0,Wind,U-component of wind,m/s,
+11.2,0,0,2,3,VGRD,VGRD_P0_L100_GLC0,Wind,V-component of wind,m/s,
+12,0,0,2,8,VVEL,VVEL_P0_L100_GLC0,Vertical Velocity,Vertical velocity (pressure),Pa/s,
+13,0,0,19,11,TKE,TKE_P0_L100_GLC0,Turbulent Kinetic Energy,Turbulent kinetic energy,m^2/s^2,
