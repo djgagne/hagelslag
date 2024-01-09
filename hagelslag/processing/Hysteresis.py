@@ -29,7 +29,11 @@ class Hysteresis(object):
         """
         high_labels, num_labels = label(input_grid > self.max_intensity)
         region_ranking = np.argsort(maximum(input_grid, high_labels, index=np.arange(1, num_labels + 1)))[::-1]
-        output_grid = grow_objects(input_grid, high_labels, region_ranking, self.min_intensity)
+        if np.ma.isMA(input_grid):
+            input_grid_unmasked = np.where(input_grid.mask, 0, input_grid)
+        else:
+            input_grid_unmasked = input_grid
+        output_grid = grow_objects(input_grid_unmasked, high_labels, region_ranking, self.min_intensity)
         return output_grid
 
     @staticmethod
