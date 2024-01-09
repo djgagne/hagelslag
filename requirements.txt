@@ -15,3 +15,5 @@ xarray
 sphinx
 pytest
 mock
+dask
+numba

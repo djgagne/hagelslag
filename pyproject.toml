@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hagelslag"
+description = "Hagelslag is a Python package for storm-based analysis, forecasting, and evaluation."
+authors = [{name= "David John Gagne", email = "dgagne@ucar.edu"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+dynamic = ["version"]
+requires-python = ">=3.7"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "xarray",
+    "pandas",
+    "scikit-image",
+    "scikit-learn",
+    "dask",
+    "zarr",
+    "numba",
+    "pygrib",
+    "pyproj",
+    "pyarrow",
+    "pyshp"
+]
+classifiers = ["Development Status :: 5 - Production/Stable",
+               "Intended Audience :: Science/Research",
+               "License :: OSI Approved :: MIT License",
+               "Programming Language :: Python :: 3",
+               "Programming Language :: Python :: 3.7",
+               "Programming Language :: Python :: 3.8",
+               "Programming Language :: Python :: 3.9",
+               "Programming Language :: Python :: 3.10",
+               "Programming Language :: Python :: 3.11",
+               ]
+keywords = ["hail", "verification", "tracking", "weather",
+    "meteorology", "machine learning"]
+
+[tool.setuptools]
+packages = ["hagelslag", "hagelslag.data", "hagelslag.processing", "hagelslag.evaluation", "hagelslag.util"]
+script-files = ["bin/hsdata", "bin/hsforecast", "bin/hseval", "bin/hsfileoutput", "bin/hsplotter",
+                   "bin/hsstation", "bin/hsncarpatch", "bin/hscalibration"]
+include-package-data = true
+zip-safe = false
+
+
+[tool.setuptools.dynamic]
+version = {file = "hagelslag/VERSION"}
+readme = {file = ["README.md"]}

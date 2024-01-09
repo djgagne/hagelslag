@@ -58,7 +58,7 @@ def label_storm_objects(data, method, min_intensity, max_intensity, min_area=1, 
     return label_grid
 
 
-def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, buffer_radius=0):
+def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, buffer_radius=0, estimate_motion=False):
     """
     After storms are labeled, this method extracts the storm objects from the grid and places them into STObjects.
     The STObjects contain intensity, location, and shape information about each storm at each timestep.
@@ -72,7 +72,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, b
         dx: grid spacing in same units as x_grid and y_grid.
         dt: period elapsed between times
         buffer_radius: number of extra pixels beyond bounding box of object to store in each STObject
-
+        estimate_motion: Estimate the speed of the object based on cross-correlation. Expensive for large objects, so default False.
     Returns:
         storm_objects: list of lists containing STObjects identified at each time.
     """
@@ -100,7 +100,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, b
                                                       time,
                                                       dx=dx,
                                                       step=dt))
-                    if t > 0:
+                    if t > 0 and estimate_motion:
                         dims = storm_objects[-1][-1].timesteps[0].shape
                         storm_objects[-1][-1].estimate_motion(time, data[t - 1], dims[1], dims[0])
     else:
@@ -128,7 +128,7 @@ def extract_storm_objects(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, b
     return storm_objects
 
 
-def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, patch_radius=16):
+def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, patch_radius=16, estimate_motion=False):
     """
     After storms are labeled, this method extracts boxes of equal size centered on each storm from the grid and places
     them into STObjects. The STObjects contain intensity, location, and shape information about each storm
@@ -152,7 +152,6 @@ def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, p
         ij_grid = np.indices(label_grid.shape[1:])
         for t, time in enumerate(times):
             storm_objects.append([])
-            # object_slices = find_objects(label_grid[t], label_grid[t].max())
             centers = list(center_of_mass(data[t], labels=label_grid[t], index=np.arange(1, label_grid[t].max() + 1)))
             if len(centers) > 0:
                 for o, center in enumerate(centers):
@@ -169,7 +168,7 @@ def extract_storm_patches(label_grid, data, x_grid, y_grid, times, dx=1, dt=1, p
                                                       time,
                                                       dx=dx,
                                                       step=dt))
-                    if t > 0:
+                    if t > 0 and estimate_motion:
                         dims = storm_objects[-1][-1].timesteps[0].shape
                         storm_objects[-1][-1].estimate_motion(time, data[t - 1], dims[1], dims[0])
     else:
