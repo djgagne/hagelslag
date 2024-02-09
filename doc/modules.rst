@@ -5,5 +5,3 @@ hagelslag
    :maxdepth: 4
 
    hagelslag
-   setup
-   test

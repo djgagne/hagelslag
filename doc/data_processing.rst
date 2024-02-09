@@ -86,6 +86,7 @@ arguments for pyproj projections except for dx, dy, sw_lon, sw_lat, ne_lon, and 
 to reconstruct the CAM grid. If you do not specify the map projection correctly, the created lat-lon and x-y grids
 may have a different number of grid dimensions than the data. Double check to be sure. The contents of an example
 map file are below::
+    
     proj=lcc # map projection
     a=6370000 # Major Radius of Earth in m. Note that WRF uses a spherical Earth.
     b=6370000 # Minor radius of Earth in m

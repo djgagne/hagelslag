@@ -321,8 +321,6 @@ class Munkres:
     @staticmethod
     def make_cost_matrix(profit_matrix, inversion_function):
         """
-        **DEPRECATED**
-
         Please use the module function ``make_cost_matrix()``.
         """
         return make_cost_matrix(profit_matrix, inversion_function)
@@ -680,18 +678,6 @@ def make_cost_matrix(profit_matrix, inversion_function):
     function must take one numeric argument (of any type) and return
     another numeric argument which is presumed to be the cost inverse
     of the original profit.
-
-    This is a static method. Call it like this:
-
-    .. python::
-
-        cost_matrix = Munkres.make_cost_matrix(matrix, inversion_func)
-
-    For example:
-
-    .. python::
-
-        cost_matrix = Munkres.make_cost_matrix(matrix, lambda x : sys.maxsize - x)
 
     :Parameters:
         profit_matrix : list of lists

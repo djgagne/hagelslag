@@ -5,7 +5,7 @@ import pandas as pd
 import pyproj
 from netCDF4 import Dataset
 
-from make_proj_grids import read_ncar_map_file, make_proj_grids
+from .make_proj_grids import read_ncar_map_file, make_proj_grids
 
 
 def main():

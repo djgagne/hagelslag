@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import numpy as np
-
 from .GribModelGrid import GribModelGrid
 from .ModelGrid import ModelGrid
 
@@ -8,6 +7,7 @@ from .ModelGrid import ModelGrid
 class FV3ModelGrid(GribModelGrid):
     """
     Extension of the ModelGrid class for interfacing with the HREFv2  ensemble.
+
     Args:
         member (str): Name of the ensemble member
         run_date (datetime.datetime object): Date of the initial step of the ensemble run
@@ -16,7 +16,7 @@ class FV3ModelGrid(GribModelGrid):
         end_date (datetime.datetime object): Last time step extracted.
         path (str): Path to model output files
         single_step (boolean (default=True): Whether variable information is stored with each time step in a separate
-                file (True) or one file containing all timesteps (False).
+            file (True) or one file containing all timesteps (False).
     """
 
     def __init__(self, member, run_date, variable, start_date,

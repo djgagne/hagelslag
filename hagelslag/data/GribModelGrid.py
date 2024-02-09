@@ -12,13 +12,13 @@ class GribModelGrid(object):
     Given a list of file names, loads the values of a single variable from a model run. Supports model output in
     grib2 format
     Attributes:
-            filenames (list of str): List of grib2 files containing model output
-            run_date (ISO date string or datetime.datetime object): Date of the initialization time of the model run.
-            start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
-            end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
-            variable (str): Grib2 variable
-            member (str): Individual ensemble member.
-            frequency (str): Spacing between model time steps.
+        filenames (list of str): List of grib2 files containing model output
+        run_date (ISO date string or datetime.datetime object): Date of the initialization time of the model run.
+        start_date (ISO date string or datetime.datetime object): Date of the first timestep extracted.
+        end_date (ISO date string or datetime.datetime object): Date of the last timestep extracted.
+        variable (str): Grib2 variable
+        member (str): Individual ensemble member.
+        frequency (str): Spacing between model time steps.
     """
 
     def __init__(self,
@@ -60,6 +60,7 @@ class GribModelGrid(object):
         Assigns name to grib2 message number with name 'unknown'. Names based on NOAA grib2 abbreviations.
 
         Names:
+
             197: RETOP: Echo Top
             198: MAXREF: Hourly Maximum of Simulated Reflectivity at 1 km AGL
             199: MXUPHL: Hourly Maximum of Updraft Helicity over Layer 2km to 5 km AGL, and 0km to 3km AGL
@@ -73,6 +74,7 @@ class GribModelGrid(object):
 
         Args:
             selected_variable(str): Name of selected variable for loading
+
         Returns:
             Given an uknown string name of a variable, returns the grib2 message Id
             and units of the variable, based on the self.unknown_name and

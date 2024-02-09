@@ -9,11 +9,11 @@ import os
 
 class TestTracking(unittest.TestCase):
     def setUp(self):
-        current_dir_files = os.listdir("./")
+        current_dir_files = os.listdir("/")
         if "testdata" not in current_dir_files:
-            start_path = "../"
+            start_path = "../../"
         else:
-            start_path = "./"
+            start_path = "/"
         self.model_path = start_path + "testdata/spring2015_unidata/"
         self.ensemble_name = "SSEF"
         self.member ="wrf-s3cn_arw"
