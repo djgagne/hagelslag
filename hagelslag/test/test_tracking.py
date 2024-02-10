@@ -9,12 +9,7 @@ import os
 
 class TestTracking(unittest.TestCase):
     def setUp(self):
-        current_dir_files = os.listdir("/")
-        if "testdata" not in current_dir_files:
-            start_path = "../../"
-        else:
-            start_path = "/"
-        self.model_path = start_path + "testdata/spring2015_unidata/"
+        self.model_path = "testdata/spring2015_unidata/"
         self.ensemble_name = "SSEF"
         self.member ="wrf-s3cn_arw"
         self.run_date = datetime(2015, 6, 4)
@@ -23,7 +18,7 @@ class TestTracking(unittest.TestCase):
         self.end_hour = 24
         self.start_date = self.run_date + timedelta(hours=self.start_hour)
         self.end_date = self.run_date + timedelta(hours=self.end_hour)
-        self.map_file = start_path + "mapfiles/ssef2015.map"
+        self.map_file = "mapfiles/ssef2015.map"
         self.model_grid = ModelOutput(self.ensemble_name,
                                  self.member,
                                  self.run_date,

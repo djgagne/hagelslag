@@ -24,7 +24,9 @@ dependencies = [
     "pygrib",
     "pyproj",
     "pyarrow",
-    "pyshp"
+    "pyshp",
+    "sphinx",
+    "sphinx-book-theme"
 ]
 classifiers = ["Development Status :: 5 - Production/Stable",
                "Intended Audience :: Science/Research",

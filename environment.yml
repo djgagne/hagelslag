@@ -2,7 +2,7 @@ name: hagelslag
 channels:
   - conda-forge
 dependencies:
-  - python<=3.10
+  - python<=3.11
   - numpy
   - scipy
   - s3fs
@@ -22,7 +22,6 @@ dependencies:
   - arrow
   - cython
   - sphinx
-  - mock
   - dask
   - numba
   - jasper
@@ -30,4 +29,5 @@ dependencies:
   - zarr
   - pyarrow
   - pip:
+      - sphinx-book-theme
       - .
