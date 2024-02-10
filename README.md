@@ -1,6 +1,8 @@
 # Hagelslag
 ## Storm tracking, machine learning, and probabilistic evaluation
 [![NSF-1261776](https://img.shields.io/badge/NSF-1261776-blue)](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1261776&HistoricalAwards=false)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/hagelslag)
+
 
 Hagelslag is an object-based severe storm forecasting system that utilizing image processing and machine learning tools
 to derive calibrated probabilities of severe hazards from convection-allowing numerical weather prediction model output.
